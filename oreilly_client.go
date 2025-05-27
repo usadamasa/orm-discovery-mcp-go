@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -52,7 +53,7 @@ type SearchResult struct {
 }
 
 // Search はO'Reilly Learning Platformで検索を実行します
-func (c *OreillyClient) Search(query string, limit int) (*SearchResponse, error) {
+func (c *OreillyClient) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
 	if query == "" {
 		return nil, fmt.Errorf("search query cannot be empty")
 	}
@@ -72,7 +73,8 @@ func (c *OreillyClient) Search(query string, limit int) (*SearchResponse, error)
 	}
 
 	// リクエストの作成
-	req, err := http.NewRequest(
+	req, err := http.NewRequestWithContext(
+		ctx,
 		"POST",
 		fmt.Sprintf("%s/search/", baseURL),
 		bytes.NewBuffer(jsonData),

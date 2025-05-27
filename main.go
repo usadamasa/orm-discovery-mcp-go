@@ -30,7 +30,7 @@ func main() {
 	// サーバーを別ゴルーチンで起動
 	go func() {
 		httpServer := srv.CreateNewServer()
-		port := fmt.Sprintf(":%d", cfg.Port) // strconv.Itoa(cfg.Port)
+		port := fmt.Sprintf(":%d", cfg.Port)
 		log.Printf("HTTP server listening on %s", port)
 		if err := httpServer.Start(port); err != nil {
 			log.Fatalf("Server error: %v", err)
