@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -54,6 +55,7 @@ type SearchResult struct {
 
 // Search はO'Reilly Learning Platformで検索を実行します
 func (c *OreillyClient) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
+	log.Printf("O'Reilly APIで検索が要求されました: %s\n", query)
 	if query == "" {
 		return nil, fmt.Errorf("search query cannot be empty")
 	}
@@ -89,12 +91,14 @@ func (c *OreillyClient) Search(ctx context.Context, query string, limit int) (*S
 	req.Header.Set("Accept", "application/json")
 
 	// リクエストの実行
+	log.Printf("O'Reilly APIで検索を実行します: %s\n", query)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	log.Printf("O'Reilly APIからのレスポンスステータス: %d\n", resp.StatusCode)
 	// レスポンスボディの読み取り
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -112,5 +116,6 @@ func (c *OreillyClient) Search(ctx context.Context, query string, limit int) (*S
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	log.Printf("O'Reilly APIからの検索結果: %d件", searchResp.Count)
 	return &searchResp, nil
 }

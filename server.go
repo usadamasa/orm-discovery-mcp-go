@@ -72,7 +72,6 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 		Query string `json:"query"`
 		Limit int    `json:"limit,omitempty"`
 	}
-	fmt.Printf("request: %x", request)
 	argumentsBytes, err := json.Marshal(request.Params.Arguments)
 	if err != nil {
 		return mcp.NewToolResultError("failed to marshal arguments"), nil
