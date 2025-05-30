@@ -75,10 +75,10 @@ func (s *Server) registerHandlers() {
 	)
 	s.mcpServer.AddTool(searchTool, s.SearchContentHandler)
 
-	listCollectionTool := mcp.NewTool("list_collection",
-		mcp.WithDescription("List collections on O'Reilly Learning Platform"),
+	listCollectionsTool := mcp.NewTool("list_collections",
+		mcp.WithDescription("List my collections on O'Reilly Learning Platform"),
 	)
-	s.mcpServer.AddTool(listCollectionTool, s.ListCollectionHandler)
+	s.mcpServer.AddTool(listCollectionsTool, s.ListCollectionsHandler)
 
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
 }
@@ -159,7 +159,7 @@ func (s *Server) handlePing(ctx context.Context, notification mcp.JSONRPCNotific
 	}
 }
 
-func (s *Server) ListCollectionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) ListCollectionsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Printf("リクエスト受信: %+v", request)
 
 	// O'Reilly APIでコレクション取得を実行
