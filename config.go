@@ -7,7 +7,7 @@ import (
 
 // Config はアプリケーションの設定を保持します
 type Config struct {
-	Port       int
+	Port       string
 	Debug      bool
 	Transport  string
 	OReillyJWT string
@@ -16,11 +16,9 @@ type Config struct {
 // LoadConfig は環境変数から設定を読み込みます
 func LoadConfig() (*Config, error) {
 	// ポート番号の取得（デフォルト: 8080）
-	port := 8080
+	port := "8080"
 	if portStr := os.Getenv("PORT"); portStr != "" {
-		if p, err := strconv.Atoi(portStr); err == nil {
-			port = p
-		}
+		port = portStr
 	}
 
 	// デバッグモードの取得（デフォルト: false）

@@ -66,15 +66,20 @@ func (s *Server) StartStdioServer() error {
 // registerHandlers はハンドラーを登録します
 func (s *Server) registerHandlers() {
 	// Add tool
-	tool := mcp.NewTool("search_content",
+	searchTool := mcp.NewTool("search_content",
 		mcp.WithDescription("Search content on O'Reilly Learning Platform"),
 		mcp.WithString("query",
 			mcp.Required(),
 			mcp.Description("The search query to find content on O'Reilly Learning Platform"),
 		),
 	)
+	s.mcpServer.AddTool(searchTool, s.SearchContentHandler)
 
-	s.mcpServer.AddTool(tool, s.SearchContentHandler)
+	listCollectionTool := mcp.NewTool("list_collection",
+		mcp.WithDescription("List collections on O'Reilly Learning Platform"),
+	)
+	s.mcpServer.AddTool(listCollectionTool, s.ListCollectionHandler)
+
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
 }
 
@@ -152,4 +157,44 @@ func (s *Server) handlePing(ctx context.Context, notification mcp.JSONRPCNotific
 			log.Printf("Failed to send pong notification")
 		}
 	}
+}
+
+func (s *Server) ListCollectionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("リクエスト受信: %+v", request)
+
+	// O'Reilly APIでコレクション取得を実行
+	log.Printf("O'Reillyクライアント呼び出し前")
+	results, err := s.oreillyClient.ListCollections(ctx)
+	if err != nil {
+		log.Printf("O'Reillyクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil
+	}
+	log.Printf("O'Reillyクライアント呼び出し後: %v", results)
+
+	// 結果をレスポンスに変換
+	response := struct {
+		Count   int           `json:"count"`
+		Results []interface{} `json:"results"`
+	}{
+		Count:   len(results.Results),
+		Results: make([]interface{}, 0, len(results.Results)),
+	}
+
+	for _, result := range results.Results {
+		response.Results = append(response.Results, map[string]interface{}{
+			"id":          result.ID,
+			"title":       result.Name,
+			"description": result.Description,
+			"web_url":     result.WebURL,
+			"type":        result.Type,
+			"content":     result.Content,
+		})
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	// レスポンスを返す
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }

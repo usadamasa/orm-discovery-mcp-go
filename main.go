@@ -18,8 +18,8 @@ func main() {
 	s := NewServer(oreillyClient)
 
 	if cfg.Transport == "http" {
-		log.Printf("HTTPサーバーを起動します")
-		if err := s.StartStreamableHTTPServer(fmt.Sprintf(":%d", cfg.Port)); err != nil {
+		log.Printf("HTTPサーバーを起動します :%s/mcp", cfg.Port)
+		if err := s.StartStreamableHTTPServer(fmt.Sprintf(":%s", cfg.Port)); err != nil {
 			log.Fatalf("HTTPサーバーの起動に失敗しました: %v", err)
 		}
 	} else {
