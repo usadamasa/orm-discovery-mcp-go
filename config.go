@@ -31,7 +31,7 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	transport := "http"
+	transport := "stdio"
 	if transportStr := os.Getenv("TRANSPORT"); transportStr != "" {
 		transport = transportStr
 	}

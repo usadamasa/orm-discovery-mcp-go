@@ -17,9 +17,16 @@ func main() {
 	oreillyClient := NewOreillyClient(cfg.OReillyJWT)
 	s := NewServer(oreillyClient)
 
-	log.Printf("サーバーを起動します")
-	if err := s.StartStdioServer(); err != nil {
-		fmt.Printf("Server error: %v\n", err)
+	if cfg.Transport == "http" {
+		log.Printf("HTTPサーバーを起動します")
+		if err := s.StartStreamableHTTPServer(fmt.Sprintf(":%d", cfg.Port)); err != nil {
+			log.Fatalf("HTTPサーバーの起動に失敗しました: %v", err)
+		}
+	} else {
+		log.Printf("サーバーを起動します")
+		if err := s.StartStdioServer(); err != nil {
+			fmt.Printf("Server error: %v\n", err)
+		}
 	}
 	log.Println("サーバーが正常にシャットダウンしました")
 }

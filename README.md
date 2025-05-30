@@ -21,11 +21,12 @@ Set Environment Variables
 ```bash
 export PORT=8080
 export OREILLY_API_KEY=YOUR_API_KEY
+export TRANSPORT=http
 ```
 
 Run Server.
 ```bash
-go run main.go
+go run .
 ```
 
 In another terminal, you can see `tools/list` of the server.
@@ -92,6 +93,22 @@ $ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -
         "text": "SEARCH RESPONSE"
       }
     ]
+  }
+}
+```
+
+# On Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "orm-discovery-mcp-go": {
+      "command": "/your/path/to/orm-discovery-mcp-go",
+      "args": [],
+      "env": {
+        "ORM_JWT": "YOUR_API_KEY"
+      }
+    }
   }
 }
 ```
