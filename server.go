@@ -18,10 +18,12 @@ type Server struct {
 // NewServer は新しいサーバーインスタンスを作成します
 func NewServer(oreillyClient *OreillyClient) *Server {
 	// MCPサーバーの設定とデバッグログの追加
-	mcpServer := server.NewMCPServer("Demo 🚀",
+	mcpServer := server.NewMCPServer(
+		" Search O'Reilly Learning Platform",
 		"1.0.0",
-		server.WithToolCapabilities(false),
-		server.WithLogging(), // ログ機能を有効化
+		server.WithResourceCapabilities(true, true),
+		server.WithToolCapabilities(true),
+		server.WithLogging(),
 	)
 
 	srv := &Server{
@@ -32,19 +34,33 @@ func NewServer(oreillyClient *OreillyClient) *Server {
 	log.Printf("サーバーを初期化しました")
 
 	srv.registerHandlers()
+	log.Printf("ハンドラーを登録しました")
 
 	return srv
 }
 
-// CreateNewServer はMCPサーバを返します
-func (s *Server) CreateNewServer() *server.StreamableHTTPServer {
+// StartStreamableHTTPServer はMCPサーバを返します
+func (s *Server) StartStreamableHTTPServer(port string) error {
 	// タイムアウト設定を調整したサーバーを作成
 	httpServer := server.NewStreamableHTTPServer(
 		s.mcpServer,
 		server.WithStateLess(true),
 	)
 	log.Printf("HTTPサーバーを作成しました")
-	return httpServer
+	err := httpServer.Start(port)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) StartStdioServer() error {
+	// MCPサーバーを標準入出力で起動
+	log.Printf("MCPサーバーを標準入出力で起動します")
+	if err := server.ServeStdio(s.mcpServer); err != nil {
+		return fmt.Errorf("failed to start MCP server: %w", err)
+	}
+	return nil
 }
 
 // registerHandlers はハンドラーを登録します
@@ -60,7 +76,6 @@ func (s *Server) registerHandlers() {
 
 	s.mcpServer.AddTool(tool, s.SearchContentHandler)
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
-	log.Printf("ハンドラーを登録しました")
 }
 
 // SearchContentHandler は検索リクエストを処理します
@@ -137,9 +152,4 @@ func (s *Server) handlePing(ctx context.Context, notification mcp.JSONRPCNotific
 			log.Printf("Failed to send pong notification")
 		}
 	}
-}
-
-// Shutdown はサーバーをシャットダウンします
-func (s *Server) Shutdown(_ context.Context) error {
-	return nil
 }

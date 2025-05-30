@@ -9,6 +9,7 @@ import (
 type Config struct {
 	Port       int
 	Debug      bool
+	Transport  string
 	OReillyJWT string
 }
 
@@ -30,9 +31,15 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	transport := "http"
+	if transportStr := os.Getenv("TRANSPORT"); transportStr != "" {
+		transport = transportStr
+	}
+
 	return &Config{
 		Port:       port,
 		Debug:      debug,
+		Transport:  transport,
 		OReillyJWT: os.Getenv("ORM_JWT"),
 	}, nil
 }
