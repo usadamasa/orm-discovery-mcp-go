@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -718,6 +719,355 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 	}
 
 	log.Printf("検索が完了しました。%d件の結果を取得: %s", len(results), query)
+	return results, nil
+}
+
+// SearchContentAPI は O'Reilly Learning Platform の内部 API を使用して検索を実行します
+func (bc *BrowserClient) SearchContentAPI(query string, options map[string]interface{}) ([]map[string]interface{}, error) {
+	log.Printf("API検索を開始します: %s", query)
+	
+	// オプションのデフォルト値を設定
+	rows := 100
+	if r, ok := options["rows"].(int); ok && r > 0 {
+		rows = r
+	}
+	
+	// 言語オプションは現在使用していないため、将来の拡張用として保持
+	_ = options["languages"] // 未使用警告を回避
+	
+	tzOffset := -9 // JST
+	if tz, ok := options["tzOffset"].(int); ok {
+		tzOffset = tz
+	}
+	
+	aiaOnly := false
+	if aia, ok := options["aia_only"].(bool); ok {
+		aiaOnly = aia
+	}
+	
+	featureFlags := "improveSearchFilters"
+	if ff, ok := options["feature_flags"].(string); ok && ff != "" {
+		featureFlags = ff
+	}
+	
+	report := true
+	if rep, ok := options["report"].(bool); ok {
+		report = rep
+	}
+	
+	isTopics := false
+	if topics, ok := options["isTopics"].(bool); ok {
+		isTopics = topics
+	}
+	
+	var results []map[string]interface{}
+	var networkResponses []string
+	
+	// ネットワークリクエストとコンソールログの監視を有効化
+	chromedp.ListenTarget(bc.ctx, func(ev interface{}) {
+		switch ev := ev.(type) {
+		case *network.EventResponseReceived:
+			resp := ev.Response
+			if strings.Contains(resp.URL, "/api/") || 
+			   strings.Contains(resp.URL, "search") ||
+			   strings.Contains(resp.URL, "query") {
+				networkResponses = append(networkResponses, resp.URL)
+				log.Printf("検出されたAPI呼び出し: %s", resp.URL)
+			}
+		case *runtime.EventConsoleAPICalled:
+			args := make([]string, len(ev.Args))
+			for i, arg := range ev.Args {
+				if len(arg.Value) > 0 {
+					args[i] = string(arg.Value)
+				} else {
+					args[i] = arg.Type.String()
+				}
+			}
+			log.Printf("コンソールログ [%s]: %s", ev.Type, strings.Join(args, " "))
+		}
+	})
+	
+	err := chromedp.Run(bc.ctx,
+		// ネットワーク監視とランタイムイベントを有効化
+		network.Enable(),
+		runtime.Enable(),
+		
+		// 検索ページに移動
+		chromedp.Navigate("https://www.oreilly.com/search/"),
+		chromedp.WaitVisible(`body`, chromedp.ByQuery),
+		chromedp.Sleep(3*time.Second),
+		
+		// 検索APIを直接呼び出すJavaScriptを実行
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			log.Printf("API検索のJavaScript実行を開始します")
+			
+			// まず現在のページで学習プラットフォームにアクセスできているか確認
+			var currentUrl string
+			if err := chromedp.Location(&currentUrl).Do(ctx); err == nil {
+				log.Printf("現在のURL: %s", currentUrl)
+				if !strings.Contains(currentUrl, "oreilly.com") {
+					log.Printf("O'Reillyドメインにいません。learning.oreilly.comにリダイレクトします")
+					if err := chromedp.Navigate("https://learning.oreilly.com/search/").Do(ctx); err != nil {
+						log.Printf("学習プラットフォームへのナビゲートに失敗: %v", err)
+					} else {
+						_ = chromedp.Sleep(2 * time.Second).Do(ctx)
+					}
+				}
+			}
+			
+			// 学習プラットフォームでより直接的なAPI呼び出しを試行
+			log.Printf("学習プラットフォームでの直接API検索を試行します")
+			if err := chromedp.Navigate("https://learning.oreilly.com/search/").Do(ctx); err != nil {
+				log.Printf("学習プラットフォーム検索ページへのナビゲートに失敗: %v", err)
+			} else {
+				_ = chromedp.Sleep(3 * time.Second).Do(ctx)
+			}
+			
+			// 現在のページでAPIアクセス可能性をテスト
+			var testResult string
+			if err := chromedp.Evaluate(`
+				// APIエンドポイントの存在確認
+				(function() {
+					console.log('APIエンドポイント存在確認開始');
+					console.log('現在のホスト:', window.location.hostname);
+					console.log('現在のパス:', window.location.pathname);
+					
+					// 利用可能そうなAPIエンドポイントをテスト
+					const endpoints = [
+						'/api/v2/search/',
+						'/search/api/search/',
+						'/api/search/',
+						'/learningapi/v1/search/'
+					];
+					
+					return 'test_complete';
+				})()
+			`, &testResult).Do(ctx); err == nil {
+				log.Printf("APIテスト完了: %s", testResult)
+			}
+			
+			// O'Reilly の検索 API を直接呼び出し（同期的実行）
+			var apiResults map[string]interface{}
+			jsCode := fmt.Sprintf(`
+				(() => {
+					console.log('検索API呼び出し開始: %s');
+					
+					try {
+						// XMLHttpRequestを使用して同期的に実行
+						const xhr = new XMLHttpRequest();
+						
+						// O'Reilly の検索APIエンドポイント
+						const baseUrl = window.location.hostname.includes('learning.oreilly.com') 
+							? '/api/v2/search/'  
+							: '/search/api/search/';
+						
+						// パラメータを構築
+						const params = new URLSearchParams({
+							q: '%s',
+							rows: %d,
+							tzOffset: %d,
+							aia_only: %t,
+							feature_flags: '%s',
+							report: %t,
+							isTopics: %t
+						});
+						
+						const fullUrl = baseUrl + '?' + params.toString();
+						console.log('API URL:', fullUrl);
+						console.log('現在のドメイン:', window.location.hostname);
+						console.log('XHR呼び出し開始');
+						
+						xhr.open('GET', fullUrl, false); // false = 同期実行
+						xhr.setRequestHeader('Accept', 'application/json');
+						xhr.setRequestHeader('Content-Type', 'application/json');
+						xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+						xhr.withCredentials = true;
+						
+						xhr.send();
+						
+						console.log('XHR呼び出し完了');
+						console.log('Response status:', xhr.status);
+						console.log('Response statusText:', xhr.statusText);
+						
+						if (xhr.status !== 200) {
+							console.error('API呼び出し失敗:', xhr.status, xhr.statusText);
+							console.error('レスポンス本文:', xhr.responseText);
+							
+							// フォールバック: 別のエンドポイントを試行
+							const xhr2 = new XMLHttpRequest();
+							const fallbackUrl = '/search/api/search/' + '?' + params.toString();
+							console.log('フォールバックURL:', fallbackUrl);
+							
+							xhr2.open('GET', fallbackUrl, false);
+							xhr2.setRequestHeader('Accept', 'application/json');
+							xhr2.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+							xhr2.withCredentials = true;
+							xhr2.send();
+							
+							if (xhr2.status === 200) {
+								console.log('フォールバック成功:', xhr2.status);
+								const data = JSON.parse(xhr2.responseText);
+								console.log('フォールバックデータ受信');
+								return processAPIResponse(data);
+							} else {
+								console.error('フォールバックも失敗:', xhr2.status);
+								return { results: [], error: 'API呼び出し失敗: ' + xhr.status + ' -> ' + xhr2.status };
+							}
+						}
+						
+						const data = JSON.parse(xhr.responseText);
+						console.log('API レスポンス受信完了、データタイプ:', typeof data);
+						console.log('API レスポンス（最初の部分）:', JSON.stringify(data).substring(0, 500));
+						
+						return processAPIResponse(data);
+						
+					} catch (error) {
+						console.error('API検索エラー:', error);
+						return { results: [], error: error.message };
+					}
+					
+					function processAPIResponse(data) {
+						// レスポンスから結果を抽出
+						let searchResults = [];
+						
+						// O'Reilly の実際のAPIレスポンス構造に対応
+						if (data && data.data && data.data.products && Array.isArray(data.data.products)) {
+							console.log('data.products配列から抽出:', data.data.products.length + '件');
+							searchResults = data.data.products;
+						} else if (data && data.results && Array.isArray(data.results)) {
+							console.log('results配列から抽出:', data.results.length + '件');
+							searchResults = data.results;
+						} else if (data && data.items && Array.isArray(data.items)) {
+							console.log('items配列から抽出:', data.items.length + '件');
+							searchResults = data.items;
+						} else if (data && data.hits && Array.isArray(data.hits)) {
+							console.log('hits配列から抽出:', data.hits.length + '件');
+							searchResults = data.hits;
+						} else if (data && Array.isArray(data)) {
+							console.log('データ配列から抽出:', data.length + '件');
+							searchResults = data;
+						} else {
+							console.log('予期しないレスポンス構造:', typeof data);
+							console.log('利用可能なキー:', Object.keys(data || {}));
+							if (data && data.data) {
+								console.log('data内のキー:', Object.keys(data.data || {}));
+							}
+							searchResults = [];
+						}
+						
+						// 結果を正規化
+						const normalizedResults = searchResults.slice(0, %d).map((item, index) => {
+							console.log('アイテム ' + index + ' を正規化中');
+							
+							// URLの正規化 - O'Reillyの構造に合わせて
+							let itemUrl = item.web_url || item.url || item.learning_url || item.link || '';
+							if (!itemUrl && item.product_id) {
+								// product_idからURLを生成
+								itemUrl = 'https://learning.oreilly.com/library/view/-/' + item.product_id + '/';
+							}
+							if (itemUrl && !itemUrl.startsWith('http')) {
+								if (itemUrl.startsWith('/')) {
+									itemUrl = 'https://learning.oreilly.com' + itemUrl;
+								}
+							}
+							
+							// 著者の正規化 - O'Reillyの構造に合わせて
+							let authors = [];
+							if (item.authors && Array.isArray(item.authors)) {
+								authors = item.authors;
+							} else if (item.author) {
+								authors = [item.author];
+							} else if (item.creators && Array.isArray(item.creators)) {
+								authors = item.creators.map(c => c.name || c.toString());
+							} else if (item.author_names && Array.isArray(item.author_names)) {
+								authors = item.author_names;
+							}
+							
+							// コンテンツタイプの決定 - O'Reillyの構造に合わせて  
+							let contentType = item.content_type || item.type || item.format || item.product_type || 'unknown';
+							if (contentType === 'unknown' && itemUrl) {
+								if (itemUrl.includes('/video')) {
+									contentType = 'video';
+								} else if (itemUrl.includes('/library/view/') || itemUrl.includes('/book/')) {
+									contentType = 'book';
+								}
+							}
+							
+							// タイトルと説明の抽出
+							const title = item.title || item.name || item.display_title || item.product_name || '';
+							const description = item.description || item.summary || item.excerpt || 
+											  item.description_with_markups || item.short_description || '';
+							
+							return {
+								id: item.product_id || item.id || item.ourn || item.isbn || ('api_result_' + index),
+								title: title,
+								authors: authors,
+								content_type: contentType,
+								description: description,
+								url: itemUrl,
+								ourn: item.ourn || item.product_id || item.id || item.isbn || '',
+								publisher: item.publisher || (item.publishers && item.publishers[0]) || 
+										 item.imprint || item.publisher_name || '',
+								published_date: item.published_date || item.publication_date || 
+											   item.date_published || item.pub_date || '',
+								source: 'api_search_oreilly'
+							};
+						});
+						
+						console.log('正規化された結果:', normalizedResults.length + '件');
+						return { results: normalizedResults };
+					}
+				})()
+			`, 
+				query,
+				query, 
+				rows, 
+				tzOffset,
+				aiaOnly,
+				featureFlags,
+				report,
+				isTopics,
+				rows, // 結果数制限用
+			)
+			
+			if err := chromedp.Evaluate(jsCode, &apiResults).Do(ctx); err != nil {
+				log.Printf("API検索のJavaScript実行でエラーが発生しました: %v", err)
+				return err
+			}
+			
+			// APIレスポンスから結果配列を抽出
+			if resultsArray, ok := apiResults["results"].([]interface{}); ok {
+				for _, item := range resultsArray {
+					if itemMap, ok := item.(map[string]interface{}); ok {
+						results = append(results, itemMap)
+					}
+				}
+			}
+			
+			// エラーがあればログ出力
+			if errorMsg, ok := apiResults["error"].(string); ok && errorMsg != "" {
+				log.Printf("JavaScript API エラー: %s", errorMsg)
+			}
+			
+			log.Printf("API検索結果を取得しました: %d件", len(results))
+			return nil
+		}),
+	)
+
+	if err != nil {
+		log.Printf("API検索処理でエラーが発生しました: %v", err)
+		return nil, fmt.Errorf("API検索処理でエラーが発生しました: %w", err)
+	}
+
+	// ネットワークレスポンスのログ出力
+	if len(networkResponses) > 0 {
+		log.Printf("検出されたネットワーク呼び出し:")
+		for _, response := range networkResponses {
+			log.Printf("  - %s", response)
+		}
+	}
+
+	log.Printf("API検索が完了しました。%d件の結果を取得: %s", len(results), query)
 	return results, nil
 }
 

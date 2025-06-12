@@ -95,10 +95,10 @@ func (c *OreillyClient) Search(ctx context.Context, params SearchParams) (*Searc
 		"languages": params.Languages,
 	}
 
-	// ブラウザクライアントで検索を実行
-	results, err := c.browserClient.SearchContent(params.Query, options)
+	// JavaScript API検索を実行（ブラウザコンテキスト内で実行され、最も成功率が高い）
+	results, err := c.browserClient.SearchContentAPI(params.Query, options)
 	if err != nil {
-		return nil, fmt.Errorf("browser search failed: %w", err)
+		return nil, fmt.Errorf("API search failed: %w", err)
 	}
 
 	// ブラウザクライアントの結果をAPIレスポンス形式に変換
