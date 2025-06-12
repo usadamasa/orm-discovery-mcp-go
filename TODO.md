@@ -1,250 +1,205 @@
-# オライリーコレクション MCP サーバー バックログ
+# OreillyClient ヘッドレスブラウザ移行 TODO
 
-## 🎯 現在の実装状況
+## 概要
+現在のOreillyClientはAPIベースとヘッドレスブラウザの両方をサポートしていますが、完全にヘッドレスブラウザ方式に移行するための変更が必要です。
 
-### ✅ 実装済み機能
-- [x] コンテンツ検索 (`search_content`) - ブラウザ認証対応
-- [x] マイコレクション一覧表示 (`list_collections`) - ブラウザ認証対応 + ホームページ取得
-- [x] 書籍要約生成 (`summarize_books`) - ブラウザ認証対応
-- [x] ヘッドレスブラウザ認証システム (環境変数からID/パスワード取得)
-- [x] ACM IDPリダイレクト対応
-- [x] セッション管理とCookie自動取得
-- [x] 基本的なMCPサーバー実装
+## 現在の状況分析
 
-## 📋 機能拡張バックログ
+### 既存の実装
+- `oreilly_client.go`: APIベースの実装（HTTP APIを直接呼び出し）
+- `browser_client.go`: ヘッドレスブラウザの実装（chromedpを使用）
+- `main.go`: 現在はブラウザクライアントを使用してOreillyClientを初期化
+- `server.go`: MCPサーバーの実装
+- `config.go`: 設定管理（API認証情報とブラウザ認証情報の両方をサポート）
 
-### 🔥 高優先度 (P0)
+### 現在の問題点
+1. OreillyClientがAPIベースのメソッドを持ちながら、BrowserClientに依存している
+2. 認証情報の管理が複雑（API用のトークンとブラウザ用の認証情報が混在）
+3. エラーハンドリングがAPI前提で設計されている
 
-#### コレクション管理機能
-- [x] **コレクション作成** (`create_collection`)
-  - 新しいコレクションを作成する機能
-  - パラメータ: name, description, privacy_setting
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+## 変更が必要な箇所
 
-- [x] **コレクションにコンテンツ追加** (`add_to_collection`)
-  - 既存のコレクションにコンテンツを追加
-  - パラメータ: collection_id, content_id, content_type
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+### 1. oreilly_client.go の大幅な変更 🔴 HIGH PRIORITY
 
-- [x] **コレクションからコンテンツ削除** (`remove_from_collection`)
-  - コレクションからコンテンツを削除
-  - パラメータ: collection_id, content_id
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 1.1 構造体の変更
+- [ ] `OreillyClient`構造体からAPI関連のフィールドを削除
+  - `httpClient *http.Client` → 削除
+  - `cookieStr string` → 削除  
+  - `jwtToken string` → 削除
+  - `sessionID string` → 削除
+  - `refreshToken string` → 削除
+- [ ] `browserClient *BrowserClient`のみを保持する構造に変更
 
-- [x] **コレクション詳細取得** (`get_collection_details`)
-  - 特定のコレクションの詳細情報とコンテンツ一覧を取得
-  - パラメータ: collection_id, include_content
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 1.2 コンストラクタの変更
+- [ ] `NewOreillyClient`関数を削除（API認証情報ベースのコンストラクタ）
+- [ ] `NewOreillyClientWithBrowser`を`NewOreillyClient`にリネーム
+- [ ] API認証情報を受け取るパラメータを削除
 
-#### 認証・セキュリティ強化
-- [x] **ヘッドレスブラウザ認証**
-  - 環境変数からID/パスワードを取得してブラウザでログイン
-  - ACM IDPリダイレクト対応
-  - 実装ファイル: `browser_client.go`, `main.go`
+#### 1.3 メソッドの完全な書き換え
+- [ ] `Search`メソッドをブラウザベースに変更
+  - HTTP APIコールを削除
+  - ブラウザでの検索ページ操作に変更
+  - DOM操作による検索結果の取得
+- [ ] `ListCollections`メソッドをブラウザベースに変更
+  - HTTP APIコールを削除
+  - ブラウザでのコレクションページ操作に変更
+- [ ] `CreateCollection`メソッドをブラウザベースに変更
+  - HTTP APIコールを削除
+  - ブラウザでのコレクション作成フォーム操作に変更
+- [ ] `AddToCollection`メソッドをブラウザベースに変更
+- [ ] `RemoveFromCollection`メソッドをブラウザベースに変更
+- [ ] `GetCollectionDetails`メソッドをブラウザベースに変更
 
-- [x] **セッション管理**
-  - ブラウザセッションの維持とCookie管理
-  - 実装ファイル: `browser_client.go`, `oreilly_client.go`
+#### 1.4 ヘルパーメソッドの削除
+- [ ] `buildCookieString`メソッドを削除（不要になる）
+- [ ] API関連のヘッダー設定ロジックを削除
 
-- [ ] **自動トークンリフレッシュ**
-  - JWTトークンの自動更新機能
-  - 実装ファイル: `oreilly_client.go`, `browser_client.go`
+### 2. browser_client.go の機能拡張 🟡 MEDIUM PRIORITY
 
-- [ ] **認証状態確認** (`check_auth_status`)
-  - 現在の認証状態を確認するツール
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 2.1 検索機能の実装
+- [ ] `SearchContent`メソッドを追加
+  - 検索ページへの遷移
+  - 検索クエリの入力
+  - 検索結果の取得とパース
+  - フィルター操作（言語、コンテンツタイプなど）
 
-### 🔶 中優先度 (P1)
+#### 2.2 コレクション管理機能の実装
+- [ ] `ListCollections`メソッドを追加
+  - コレクションページへの遷移
+  - コレクション一覧の取得
+- [ ] `CreateCollection`メソッドを追加
+  - コレクション作成ページへの遷移
+  - フォーム入力と送信
+- [ ] `AddContentToCollection`メソッドを追加
+  - コンテンツページでのコレクション追加操作
+- [ ] `RemoveContentFromCollection`メソッドを追加
+- [ ] `GetCollectionDetails`メソッドを追加
+  - 特定のコレクションページへの遷移
+  - コレクション詳細情報の取得
 
-#### 学習進捗管理
-- [ ] **学習進捗取得** (`get_learning_progress`)
-  - ユーザーの学習進捗を取得
-  - パラメータ: content_id, time_range
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 2.3 エラーハンドリングの改善
+- [ ] ページ読み込みエラーの処理
+- [ ] 要素が見つからない場合の処理
+- [ ] セッション切れの検出と再ログイン
 
-- [ ] **学習進捗更新** (`update_learning_progress`)
-  - 学習進捗を更新（ページ数、完了状況など）
-  - パラメータ: content_id, progress_data
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 2.4 パフォーマンス最適化
+- [ ] ページ遷移の最適化
+- [ ] 不要な待機時間の削減
+- [ ] 並行処理の検討
 
-- [ ] **学習統計取得** (`get_learning_stats`)
-  - 学習時間、完了した書籍数などの統計情報
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+### 3. config.go の変更 🟢 LOW PRIORITY
 
-#### ブックマーク・お気に入り機能
-- [ ] **ブックマーク追加** (`add_bookmark`)
-  - コンテンツをブックマークに追加
-  - パラメータ: content_id, page_number, note
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 3.1 設定項目の整理
+- [ ] API関連の設定項目を削除
+  - `OReillyCookie` → 削除
+  - `OReillyJWT` → 削除
+  - `SessionID` → 削除
+  - `RefreshToken` → 削除
+- [ ] ブラウザ関連の設定項目のみ保持
+  - `OReillyUserID` → 保持
+  - `OReillyPassword` → 保持
 
-- [ ] **ブックマーク一覧取得** (`list_bookmarks`)
-  - ユーザーのブックマーク一覧を取得
-  - パラメータ: content_type, sort_by
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 3.2 新しい設定項目の追加
+- [ ] ブラウザ設定のオプション追加
+  - `BROWSER_HEADLESS` → ヘッドレスモードの制御
+  - `BROWSER_TIMEOUT` → ブラウザ操作のタイムアウト
+  - `BROWSER_WAIT_TIME` → ページ読み込み待機時間
 
-- [ ] **ブックマーク削除** (`remove_bookmark`)
-  - ブックマークを削除
-  - パラメータ: bookmark_id
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+### 4. main.go の変更 🟢 LOW PRIORITY
 
-#### 高度な検索機能
-- [ ] **フィルタ付き検索** (`advanced_search`)
-  - より詳細なフィルタリング機能
-  - パラメータ: filters (author, publisher, publication_date, difficulty_level)
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 4.1 初期化ロジックの簡素化
+- [ ] API認証情報のチェックを削除
+- [ ] ブラウザ認証情報のみのチェックに変更
+- [ ] エラーメッセージの更新
 
-- [ ] **類似コンテンツ検索** (`find_similar_content`)
-  - 指定したコンテンツに類似したコンテンツを検索
-  - パラメータ: content_id, similarity_threshold
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+### 5. server.go の変更 🟡 MEDIUM PRIORITY
 
-### 🔷 低優先度 (P2)
+#### 5.1 エラーハンドリングの更新
+- [ ] API固有のエラーメッセージをブラウザ操作用に変更
+- [ ] ブラウザ操作特有のエラー（要素が見つからない、タイムアウトなど）の処理追加
 
-#### レコメンデーション機能
-- [ ] **パーソナライズドレコメンデーション** (`get_recommendations`)
-  - ユーザーの学習履歴に基づく推奨コンテンツ
-  - パラメータ: recommendation_type, limit
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 5.2 レスポンス形式の調整
+- [ ] ブラウザから取得したデータの形式に合わせてレスポンス構造を調整
+- [ ] API レスポンスとの互換性を保つための変換処理
 
-- [ ] **トレンドコンテンツ取得** (`get_trending_content`)
-  - 人気・トレンドのコンテンツを取得
-  - パラメータ: time_period, content_type
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+### 6. 新しいファイルの作成 🟡 MEDIUM PRIORITY
 
-#### ノート・メモ機能
-- [ ] **ノート作成** (`create_note`)
-  - コンテンツに対するノートを作成
-  - パラメータ: content_id, page_number, note_text, tags
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 6.1 DOM操作ヘルパー
+- [ ] `dom_helpers.go`を作成
+  - 共通のDOM操作関数
+  - 要素の待機とクリック
+  - テキスト入力とフォーム送信
+  - データの抽出とパース
 
-- [ ] **ノート一覧取得** (`list_notes`)
-  - ユーザーのノート一覧を取得
-  - パラメータ: content_id, tag_filter
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 6.2 ページオブジェクト
+- [ ] `pages/`ディレクトリを作成
+  - `search_page.go` → 検索ページの操作
+  - `collection_page.go` → コレクションページの操作
+  - `content_page.go` → コンテンツページの操作
 
-- [ ] **ノート検索** (`search_notes`)
-  - ノート内容を検索
-  - パラメータ: search_query, content_filter
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+### 7. テストの更新 🟢 LOW PRIORITY
 
-#### エクスポート・共有機能
-- [ ] **コレクションエクスポート** (`export_collection`)
-  - コレクションをCSV/JSON形式でエクスポート
-  - パラメータ: collection_id, format, include_metadata
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 7.1 既存テストの更新
+- [ ] API呼び出しのモックをブラウザ操作のモックに変更
+- [ ] テストデータの更新
 
-- [ ] **学習レポート生成** (`generate_learning_report`)
-  - 学習進捗レポートを生成
-  - パラメータ: time_period, report_format
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+#### 7.2 新しいテストの追加
+- [ ] ブラウザ操作のテスト
+- [ ] DOM要素の存在確認テスト
+- [ ] エラーケースのテスト
 
-### 🔧 技術的改善 (P1-P2)
+## 実装の優先順位
 
-#### パフォーマンス最適化
-- [ ] **レスポンスキャッシュ機能**
-  - 検索結果やコレクション情報のキャッシュ
-  - 実装ファイル: 新規 `cache.go`
+### Phase 1: 基盤整備
+1. `oreilly_client.go`の構造体とコンストラクタの変更
+2. `config.go`の設定項目整理
+3. `main.go`の初期化ロジック更新
 
-- [ ] **並列処理最適化**
-  - 複数のAPI呼び出しの並列実行
-  - 実装ファイル: `oreilly_client.go`
+### Phase 2: 検索機能の移行
+1. `browser_client.go`に検索機能を実装
+2. `oreilly_client.go`の`Search`メソッドをブラウザベースに変更
+3. `server.go`のエラーハンドリング更新
 
-- [ ] **ページネーション対応**
-  - 大量データの効率的な取得
-  - 実装ファイル: `server.go`, `oreilly_client.go`
+### Phase 3: コレクション機能の移行
+1. `browser_client.go`にコレクション管理機能を実装
+2. `oreilly_client.go`のコレクション関連メソッドをブラウザベースに変更
 
-#### エラーハンドリング強化
-- [ ] **リトライ機能**
-  - API呼び出し失敗時の自動リトライ
-  - 実装ファイル: `oreilly_client.go`
-
-- [ ] **詳細エラーレスポンス**
-  - より詳細なエラー情報の提供
-  - 実装ファイル: `server.go`
-
-#### ログ・監視機能
-- [ ] **構造化ログ出力**
-  - JSON形式での詳細ログ出力
-  - 実装ファイル: 新規 `logger.go`
-
-- [ ] **メトリクス収集**
-  - API呼び出し回数、レスポンス時間などの収集
-  - 実装ファイル: 新規 `metrics.go`
-
-#### 設定管理改善
-- [ ] **設定ファイル対応**
-  - YAML/JSON設定ファイルのサポート
-  - 実装ファイル: `config.go`
-
-- [ ] **環境別設定**
-  - 開発・本番環境の設定分離
-  - 実装ファイル: `config.go`
-
-## 🚀 実装ロードマップ
-
-### ✅ フェーズ 0: ブラウザ認証システム (完了)
-1. ✅ ヘッドレスブラウザを使用した認証システム
-2. ✅ 環境変数からの認証情報取得
-3. ✅ ACM IDPリダイレクト対応
-4. ✅ セッション管理とCookie自動取得
-5. ✅ ホームページからのコレクション情報取得
-
-### フェーズ 1: コア機能拡張 (1-2週間)
-1. ✅ コレクション管理機能の実装
-2. 自動トークンリフレッシュ機能
-3. 認証状態確認機能
-
-### フェーズ 2: 学習支援機能 (2-3週間)
-1. 学習進捗管理機能
-2. ブックマーク機能
-3. 高度な検索機能
-
-### フェーズ 3: 高度な機能 (3-4週間)
-1. レコメンデーション機能
-2. ノート・メモ機能
-3. エクスポート・共有機能
-
-### フェーズ 4: 技術的改善 (継続的)
+### Phase 4: 最適化とテスト
 1. パフォーマンス最適化
-2. エラーハンドリング強化
-3. ログ・監視機能
+2. エラーハンドリングの改善
+3. テストの更新
 
-## 📝 実装時の注意事項
+## 注意事項
 
-### ブラウザ認証システム
-- 環境変数 `OREILLY_USER_ID` と `OREILLY_PASSWORD` が必要
-- ACM IDPリダイレクトの自動処理
-- ヘッドレスブラウザのリソース管理（プロセス終了時のクリーンアップ）
+### セキュリティ
+- [ ] ブラウザでの認証情報の安全な管理
+- [ ] セッション管理の改善
+- [ ] ログ出力での機密情報の除外
 
-### API制限への対応
-- O'Reilly APIのレート制限を考慮した実装
-- 適切な間隔でのAPI呼び出し
-- エラー時のバックオフ戦略
+### パフォーマンス
+- [ ] ブラウザ起動時間の最適化
+- [ ] ページ遷移の効率化
+- [ ] メモリ使用量の監視
 
-### セキュリティ考慮事項
-- 認証情報の安全な管理（環境変数使用）
-- HTTPS通信の強制
-- 入力値の適切なバリデーション
-- ブラウザセッションの適切な管理
+### 互換性
+- [ ] 既存のMCPツールインターフェースとの互換性維持
+- [ ] レスポンス形式の一貫性
+- [ ] エラーメッセージの統一
 
-### ユーザビリティ
-- 日本語での適切なエラーメッセージ
-- 直感的なパラメータ名
-- 豊富な使用例の提供
+## 完了基準
 
-### テスト戦略
-- ユニットテストの充実
-- 統合テストの実装
-- モックを使用したテスト環境構築
+- [ ] すべてのAPI呼び出しがブラウザ操作に置き換えられている
+- [ ] 既存の機能がすべてブラウザベースで動作する
+- [ ] エラーハンドリングが適切に実装されている
+- [ ] パフォーマンスが許容範囲内である
+- [ ] テストがすべて通る
+- [ ] ドキュメントが更新されている
 
-## 🔄 継続的改善
+## 推定工数
 
-### ユーザーフィードバック収集
-- 機能使用状況の分析
-- ユーザーからの要望収集
-- 定期的な機能見直し
+- Phase 1: 2-3日
+- Phase 2: 3-4日  
+- Phase 3: 4-5日
+- Phase 4: 2-3日
 
-### 技術的負債管理
-- コードリファクタリング
-- 依存関係の更新
-- セキュリティパッチの適用
+**総工数: 11-15日**
