@@ -4,17 +4,19 @@ import (
 	"context"
 	"fmt"
 	"log"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
 // OreillyClient はO'Reilly Learning Platform APIのクライアントです
 type OreillyClient struct {
-	browserClient *BrowserClient
+	browserClient *browser.BrowserClient
 }
 
 // NewOreillyClient はブラウザクライアントを使用してO'Reillyクライアントを作成します
 func NewOreillyClient(userID, password string) (*OreillyClient, error) {
 	// ブラウザクライアントを作成してログイン
-	browserClient, err := NewBrowserClient(userID, password)
+	browserClient, err := browser.NewBrowserClient(userID, password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create browser client: %w", err)
 	}
@@ -193,34 +195,9 @@ type MarketingType struct {
 }
 
 
-// ExtractTableOfContentsParams は目次抽出パラメータの構造体です
-type ExtractTableOfContentsParams struct {
-	URL string `json:"url"`
-}
-
-// TableOfContentsItem は目次の1項目を表します
-type TableOfContentsItem struct {
-	Level       int    `json:"level"`
-	Title       string `json:"title"`
-	URL         string `json:"url,omitempty"`
-	ChapterID   string `json:"chapter_id,omitempty"`
-	SectionID   string `json:"section_id,omitempty"`
-	PageNumber  string `json:"page_number,omitempty"`
-}
-
-// TableOfContentsResponse は目次抽出レスポンスの構造体です
-type TableOfContentsResponse struct {
-	BookTitle    string                `json:"book_title"`
-	BookID       string                `json:"book_id"`
-	BookURL      string                `json:"book_url"`
-	Authors      []string              `json:"authors"`
-	Publisher    string                `json:"publisher"`
-	TableOfContents []TableOfContentsItem `json:"table_of_contents"`
-	ExtractedAt  string                `json:"extracted_at"`
-}
 
 // ExtractTableOfContents はO'Reilly書籍の目次を抽出します
-func (c *OreillyClient) ExtractTableOfContents(ctx context.Context, params ExtractTableOfContentsParams) (*TableOfContentsResponse, error) {
+func (c *OreillyClient) ExtractTableOfContents(ctx context.Context, params browser.ExtractTableOfContentsParams) (*browser.TableOfContentsResponse, error) {
 	log.Printf("O'Reilly書籍の目次抽出が要求されました: %s\n", params.URL)
 	
 	if params.URL == "" {

@@ -7,6 +7,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"log"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
 // Server はMCPサーバーの実装です
@@ -686,7 +688,7 @@ func (s *Server) ExtractTableOfContentsHandler(ctx context.Context, request mcp.
 	}
 
 	// ExtractTableOfContentsParamsに変換
-	extractParams := ExtractTableOfContentsParams{
+	extractParams := browser.ExtractTableOfContentsParams{
 		URL: requestParams.URL,
 	}
 
@@ -697,19 +699,19 @@ func (s *Server) ExtractTableOfContentsHandler(ctx context.Context, request mcp.
 		log.Printf("O'Reillyクライアント失敗: %v", err)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to extract table of contents: %v", err)), nil
 	}
-	log.Printf("O'Reillyクライアント呼び出し後: %s (%d項目)", result.BookTitle, len(result.TableOfContents))
+	log.Printf("O'Reillyクライアント呼び出し後: %s (%d項目)", result.BookTitle, len(result.Items))
 
 	// 結果をレスポンスに変換
 	response := map[string]interface{}{
 		"success":           true,
 		"book_title":        result.BookTitle,
 		"book_id":           result.BookID,
-		"book_url":          result.BookURL,
-		"authors":           result.Authors,
-		"publisher":         result.Publisher,
-		"table_of_contents": result.TableOfContents,
-		"extracted_at":      result.ExtractedAt,
-		"total_items":       len(result.TableOfContents),
+		"book_url":          requestParams.URL, // Use original URL since BookURL is not in new struct
+		"authors":           []string{},        // Not available in new struct, use empty array
+		"publisher":         "",                // Not available in new struct
+		"table_of_contents": result.Items,
+		"extracted_at":      "",                // Not available in new struct
+		"total_items":       result.TotalItems,
 	}
 
 	jsonBytes, err := json.Marshal(response)
