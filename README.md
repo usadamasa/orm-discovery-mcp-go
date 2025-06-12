@@ -8,21 +8,38 @@ O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経�
 
 ## 主な機能
 
-- O'Reillyコンテンツの検索
-- マイコレクションの一覧表示
-- 書籍の日本語要約生成
+- **コンテンツ検索**: O'Reillyコンテンツの高度な検索
+- **コレクション管理**: コレクションの作成、編集、コンテンツの追加・削除
+- **マイコレクション表示**: 既存コレクションの一覧表示と詳細取得
+- **書籍要約生成**: 複数書籍の日本語要約とまとめ生成
 
 ## クイックスタート
 
 ### 1. 認証情報の設定
 
-重要なCookieキーを個別に設定（推奨）：
+#### 方法1: .envファイルを使用（推奨）
+
+プロジェクトディレクトリに`.env`ファイルを作成：
 
 ```bash
-export OREILLY_JWT="your_orm_jwt_token_here"
-export OREILLY_SESSION_ID="your_groot_sessionid_here"
-export OREILLY_REFRESH_TOKEN="your_orm_rt_token_here"
+# .env
+OREILLY_USER_ID=your_email@acm.org
+OREILLY_PASSWORD=your_password
+PORT=8080
+TRANSPORT=stdio
 ```
+
+#### 方法2: 環境変数で設定
+
+```bash
+export OREILLY_USER_ID="your_email@acm.org"
+export OREILLY_PASSWORD="your_password"
+```
+
+**注意**: 
+- ACMメンバーの場合は`@acm.org`のメールアドレスを使用
+- ACM IDPリダイレクトは自動で処理されます
+- `.env`ファイルの設定が環境変数より優先されます
 
 ### 2. サーバーの起動
 
@@ -32,6 +49,23 @@ go run .
 
 ### 3. Cline（Claude Desktop）での設定
 
+#### 方法1: .envファイルを使用（推奨）
+
+プロジェクトディレクトリに`.env`ファイルを作成し、以下の設定をCline設定に追加：
+
+```json
+{
+  "mcpServers": {
+    "orm-discovery-mcp-go": {
+      "command": "/your/path/to/orm-discovery-mcp-go",
+      "args": []
+    }
+  }
+}
+```
+
+#### 方法2: 環境変数で直接設定
+
 ```json
 {
   "mcpServers": {
@@ -39,9 +73,8 @@ go run .
       "command": "/your/path/to/orm-discovery-mcp-go",
       "args": [],
       "env": {
-        "OREILLY_JWT": "your_orm_jwt_token_here",
-        "OREILLY_SESSION_ID": "your_groot_sessionid_here",
-        "OREILLY_REFRESH_TOKEN": "your_orm_rt_token_here"
+        "OREILLY_USER_ID": "your_email@acm.org",
+        "OREILLY_PASSWORD": "your_password"
       }
     }
   }
@@ -55,13 +88,50 @@ go run .
 | `search_content` | O'Reillyコンテンツの検索 |
 | `list_collections` | マイコレクションの一覧表示 |
 | `summarize_books` | 書籍の日本語要約生成 |
+| `create_collection` | 新しいコレクションの作成 |
+| `add_to_collection` | コレクションへのコンテンツ追加 |
+| `remove_from_collection` | コレクションからのコンテンツ削除 |
+| `get_collection_details` | コレクションの詳細情報取得 |
+
+## 使用例
+
+### Quarkusコレクションの作成
+
+実装したコレクション管理機能を使用して、Quarkusに関する学習リソースを整理できます：
+
+```bash
+# 1. Quarkusコンテンツを検索
+# 2. 専用コレクションを作成
+# 3. 関連コンテンツを追加
+# 4. コレクション内容を確認
+
+# 詳細な手順は QUARKUS_COLLECTION_DEMO.md を参照
+```
 
 ## ドキュメント
 
 - [技術概要](TECHNICAL_OVERVIEW.md) - アーキテクチャと実装詳細
 - [API仕様](API_REFERENCE.md) - 利用可能なAPIとパラメータ
 
-## 認証情報の取得方法
+## 認証システム
+
+### ヘッドレスブラウザ認証
+
+このサーバーはヘッドレスブラウザ（Chrome）を使用して自動的にO'Reillyにログインします：
+
+1. **自動ログイン**: 環境変数のID/パスワードでログイン
+2. **ACM対応**: ACM IDPリダイレクトを自動処理
+3. **セッション管理**: ログイン後のCookieを自動取得・管理
+4. **ホームページ取得**: ブラウザでホームページのコレクション情報も取得
+
+### 必要な環境変数
+
+- `OREILLY_USER_ID`: O'Reillyのメールアドレス
+- `OREILLY_PASSWORD`: O'Reillyのパスワード
+
+### 従来の手動Cookie設定（オプション）
+
+手動でCookieを設定したい場合：
 
 1. ブラウザでO'Reilly Learning Platformにログイン
 2. 開発者ツール（F12）→ Application → Cookies → learning.oreilly.com

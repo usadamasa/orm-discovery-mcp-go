@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,11 +18,12 @@ const (
 
 // OreillyClient はO'Reilly Learning Platform APIのクライアントです
 type OreillyClient struct {
-	httpClient   *http.Client
-	cookieStr    string
-	jwtToken     string
-	sessionID    string
-	refreshToken string
+	httpClient    *http.Client
+	cookieStr     string
+	jwtToken      string
+	sessionID     string
+	refreshToken  string
+	browserClient *BrowserClient
 }
 
 // NewOreillyClient は新しいO'Reillyクライアントを作成します
@@ -34,6 +36,36 @@ func NewOreillyClient(cookieStr, jwtToken, sessionID, refreshToken string) *Orei
 		jwtToken:     jwtToken,
 		sessionID:    sessionID,
 		refreshToken: refreshToken,
+	}
+}
+
+// NewOreillyClientWithBrowser はブラウザクライアントを使用してO'Reillyクライアントを作成します
+func NewOreillyClientWithBrowser(userID, password string) (*OreillyClient, error) {
+	// ブラウザクライアントを作成してログイン
+	browserClient, err := NewBrowserClient(userID, password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create browser client: %w", err)
+	}
+
+	client := &OreillyClient{
+		httpClient: &http.Client{
+			Timeout: apiTimeout,
+		},
+		browserClient: browserClient,
+		cookieStr:     browserClient.GetCookieString(),
+		jwtToken:      browserClient.GetJWTToken(),
+		sessionID:     browserClient.GetSessionID(),
+		refreshToken:  browserClient.GetRefreshToken(),
+	}
+
+	log.Printf("ブラウザクライアントを使用したO'Reillyクライアントを作成しました")
+	return client, nil
+}
+
+// Close はクライアントをクリーンアップします
+func (c *OreillyClient) Close() {
+	if c.browserClient != nil {
+		c.browserClient.Close()
 	}
 }
 
@@ -291,4 +323,313 @@ func (c *OreillyClient) ListCollections(ctx context.Context) (*CollectionRespons
 
 	log.Printf("O'Reilly APIからの検索結果: %d件", len(collectionResp.Results))
 	return &collectionResp, nil
+}
+
+// CreateCollectionParams はコレクション作成パラメータの構造体です
+type CreateCollectionParams struct {
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	PrivacySetting string `json:"sharing"` // "private", "public", "unlisted"
+}
+
+// CreateCollectionResponse はコレクション作成レスポンスの構造体です
+type CreateCollectionResponse struct {
+	Collection Collection `json:"collection"`
+}
+
+// CreateCollection は新しいコレクションを作成します
+func (c *OreillyClient) CreateCollection(ctx context.Context, params CreateCollectionParams) (*CreateCollectionResponse, error) {
+	log.Printf("O'Reilly APIでコレクション作成が要求されました: %s\n", params.Name)
+	
+	if params.Name == "" {
+		return nil, fmt.Errorf("collection name cannot be empty")
+	}
+	
+	// デフォルト値の設定
+	if params.PrivacySetting == "" {
+		params.PrivacySetting = "private"
+	}
+	
+	// リクエストボディの作成
+	requestBody := map[string]interface{}{
+		"name":        params.Name,
+		"description": params.Description,
+		"sharing":     params.PrivacySetting,
+	}
+	
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	
+	// リクエストの作成
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		fmt.Sprintf("%s/api/v3/collections/", baseURL),
+		bytes.NewBuffer(jsonBody),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	// ヘッダーの設定
+	if c.jwtToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
+	}
+	cookieStr := c.buildCookieString()
+	if cookieStr != "" {
+		req.Header.Set("Cookie", cookieStr)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	
+	// リクエストの実行
+	log.Printf("O'Reilly APIでコレクション作成を実行します\n")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	log.Printf("O'Reilly APIからのレスポンスステータス: %d\n", resp.StatusCode)
+	
+	// レスポンスボディの読み取り
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	
+	// エラーレスポンスの処理
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	// レスポンスのパース
+	var createResp CreateCollectionResponse
+	if err := json.Unmarshal(body, &createResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	
+	log.Printf("コレクション作成成功: %s", createResp.Collection.Name)
+	return &createResp, nil
+}
+
+// AddToCollectionParams はコレクションへのコンテンツ追加パラメータの構造体です
+type AddToCollectionParams struct {
+	CollectionID string `json:"collection_id"`
+	ContentID    string `json:"content_id"`
+	ContentType  string `json:"content_type"`
+}
+
+// AddToCollection はコレクションにコンテンツを追加します
+func (c *OreillyClient) AddToCollection(ctx context.Context, params AddToCollectionParams) error {
+	log.Printf("O'Reilly APIでコレクションへのコンテンツ追加が要求されました: %s -> %s\n", params.ContentID, params.CollectionID)
+	
+	if params.CollectionID == "" {
+		return fmt.Errorf("collection ID cannot be empty")
+	}
+	if params.ContentID == "" {
+		return fmt.Errorf("content ID cannot be empty")
+	}
+	
+	// リクエストボディの作成
+	requestBody := map[string]interface{}{
+		"ourn": params.ContentID,
+	}
+	if params.ContentType != "" {
+		requestBody["content_type"] = params.ContentType
+	}
+	
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	
+	// リクエストの作成
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		fmt.Sprintf("%s/api/v3/collections/%s/content/", baseURL, params.CollectionID),
+		bytes.NewBuffer(jsonBody),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	// ヘッダーの設定
+	if c.jwtToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
+	}
+	cookieStr := c.buildCookieString()
+	if cookieStr != "" {
+		req.Header.Set("Cookie", cookieStr)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	
+	// リクエストの実行
+	log.Printf("O'Reilly APIでコンテンツ追加を実行します\n")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	log.Printf("O'Reilly APIからのレスポンスステータス: %d\n", resp.StatusCode)
+	
+	// レスポンスボディの読み取り
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+	
+	// エラーレスポンスの処理
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	log.Printf("コンテンツ追加成功: %s", params.ContentID)
+	return nil
+}
+
+// RemoveFromCollectionParams はコレクションからのコンテンツ削除パラメータの構造体です
+type RemoveFromCollectionParams struct {
+	CollectionID string `json:"collection_id"`
+	ContentID    string `json:"content_id"`
+}
+
+// RemoveFromCollection はコレクションからコンテンツを削除します
+func (c *OreillyClient) RemoveFromCollection(ctx context.Context, params RemoveFromCollectionParams) error {
+	log.Printf("O'Reilly APIでコレクションからのコンテンツ削除が要求されました: %s <- %s\n", params.ContentID, params.CollectionID)
+	
+	if params.CollectionID == "" {
+		return fmt.Errorf("collection ID cannot be empty")
+	}
+	if params.ContentID == "" {
+		return fmt.Errorf("content ID cannot be empty")
+	}
+	
+	// リクエストの作成
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"DELETE",
+		fmt.Sprintf("%s/api/v3/collections/%s/content/%s/", baseURL, params.CollectionID, params.ContentID),
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	// ヘッダーの設定
+	if c.jwtToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
+	}
+	cookieStr := c.buildCookieString()
+	if cookieStr != "" {
+		req.Header.Set("Cookie", cookieStr)
+	}
+	req.Header.Set("Accept", "application/json")
+	
+	// リクエストの実行
+	log.Printf("O'Reilly APIでコンテンツ削除を実行します\n")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	log.Printf("O'Reilly APIからのレスポンスステータス: %d\n", resp.StatusCode)
+	
+	// レスポンスボディの読み取り
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+	
+	// エラーレスポンスの処理
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	log.Printf("コンテンツ削除成功: %s", params.ContentID)
+	return nil
+}
+
+// GetCollectionDetailsParams はコレクション詳細取得パラメータの構造体です
+type GetCollectionDetailsParams struct {
+	CollectionID   string `json:"collection_id"`
+	IncludeContent bool   `json:"include_content"`
+}
+
+// GetCollectionDetailsResponse はコレクション詳細レスポンスの構造体です
+type GetCollectionDetailsResponse struct {
+	Collection Collection `json:"collection"`
+}
+
+// GetCollectionDetails は特定のコレクションの詳細情報を取得します
+func (c *OreillyClient) GetCollectionDetails(ctx context.Context, params GetCollectionDetailsParams) (*GetCollectionDetailsResponse, error) {
+	log.Printf("O'Reilly APIでコレクション詳細が要求されました: %s\n", params.CollectionID)
+	
+	if params.CollectionID == "" {
+		return nil, fmt.Errorf("collection ID cannot be empty")
+	}
+	
+	// リクエストの作成
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"GET",
+		fmt.Sprintf("%s/api/v3/collections/%s/", baseURL, params.CollectionID),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	// クエリパラメータの設定
+	if params.IncludeContent {
+		q := req.URL.Query()
+		q.Set("include_content", "true")
+		req.URL.RawQuery = q.Encode()
+	}
+	
+	// ヘッダーの設定
+	if c.jwtToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
+	}
+	cookieStr := c.buildCookieString()
+	if cookieStr != "" {
+		req.Header.Set("Cookie", cookieStr)
+	}
+	req.Header.Set("Accept", "application/json")
+	
+	// リクエストの実行
+	log.Printf("O'Reilly APIでコレクション詳細取得を実行します\n")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	log.Printf("O'Reilly APIからのレスポンスステータス: %d\n", resp.StatusCode)
+	
+	// レスポンスボディの読み取り
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	
+	// エラーレスポンスの処理
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	// レスポンスのパース
+	var detailsResp GetCollectionDetailsResponse
+	if err := json.Unmarshal(body, &detailsResp.Collection); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	
+	log.Printf("コレクション詳細取得成功: %s", detailsResp.Collection.Name)
+	return &detailsResp, nil
 }

@@ -116,6 +116,63 @@ func (s *Server) registerHandlers() {
 	)
 	s.mcpServer.AddTool(summarizeBooksTool, s.SummarizeBooksHandler)
 
+	// コレクション管理ツールの追加
+	createCollectionTool := mcp.NewTool("create_collection",
+		mcp.WithDescription("Create a new collection on O'Reilly Learning Platform"),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("Name of the collection"),
+		),
+		mcp.WithString("description",
+			mcp.Description("Description of the collection"),
+		),
+		mcp.WithString("privacy_setting",
+			mcp.Description("Privacy setting for the collection (private, public, unlisted). Default: private"),
+		),
+	)
+	s.mcpServer.AddTool(createCollectionTool, s.CreateCollectionHandler)
+
+	addToCollectionTool := mcp.NewTool("add_to_collection",
+		mcp.WithDescription("Add content to an existing collection"),
+		mcp.WithString("collection_id",
+			mcp.Required(),
+			mcp.Description("ID of the collection to add content to"),
+		),
+		mcp.WithString("content_id",
+			mcp.Required(),
+			mcp.Description("ID or OURN of the content to add"),
+		),
+		mcp.WithString("content_type",
+			mcp.Description("Type of the content (book, video, etc.)"),
+		),
+	)
+	s.mcpServer.AddTool(addToCollectionTool, s.AddToCollectionHandler)
+
+	removeFromCollectionTool := mcp.NewTool("remove_from_collection",
+		mcp.WithDescription("Remove content from a collection"),
+		mcp.WithString("collection_id",
+			mcp.Required(),
+			mcp.Description("ID of the collection to remove content from"),
+		),
+		mcp.WithString("content_id",
+			mcp.Required(),
+			mcp.Description("ID or OURN of the content to remove"),
+		),
+	)
+	s.mcpServer.AddTool(removeFromCollectionTool, s.RemoveFromCollectionHandler)
+
+	getCollectionDetailsTool := mcp.NewTool("get_collection_details",
+		mcp.WithDescription("Get detailed information about a specific collection"),
+		mcp.WithString("collection_id",
+			mcp.Required(),
+			mcp.Description("ID of the collection to get details for"),
+		),
+		mcp.WithBoolean("include_content",
+			mcp.Description("Whether to include content list in the response (default: true)"),
+		),
+	)
+	s.mcpServer.AddTool(getCollectionDetailsTool, s.GetCollectionDetailsHandler)
+
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
 }
 
@@ -199,6 +256,267 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
 	}
 	// レスポンスを返す
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// CreateCollectionHandler はコレクション作成リクエストを処理します
+func (s *Server) CreateCollectionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("コレクション作成リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		Name           string `json:"name"`
+		Description    string `json:"description,omitempty"`
+		PrivacySetting string `json:"privacy_setting,omitempty"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.Name == "" {
+		return mcp.NewToolResultError("name parameter is required"), nil
+	}
+
+	// CreateCollectionParamsに変換
+	createParams := CreateCollectionParams{
+		Name:           requestParams.Name,
+		Description:    requestParams.Description,
+		PrivacySetting: requestParams.PrivacySetting,
+	}
+
+	// O'Reilly APIでコレクション作成を実行
+	log.Printf("O'Reillyクライアント呼び出し前")
+	result, err := s.oreillyClient.CreateCollection(ctx, createParams)
+	if err != nil {
+		log.Printf("O'Reillyクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to create collection: %v", err)), nil
+	}
+	log.Printf("O'Reillyクライアント呼び出し後: %v", result)
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"success":    true,
+		"message":    fmt.Sprintf("コレクション「%s」を正常に作成しました", result.Collection.Name),
+		"collection": map[string]interface{}{
+			"id":          result.Collection.ID,
+			"name":        result.Collection.Name,
+			"description": result.Collection.Description,
+			"sharing":     result.Collection.Sharing,
+			"web_url":     result.Collection.WebURL,
+			"created_time": result.Collection.CreatedTime,
+		},
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// AddToCollectionHandler はコレクションへのコンテンツ追加リクエストを処理します
+func (s *Server) AddToCollectionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("コンテンツ追加リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		CollectionID string `json:"collection_id"`
+		ContentID    string `json:"content_id"`
+		ContentType  string `json:"content_type,omitempty"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.CollectionID == "" {
+		return mcp.NewToolResultError("collection_id parameter is required"), nil
+	}
+	if requestParams.ContentID == "" {
+		return mcp.NewToolResultError("content_id parameter is required"), nil
+	}
+
+	// AddToCollectionParamsに変換
+	addParams := AddToCollectionParams{
+		CollectionID: requestParams.CollectionID,
+		ContentID:    requestParams.ContentID,
+		ContentType:  requestParams.ContentType,
+	}
+
+	// O'Reilly APIでコンテンツ追加を実行
+	log.Printf("O'Reillyクライアント呼び出し前")
+	err = s.oreillyClient.AddToCollection(ctx, addParams)
+	if err != nil {
+		log.Printf("O'Reillyクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to add content to collection: %v", err)), nil
+	}
+	log.Printf("O'Reillyクライアント呼び出し後: 成功")
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("コンテンツ「%s」をコレクション「%s」に正常に追加しました", requestParams.ContentID, requestParams.CollectionID),
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// RemoveFromCollectionHandler はコレクションからのコンテンツ削除リクエストを処理します
+func (s *Server) RemoveFromCollectionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("コンテンツ削除リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		CollectionID string `json:"collection_id"`
+		ContentID    string `json:"content_id"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.CollectionID == "" {
+		return mcp.NewToolResultError("collection_id parameter is required"), nil
+	}
+	if requestParams.ContentID == "" {
+		return mcp.NewToolResultError("content_id parameter is required"), nil
+	}
+
+	// RemoveFromCollectionParamsに変換
+	removeParams := RemoveFromCollectionParams{
+		CollectionID: requestParams.CollectionID,
+		ContentID:    requestParams.ContentID,
+	}
+
+	// O'Reilly APIでコンテンツ削除を実行
+	log.Printf("O'Reillyクライアント呼び出し前")
+	err = s.oreillyClient.RemoveFromCollection(ctx, removeParams)
+	if err != nil {
+		log.Printf("O'Reillyクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to remove content from collection: %v", err)), nil
+	}
+	log.Printf("O'Reillyクライアント呼び出し後: 成功")
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("コンテンツ「%s」をコレクション「%s」から正常に削除しました", requestParams.ContentID, requestParams.CollectionID),
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// GetCollectionDetailsHandler はコレクション詳細取得リクエストを処理します
+func (s *Server) GetCollectionDetailsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("コレクション詳細取得リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		CollectionID   string `json:"collection_id"`
+		IncludeContent bool   `json:"include_content,omitempty"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.CollectionID == "" {
+		return mcp.NewToolResultError("collection_id parameter is required"), nil
+	}
+
+	// デフォルト値の設定
+	if requestParams.IncludeContent == false {
+		// デフォルトでコンテンツを含める
+		requestParams.IncludeContent = true
+	}
+
+	// GetCollectionDetailsParamsに変換
+	detailsParams := GetCollectionDetailsParams{
+		CollectionID:   requestParams.CollectionID,
+		IncludeContent: requestParams.IncludeContent,
+	}
+
+	// O'Reilly APIでコレクション詳細取得を実行
+	log.Printf("O'Reillyクライアント呼び出し前")
+	result, err := s.oreillyClient.GetCollectionDetails(ctx, detailsParams)
+	if err != nil {
+		log.Printf("O'Reillyクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get collection details: %v", err)), nil
+	}
+	log.Printf("O'Reillyクライアント呼び出し後: %v", result)
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"collection": map[string]interface{}{
+			"id":                     result.Collection.ID,
+			"name":                   result.Collection.Name,
+			"description":            result.Collection.Description,
+			"sharing":                result.Collection.Sharing,
+			"web_url":                result.Collection.WebURL,
+			"created_time":           result.Collection.CreatedTime,
+			"last_modified_time":     result.Collection.LastModifiedTime,
+			"is_default":             result.Collection.IsDefault,
+			"is_owned":               result.Collection.IsOwned,
+			"is_following":           result.Collection.IsFollowing,
+			"owner_display_name":     result.Collection.OwnerDisplayName,
+			"follower_count":         result.Collection.FollowerCount,
+			"can_be_assigned":        result.Collection.CanBeAssigned,
+			"type":                   result.Collection.Type,
+			"topics":                 result.Collection.Topics,
+			"content_count":          len(result.Collection.Content),
+		},
+	}
+
+	// コンテンツ情報を含める場合
+	if requestParams.IncludeContent && len(result.Collection.Content) > 0 {
+		var contentList []map[string]interface{}
+		for _, item := range result.Collection.Content {
+			contentItem := map[string]interface{}{
+				"id":           item.ID,
+				"ourn":         item.Ourn,
+				"content_type": item.ContentType,
+				"date_added":   item.DateAdded,
+				"index":        item.Index,
+			}
+			if item.Title != nil {
+				contentItem["title"] = *item.Title
+			}
+			if item.Description != nil {
+				contentItem["description"] = *item.Description
+			}
+			if item.APIURL != "" {
+				contentItem["api_url"] = item.APIURL
+			}
+			contentList = append(contentList, contentItem)
+		}
+		response["content"] = contentList
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
@@ -413,24 +731,63 @@ func (s *Server) handlePing(ctx context.Context, notification mcp.JSONRPCNotific
 func (s *Server) ListCollectionsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Printf("リクエスト受信: %+v", request)
 
+	// まずブラウザクライアントからホームページのコレクションを取得
+	var homepageCollections []map[string]interface{}
+	if s.oreillyClient.browserClient != nil {
+		log.Printf("ブラウザクライアントからホームページのコレクションを取得します")
+		collections, err := s.oreillyClient.browserClient.GetCollectionsFromHomePage()
+		if err != nil {
+			log.Printf("ホームページからのコレクション取得に失敗: %v", err)
+		} else {
+			homepageCollections = collections
+			log.Printf("ホームページから%d個のコレクションを取得しました", len(collections))
+		}
+	}
+
 	// O'Reilly APIでコレクション取得を実行
 	log.Printf("O'Reillyクライアント呼び出し前")
 	results, err := s.oreillyClient.ListCollections(ctx)
 	if err != nil {
 		log.Printf("O'Reillyクライアント失敗: %v", err)
+		// APIが失敗した場合でも、ホームページのコレクションがあれば返す
+		if len(homepageCollections) > 0 {
+			response := struct {
+				Count   int           `json:"count"`
+				Results []interface{} `json:"results"`
+				Source  string        `json:"source"`
+			}{
+				Count:   len(homepageCollections),
+				Results: make([]interface{}, 0, len(homepageCollections)),
+				Source:  "homepage_only",
+			}
+			
+			for _, collection := range homepageCollections {
+				response.Results = append(response.Results, collection)
+			}
+			
+			jsonBytes, err := json.Marshal(response)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+			}
+			return mcp.NewToolResultText(string(jsonBytes)), nil
+		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil
 	}
 	log.Printf("O'Reillyクライアント呼び出し後: %v", results)
 
 	// 結果をレスポンスに変換
 	response := struct {
-		Count   int           `json:"count"`
-		Results []interface{} `json:"results"`
+		Count              int           `json:"count"`
+		Results            []interface{} `json:"results"`
+		HomepageCollections []interface{} `json:"homepage_collections,omitempty"`
+		Source             string        `json:"source"`
 	}{
 		Count:   len(results.Results),
 		Results: make([]interface{}, 0, len(results.Results)),
+		Source:  "api_and_homepage",
 	}
 
+	// APIからのコレクション
 	for _, result := range results.Results {
 		response.Results = append(response.Results, map[string]interface{}{
 			"id":          result.ID,
@@ -439,7 +796,16 @@ func (s *Server) ListCollectionsHandler(ctx context.Context, request mcp.CallToo
 			"web_url":     result.WebURL,
 			"type":        result.Type,
 			"content":     result.Content,
+			"source":      "api",
 		})
+	}
+
+	// ホームページからのコレクションも追加
+	if len(homepageCollections) > 0 {
+		response.HomepageCollections = make([]interface{}, 0, len(homepageCollections))
+		for _, collection := range homepageCollections {
+			response.HomepageCollections = append(response.HomepageCollections, collection)
+		}
 	}
 
 	jsonBytes, err := json.Marshal(response)

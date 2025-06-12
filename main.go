@@ -13,8 +13,21 @@ func main() {
 	}
 	log.Printf("設定を読み込みました")
 
-	// O'Reillyクライアントの初期化
-	oreillyClient := NewOreillyClient(cfg.OReillyCookie, cfg.OReillyJWT, cfg.SessionID, cfg.RefreshToken)
+	// O'Reillyクライアントの初期化（ブラウザクライアントを使用）
+	log.Printf("ブラウザクライアントを使用してO'Reillyにログインします...")
+	
+	// 認証情報の確認
+	if cfg.OReillyUserID == "" || cfg.OReillyPassword == "" {
+		log.Fatalf("OREILLY_USER_ID と OREILLY_PASSWORD が設定されていません")
+	}
+	
+	oreillyClient, err := NewOreillyClientWithBrowser(cfg.OReillyUserID, cfg.OReillyPassword)
+	if err != nil {
+		log.Fatalf("ブラウザクライアントの初期化に失敗しました: %v", err)
+	}
+	defer oreillyClient.Close() // プロセス終了時にブラウザをクリーンアップ
+
+	log.Printf("O'Reillyクライアントの初期化が完了しました")
 	s := NewServer(oreillyClient)
 
 	if cfg.Transport == "http" {
