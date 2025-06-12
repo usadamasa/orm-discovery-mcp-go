@@ -96,7 +96,7 @@ func (c *OreillyClient) Search(ctx context.Context, params SearchParams) (*Searc
 	}
 
 	// JavaScript API検索を実行（ブラウザコンテキスト内で実行され、最も成功率が高い）
-	results, err := c.browserClient.SearchContentAPI(params.Query, options)
+	results, err := c.browserClient.SearchContent(params.Query, options)
 	if err != nil {
 		return nil, fmt.Errorf("API search failed: %w", err)
 	}

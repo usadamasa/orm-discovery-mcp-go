@@ -2,16 +2,270 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
+
+// O'Reilly API endpoints
+const (
+	APIEndpointV2       = "/api/v2/search/"
+	APIEndpointSearch   = "/search/api/search/"
+	APIEndpointLegacy   = "/api/search/"
+	APIEndpointLearning = "/learningapi/v1/search/"
+)
+
+// SearchAPIResponse represents O'Reilly search API response structure
+type SearchAPIResponse struct {
+	Data    *SearchDataContainer `json:"data,omitempty"`
+	Results []RawSearchResult   `json:"results,omitempty"`
+	Items   []RawSearchResult   `json:"items,omitempty"`
+	Hits    []RawSearchResult   `json:"hits,omitempty"`
+}
+
+type SearchDataContainer struct {
+	Products []RawSearchResult `json:"products,omitempty"`
+}
+
+type RawSearchResult struct {
+	ID                     string   `json:"id,omitempty"`
+	ProductID              string   `json:"product_id,omitempty"`
+	Title                  string   `json:"title,omitempty"`
+	Name                   string   `json:"name,omitempty"`
+	DisplayTitle           string   `json:"display_title,omitempty"`
+	ProductName            string   `json:"product_name,omitempty"`
+	Authors                []string `json:"authors,omitempty"`
+	Author                 string   `json:"author,omitempty"`
+	Creators               []struct {
+		Name string `json:"name,omitempty"`
+	} `json:"creators,omitempty"`
+	AuthorNames            []string `json:"author_names,omitempty"`
+	ContentType            string   `json:"content_type,omitempty"`
+	Type                   string   `json:"type,omitempty"`
+	Format                 string   `json:"format,omitempty"`
+	ProductType            string   `json:"product_type,omitempty"`
+	Description            string   `json:"description,omitempty"`
+	Summary                string   `json:"summary,omitempty"`
+	Excerpt                string   `json:"excerpt,omitempty"`
+	DescriptionWithMarkups string   `json:"description_with_markups,omitempty"`
+	ShortDescription       string   `json:"short_description,omitempty"`
+	WebURL                 string   `json:"web_url,omitempty"`
+	URL                    string   `json:"url,omitempty"`
+	LearningURL            string   `json:"learning_url,omitempty"`
+	Link                   string   `json:"link,omitempty"`
+	OURN                   string   `json:"ourn,omitempty"`
+	ISBN                   string   `json:"isbn,omitempty"`
+	Publisher              string   `json:"publisher,omitempty"`
+	Publishers             []string `json:"publishers,omitempty"`
+	Imprint                string   `json:"imprint,omitempty"`
+	PublisherName          string   `json:"publisher_name,omitempty"`
+	PublishedDate          string   `json:"published_date,omitempty"`
+	PublicationDate        string   `json:"publication_date,omitempty"`
+	DatePublished          string   `json:"date_published,omitempty"`
+	PubDate                string   `json:"pub_date,omitempty"`
+}
+
+// normalizeSearchResult converts RawSearchResult to a map suitable for consumption
+func normalizeSearchResult(raw RawSearchResult, index int) map[string]interface{} {
+	// URL normalization
+	itemURL := raw.WebURL
+	if itemURL == "" {
+		itemURL = raw.URL
+	}
+	if itemURL == "" {
+		itemURL = raw.LearningURL
+	}
+	if itemURL == "" {
+		itemURL = raw.Link
+	}
+	if itemURL == "" && raw.ProductID != "" {
+		itemURL = "https://learning.oreilly.com/library/view/-/" + raw.ProductID + "/"
+	}
+	if itemURL != "" && !strings.HasPrefix(itemURL, "http") {
+		if strings.HasPrefix(itemURL, "/") {
+			itemURL = "https://learning.oreilly.com" + itemURL
+		}
+	}
+
+	// Authors normalization
+	var authors []string
+	if len(raw.Authors) > 0 {
+		authors = raw.Authors
+	} else if raw.Author != "" {
+		authors = []string{raw.Author}
+	} else if len(raw.Creators) > 0 {
+		for _, creator := range raw.Creators {
+			if creator.Name != "" {
+				authors = append(authors, creator.Name)
+			}
+		}
+	} else if len(raw.AuthorNames) > 0 {
+		authors = raw.AuthorNames
+	}
+
+	// Content type determination
+	contentType := raw.ContentType
+	if contentType == "" {
+		contentType = raw.Type
+	}
+	if contentType == "" {
+		contentType = raw.Format
+	}
+	if contentType == "" {
+		contentType = raw.ProductType
+	}
+	if contentType == "" {
+		if strings.Contains(itemURL, "/video") {
+			contentType = "video"
+		} else if strings.Contains(itemURL, "/library/view/") || strings.Contains(itemURL, "/book/") {
+			contentType = "book"
+		} else {
+			contentType = "unknown"
+		}
+	}
+
+	// Title extraction
+	title := raw.Title
+	if title == "" {
+		title = raw.Name
+	}
+	if title == "" {
+		title = raw.DisplayTitle
+	}
+	if title == "" {
+		title = raw.ProductName
+	}
+
+	// Description extraction
+	description := raw.Description
+	if description == "" {
+		description = raw.Summary
+	}
+	if description == "" {
+		description = raw.Excerpt
+	}
+	if description == "" {
+		description = raw.DescriptionWithMarkups
+	}
+	if description == "" {
+		description = raw.ShortDescription
+	}
+
+	// Publisher extraction
+	publisher := raw.Publisher
+	if publisher == "" && len(raw.Publishers) > 0 {
+		publisher = raw.Publishers[0]
+	}
+	if publisher == "" {
+		publisher = raw.Imprint
+	}
+	if publisher == "" {
+		publisher = raw.PublisherName
+	}
+
+	// Published date extraction
+	publishedDate := raw.PublishedDate
+	if publishedDate == "" {
+		publishedDate = raw.PublicationDate
+	}
+	if publishedDate == "" {
+		publishedDate = raw.DatePublished
+	}
+	if publishedDate == "" {
+		publishedDate = raw.PubDate
+	}
+
+	// ID generation
+	id := raw.ProductID
+	if id == "" {
+		id = raw.ID
+	}
+	if id == "" {
+		id = raw.OURN
+	}
+	if id == "" {
+		id = raw.ISBN
+	}
+	if id == "" {
+		id = fmt.Sprintf("api_result_%d", index)
+	}
+
+	return map[string]interface{}{
+		"id":             id,
+		"title":          title,
+		"authors":        authors,
+		"content_type":   contentType,
+		"description":    description,
+		"url":            itemURL,
+		"ourn":           raw.OURN,
+		"publisher":      publisher,
+		"published_date": publishedDate,
+		"source":         "api_search_oreilly",
+	}
+}
+
+// makeHTTPSearchRequest performs the O'Reilly search API call using HTTP client
+func (bc *BrowserClient) makeHTTPSearchRequest(baseURL, query string, rows, tzOffset int, aiaOnly bool, featureFlags string, report, isTopics bool) (*SearchAPIResponse, error) {
+	params := url.Values{}
+	params.Set("q", query)
+	params.Set("rows", strconv.Itoa(rows))
+	params.Set("tzOffset", strconv.Itoa(tzOffset))
+	params.Set("aia_only", strconv.FormatBool(aiaOnly))
+	params.Set("feature_flags", featureFlags)
+	params.Set("report", strconv.FormatBool(report))
+	params.Set("isTopics", strconv.FormatBool(isTopics))
+
+	fullURL := baseURL + "?" + params.Encode()
+	log.Printf("Making HTTP API request to: %s", fullURL)
+
+	req, err := http.NewRequest("GET", fullURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	req.Header.Set("User-Agent", bc.userAgent)
+
+	// Add cookies if available
+	for _, cookie := range bc.cookies {
+		req.AddCookie(cookie)
+	}
+
+	resp, err := bc.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var apiResponse SearchAPIResponse
+	if err := json.Unmarshal(body, &apiResponse); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+	}
+
+	return &apiResponse, nil
+}
 
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
 type BrowserClient struct {
@@ -430,300 +684,9 @@ func (bc *BrowserClient) RefreshSession() error {
 	return nil
 }
 
-// SearchContent はO'Reilly Learning Platformでコンテンツを検索します
+
+// SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します
 func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, error) {
-	log.Printf("検索を開始します: %s", query)
-	
-	var results []map[string]interface{}
-	
-	// オプションのデフォルト値を設定
-	rows := 100
-	if r, ok := options["rows"].(int); ok && r > 0 {
-		rows = r
-	}
-	
-	// 言語オプションは現在使用していないため、将来の拡張用として保持
-	_ = options["languages"] // 未使用警告を回避
-	
-	// URLエンコードされた検索クエリで直接検索結果ページにアクセス
-	searchURL := fmt.Sprintf("https://www.oreilly.com/search/?q=%s&rows=%d", 
-		strings.ReplaceAll(query, " ", "+"), rows)
-	
-	err := chromedp.Run(bc.ctx,
-		// 検索結果ページに直接移動
-		chromedp.Navigate(searchURL),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Printf("検索結果ページに直接移動しました: %s", searchURL)
-			return nil
-		}),
-		
-		// ページの読み込み完了を待機
-		chromedp.WaitReady("body", chromedp.ByQuery),
-		chromedp.Sleep(3*time.Second), // 検索結果の読み込み待機
-		
-		// 現在のURLを確認
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var currentURL string
-			if err := chromedp.Location(&currentURL).Do(ctx); err == nil {
-				log.Printf("検索結果ページのURL: %s", currentURL)
-			}
-			return nil
-		}),
-		
-		// 検索結果を取得（O'Reillyの新しい検索ページ構造に対応）
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Printf("検索結果の抽出を開始します")
-			
-			// より広範囲なリンクセレクターで検索結果を確認
-			var hasResults bool
-			if err := chromedp.Evaluate(`
-				const resultElements = document.querySelectorAll('a[href*="oreilly.com"], a[href*="/library/"], a[href*="/view/"], a[href*="/book/"], a[href*="/video"]');
-				console.log('検索結果リンク数:', resultElements.length);
-				resultElements.length > 0
-			`, &hasResults).Do(ctx); err != nil || !hasResults {
-				log.Printf("検索結果のリンクが見つかりませんでした")
-				
-				// デバッグ情報を取得
-				var pageContent string
-				if err := chromedp.Evaluate(`document.body.textContent.substring(0, 1000)`, &pageContent).Do(ctx); err == nil {
-					log.Printf("ページ内容の一部: %s", pageContent)
-				}
-				return nil
-			}
-			
-			log.Printf("検索結果のリンクが見つかりました")
-			
-			// O'Reillyの新しい検索ページ構造に対応した抽出ロジック
-			var searchResults []map[string]interface{}
-			if err := chromedp.Evaluate(fmt.Sprintf(`
-				(function() {
-					const results = [];
-					const processedTitles = new Set();
-					
-					// より広範囲なセレクターでリンクを取得
-					const linkSelectors = [
-						'a[href*="learning.oreilly.com"]',
-						'a[href*="/library/view/"]',
-						'a[href*="/library/book/"]',
-						'a[href*="/videos/"]',
-						'a[href*="/book/"]',
-						'a[href*="/video"]'
-					];
-					
-					let allLinks = [];
-					for (const selector of linkSelectors) {
-						const links = Array.from(document.querySelectorAll(selector));
-						allLinks = allLinks.concat(links);
-					}
-					
-					// 重複を除去
-					const uniqueLinks = Array.from(new Set(allLinks));
-					console.log('処理対象リンク数:', uniqueLinks.length);
-					
-					for (let i = 0; i < Math.min(uniqueLinks.length, %d); i++) {
-						const link = uniqueLinks[i];
-						
-						// リンクの親要素を検索してコンテナを見つける
-						let container = link;
-						for (let j = 0; j < 5; j++) {
-							container = container.parentElement;
-							if (!container) break;
-							
-							// 適切なコンテナかチェック
-							const containerClasses = container.className || '';
-							if (containerClasses.includes('result') || 
-								containerClasses.includes('item') || 
-								containerClasses.includes('card') ||
-								container.tagName === 'ARTICLE' ||
-								container.tagName === 'LI') {
-								break;
-							}
-						}
-						
-						if (!container) container = link.parentElement || link;
-						
-						// タイトルを取得（より柔軟な方法）
-						let title = '';
-						
-						// 1. リンクのテキストを確認
-						if (link.textContent && link.textContent.trim()) {
-							title = link.textContent.trim();
-						}
-						
-						// 2. コンテナ内のタイトル要素を確認
-						if (!title || title.length < 5) {
-							const titleSelectors = [
-								'h1, h2, h3, h4, h5, h6',
-								'.title',
-								'[data-testid*="title"]',
-								'.book-title, .video-title',
-								'strong, b',
-								'.name'
-							];
-							
-							for (const selector of titleSelectors) {
-								const titleEl = container.querySelector(selector);
-								if (titleEl && titleEl.textContent.trim() && titleEl.textContent.trim().length > title.length) {
-									title = titleEl.textContent.trim();
-									break;
-								}
-							}
-						}
-						
-						// タイトルのクリーンアップ
-						title = title.replace(/^\s*[\d\.\-\*\+]\s*/, '').trim(); // 先頭の番号や記号を除去
-						
-						// 重複チェック
-						if (!title || title.length < 3 || processedTitles.has(title)) {
-							continue;
-						}
-						processedTitles.add(title);
-						
-						// URLとOURNを取得
-						const url = link.href;
-						let ourn = '';
-						const ournMatches = [
-							url.match(/\/library\/view\/[^\/]+\/([^\/\?]+)/),
-							url.match(/\/book\/([^\/\?]+)/),
-							url.match(/\/video\/([^\/\?]+)/)
-						];
-						
-						for (const match of ournMatches) {
-							if (match) {
-								ourn = match[1];
-								break;
-							}
-						}
-						
-						// 著者情報を取得
-						let authors = [];
-						const authorSelectors = [
-							'.author, .authors',
-							'[data-testid*="author"]',
-							'.by-author',
-							'.book-author',
-							'[class*="author"]'
-						];
-						
-						for (const selector of authorSelectors) {
-							const authorEl = container.querySelector(selector);
-							if (authorEl && authorEl.textContent.trim()) {
-								const authorText = authorEl.textContent.trim();
-								authors = [authorText.replace(/^(by|著者?:?)\s*/i, '')];
-								break;
-							}
-						}
-						
-						// コンテンツタイプを推測
-						let contentType = 'unknown';
-						if (url.includes('/book/') || url.includes('/library/view/')) {
-							contentType = 'book';
-						} else if (url.includes('/video')) {
-							contentType = 'video';
-						} else if (url.includes('/learning-path')) {
-							contentType = 'learning-path';
-						}
-						
-						// 説明を取得
-						let description = '';
-						const descSelectors = [
-							'.description, .summary',
-							'p',
-							'.excerpt',
-							'.content'
-						];
-						
-						for (const selector of descSelectors) {
-							const descEl = container.querySelector(selector);
-							if (descEl && descEl.textContent.trim()) {
-								description = descEl.textContent.trim().substring(0, 200);
-								break;
-							}
-						}
-						
-						// 出版社を取得
-						let publisher = '';
-						const publisherSelectors = [
-							'.publisher',
-							'[data-testid*="publisher"]',
-							'.imprint',
-							'[class*="publisher"]'
-						];
-						
-						for (const selector of publisherSelectors) {
-							const publisherEl = container.querySelector(selector);
-							if (publisherEl && publisherEl.textContent.trim()) {
-								publisher = publisherEl.textContent.trim();
-								break;
-							}
-						}
-						
-						results.push({
-							id: ourn || 'item_' + (results.length + 1),
-							ourn: ourn,
-							title: title,
-							authors: authors,
-							content_type: contentType,
-							description: description,
-							url: url,
-							publisher: publisher,
-							published_date: '',
-							source: 'browser_search_oreilly_new'
-						});
-					}
-					
-					console.log('抽出された結果数:', results.length);
-					return results;
-				})()
-			`, rows), &searchResults).Do(ctx); err != nil {
-				log.Printf("検索結果の抽出でエラーが発生しました: %v", err)
-				return err
-			}
-			
-			results = searchResults
-			log.Printf("検索結果を取得しました: %d件", len(results))
-			return nil
-		}),
-	)
-
-	if err != nil {
-		log.Printf("検索処理でエラーが発生しました: %v", err)
-		return nil, fmt.Errorf("検索処理でエラーが発生しました: %w", err)
-	}
-
-	if len(results) == 0 {
-		log.Printf("検索結果が見つかりませんでした: %s", query)
-		
-		// デバッグ情報を取得
-		debugErr := chromedp.Run(bc.ctx,
-			chromedp.ActionFunc(func(ctx context.Context) error {
-				var pageTitle, currentURL string
-				chromedp.Title(&pageTitle).Do(ctx)
-				chromedp.Location(&currentURL).Do(ctx)
-				log.Printf("デバッグ情報 - ページタイトル: %s, URL: %s", pageTitle, currentURL)
-				
-				// ページの内容を確認
-				var bodyText string
-				if err := chromedp.Evaluate(`document.body.textContent.substring(0, 500)`, &bodyText).Do(ctx); err == nil {
-					log.Printf("ページ内容の一部: %s", bodyText)
-				}
-				
-				return nil
-			}),
-		)
-		if debugErr != nil {
-			log.Printf("デバッグ情報の取得に失敗: %v", debugErr)
-		}
-		
-		return []map[string]interface{}{}, nil
-	}
-
-	log.Printf("検索が完了しました。%d件の結果を取得: %s", len(results), query)
-	return results, nil
-}
-
-// SearchContentAPI は O'Reilly Learning Platform の内部 API を使用して検索を実行します
-func (bc *BrowserClient) SearchContentAPI(query string, options map[string]interface{}) ([]map[string]interface{}, error) {
 	log.Printf("API検索を開始します: %s", query)
 	
 	// オプションのデフォルト値を設定
@@ -759,314 +722,104 @@ func (bc *BrowserClient) SearchContentAPI(query string, options map[string]inter
 	if topics, ok := options["isTopics"].(bool); ok {
 		isTopics = topics
 	}
-	
-	var results []map[string]interface{}
-	var networkResponses []string
-	
-	// ネットワークリクエストとコンソールログの監視を有効化
-	chromedp.ListenTarget(bc.ctx, func(ev interface{}) {
-		switch ev := ev.(type) {
-		case *network.EventResponseReceived:
-			resp := ev.Response
-			if strings.Contains(resp.URL, "/api/") || 
-			   strings.Contains(resp.URL, "search") ||
-			   strings.Contains(resp.URL, "query") {
-				networkResponses = append(networkResponses, resp.URL)
-				log.Printf("検出されたAPI呼び出し: %s", resp.URL)
-			}
-		case *runtime.EventConsoleAPICalled:
-			args := make([]string, len(ev.Args))
-			for i, arg := range ev.Args {
-				if len(arg.Value) > 0 {
-					args[i] = string(arg.Value)
-				} else {
-					args[i] = arg.Type.String()
-				}
-			}
-			log.Printf("コンソールログ [%s]: %s", ev.Type, strings.Join(args, " "))
-		}
-	})
-	
+
+	// First, try to get current context (cookies) with minimal JavaScript
 	err := chromedp.Run(bc.ctx,
-		// ネットワーク監視とランタイムイベントを有効化
-		network.Enable(),
-		runtime.Enable(),
-		
-		// 検索ページに移動
-		chromedp.Navigate("https://www.oreilly.com/search/"),
+		chromedp.Navigate("https://learning.oreilly.com/search/"),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		chromedp.Sleep(3*time.Second),
+		chromedp.Sleep(2*time.Second),
 		
-		// 検索APIを直接呼び出すJavaScriptを実行
+		// Get current domain context with minimal JavaScript
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Printf("API検索のJavaScript実行を開始します")
-			
-			// まず現在のページで学習プラットフォームにアクセスできているか確認
-			var currentUrl string
-			if err := chromedp.Location(&currentUrl).Do(ctx); err == nil {
-				log.Printf("現在のURL: %s", currentUrl)
-				if !strings.Contains(currentUrl, "oreilly.com") {
-					log.Printf("O'Reillyドメインにいません。learning.oreilly.comにリダイレクトします")
-					if err := chromedp.Navigate("https://learning.oreilly.com/search/").Do(ctx); err != nil {
-						log.Printf("学習プラットフォームへのナビゲートに失敗: %v", err)
-					} else {
-						_ = chromedp.Sleep(2 * time.Second).Do(ctx)
-					}
-				}
-			}
-			
-			// 学習プラットフォームでより直接的なAPI呼び出しを試行
-			log.Printf("学習プラットフォームでの直接API検索を試行します")
-			if err := chromedp.Navigate("https://learning.oreilly.com/search/").Do(ctx); err != nil {
-				log.Printf("学習プラットフォーム検索ページへのナビゲートに失敗: %v", err)
+			var domain string
+			err := chromedp.Evaluate(`window.location.hostname`, &domain).Do(ctx)
+			if err != nil {
+				log.Printf("Could not get domain context: %v", err)
 			} else {
-				_ = chromedp.Sleep(3 * time.Second).Do(ctx)
+				log.Printf("Current domain: %s", domain)
 			}
 			
-			// 現在のページでAPIアクセス可能性をテスト
-			var testResult string
-			if err := chromedp.Evaluate(`
-				// APIエンドポイントの存在確認
-				(function() {
-					console.log('APIエンドポイント存在確認開始');
-					console.log('現在のホスト:', window.location.hostname);
-					console.log('現在のパス:', window.location.pathname);
-					
-					// 利用可能そうなAPIエンドポイントをテスト
-					const endpoints = [
-						'/api/v2/search/',
-						'/search/api/search/',
-						'/api/search/',
-						'/learningapi/v1/search/'
-					];
-					
-					return 'test_complete';
-				})()
-			`, &testResult).Do(ctx); err == nil {
-				log.Printf("APIテスト完了: %s", testResult)
+			// Update cookies from browser
+			cookiesResp, err := network.GetCookies().Do(ctx)
+			if err != nil {
+				log.Printf("Could not get cookies: %v", err)
+				return nil
 			}
 			
-			// O'Reilly の検索 API を直接呼び出し（同期的実行）
-			var apiResults map[string]interface{}
-			jsCode := fmt.Sprintf(`
-				(() => {
-					console.log('検索API呼び出し開始: %s');
-					
-					try {
-						// XMLHttpRequestを使用して同期的に実行
-						const xhr = new XMLHttpRequest();
-						
-						// O'Reilly の検索APIエンドポイント
-						const baseUrl = window.location.hostname.includes('learning.oreilly.com') 
-							? '/api/v2/search/'  
-							: '/search/api/search/';
-						
-						// パラメータを構築
-						const params = new URLSearchParams({
-							q: '%s',
-							rows: %d,
-							tzOffset: %d,
-							aia_only: %t,
-							feature_flags: '%s',
-							report: %t,
-							isTopics: %t
-						});
-						
-						const fullUrl = baseUrl + '?' + params.toString();
-						console.log('API URL:', fullUrl);
-						console.log('現在のドメイン:', window.location.hostname);
-						console.log('XHR呼び出し開始');
-						
-						xhr.open('GET', fullUrl, false); // false = 同期実行
-						xhr.setRequestHeader('Accept', 'application/json');
-						xhr.setRequestHeader('Content-Type', 'application/json');
-						xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-						xhr.withCredentials = true;
-						
-						xhr.send();
-						
-						console.log('XHR呼び出し完了');
-						console.log('Response status:', xhr.status);
-						console.log('Response statusText:', xhr.statusText);
-						
-						if (xhr.status !== 200) {
-							console.error('API呼び出し失敗:', xhr.status, xhr.statusText);
-							console.error('レスポンス本文:', xhr.responseText);
-							
-							// フォールバック: 別のエンドポイントを試行
-							const xhr2 = new XMLHttpRequest();
-							const fallbackUrl = '/search/api/search/' + '?' + params.toString();
-							console.log('フォールバックURL:', fallbackUrl);
-							
-							xhr2.open('GET', fallbackUrl, false);
-							xhr2.setRequestHeader('Accept', 'application/json');
-							xhr2.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-							xhr2.withCredentials = true;
-							xhr2.send();
-							
-							if (xhr2.status === 200) {
-								console.log('フォールバック成功:', xhr2.status);
-								const data = JSON.parse(xhr2.responseText);
-								console.log('フォールバックデータ受信');
-								return processAPIResponse(data);
-							} else {
-								console.error('フォールバックも失敗:', xhr2.status);
-								return { results: [], error: 'API呼び出し失敗: ' + xhr.status + ' -> ' + xhr2.status };
-							}
-						}
-						
-						const data = JSON.parse(xhr.responseText);
-						console.log('API レスポンス受信完了、データタイプ:', typeof data);
-						console.log('API レスポンス（最初の部分）:', JSON.stringify(data).substring(0, 500));
-						
-						return processAPIResponse(data);
-						
-					} catch (error) {
-						console.error('API検索エラー:', error);
-						return { results: [], error: error.message };
-					}
-					
-					function processAPIResponse(data) {
-						// レスポンスから結果を抽出
-						let searchResults = [];
-						
-						// O'Reilly の実際のAPIレスポンス構造に対応
-						if (data && data.data && data.data.products && Array.isArray(data.data.products)) {
-							console.log('data.products配列から抽出:', data.data.products.length + '件');
-							searchResults = data.data.products;
-						} else if (data && data.results && Array.isArray(data.results)) {
-							console.log('results配列から抽出:', data.results.length + '件');
-							searchResults = data.results;
-						} else if (data && data.items && Array.isArray(data.items)) {
-							console.log('items配列から抽出:', data.items.length + '件');
-							searchResults = data.items;
-						} else if (data && data.hits && Array.isArray(data.hits)) {
-							console.log('hits配列から抽出:', data.hits.length + '件');
-							searchResults = data.hits;
-						} else if (data && Array.isArray(data)) {
-							console.log('データ配列から抽出:', data.length + '件');
-							searchResults = data;
-						} else {
-							console.log('予期しないレスポンス構造:', typeof data);
-							console.log('利用可能なキー:', Object.keys(data || {}));
-							if (data && data.data) {
-								console.log('data内のキー:', Object.keys(data.data || {}));
-							}
-							searchResults = [];
-						}
-						
-						// 結果を正規化
-						const normalizedResults = searchResults.slice(0, %d).map((item, index) => {
-							console.log('アイテム ' + index + ' を正規化中');
-							
-							// URLの正規化 - O'Reillyの構造に合わせて
-							let itemUrl = item.web_url || item.url || item.learning_url || item.link || '';
-							if (!itemUrl && item.product_id) {
-								// product_idからURLを生成
-								itemUrl = 'https://learning.oreilly.com/library/view/-/' + item.product_id + '/';
-							}
-							if (itemUrl && !itemUrl.startsWith('http')) {
-								if (itemUrl.startsWith('/')) {
-									itemUrl = 'https://learning.oreilly.com' + itemUrl;
-								}
-							}
-							
-							// 著者の正規化 - O'Reillyの構造に合わせて
-							let authors = [];
-							if (item.authors && Array.isArray(item.authors)) {
-								authors = item.authors;
-							} else if (item.author) {
-								authors = [item.author];
-							} else if (item.creators && Array.isArray(item.creators)) {
-								authors = item.creators.map(c => c.name || c.toString());
-							} else if (item.author_names && Array.isArray(item.author_names)) {
-								authors = item.author_names;
-							}
-							
-							// コンテンツタイプの決定 - O'Reillyの構造に合わせて  
-							let contentType = item.content_type || item.type || item.format || item.product_type || 'unknown';
-							if (contentType === 'unknown' && itemUrl) {
-								if (itemUrl.includes('/video')) {
-									contentType = 'video';
-								} else if (itemUrl.includes('/library/view/') || itemUrl.includes('/book/')) {
-									contentType = 'book';
-								}
-							}
-							
-							// タイトルと説明の抽出
-							const title = item.title || item.name || item.display_title || item.product_name || '';
-							const description = item.description || item.summary || item.excerpt || 
-											  item.description_with_markups || item.short_description || '';
-							
-							return {
-								id: item.product_id || item.id || item.ourn || item.isbn || ('api_result_' + index),
-								title: title,
-								authors: authors,
-								content_type: contentType,
-								description: description,
-								url: itemUrl,
-								ourn: item.ourn || item.product_id || item.id || item.isbn || '',
-								publisher: item.publisher || (item.publishers && item.publishers[0]) || 
-										 item.imprint || item.publisher_name || '',
-								published_date: item.published_date || item.publication_date || 
-											   item.date_published || item.pub_date || '',
-								source: 'api_search_oreilly'
-							};
-						});
-						
-						console.log('正規化された結果:', normalizedResults.length + '件');
-						return { results: normalizedResults };
-					}
-				})()
-			`, 
-				query,
-				query, 
-				rows, 
-				tzOffset,
-				aiaOnly,
-				featureFlags,
-				report,
-				isTopics,
-				rows, // 結果数制限用
-			)
-			
-			if err := chromedp.Evaluate(jsCode, &apiResults).Do(ctx); err != nil {
-				log.Printf("API検索のJavaScript実行でエラーが発生しました: %v", err)
-				return err
-			}
-			
-			// APIレスポンスから結果配列を抽出
-			if resultsArray, ok := apiResults["results"].([]interface{}); ok {
-				for _, item := range resultsArray {
-					if itemMap, ok := item.(map[string]interface{}); ok {
-						results = append(results, itemMap)
-					}
+			// Convert to http.Cookie
+			bc.cookies = make([]*http.Cookie, len(cookiesResp))
+			for i, c := range cookiesResp {
+				bc.cookies[i] = &http.Cookie{
+					Name:   c.Name,
+					Value:  c.Value,
+					Domain: c.Domain,
+					Path:   c.Path,
 				}
 			}
-			
-			// エラーがあればログ出力
-			if errorMsg, ok := apiResults["error"].(string); ok && errorMsg != "" {
-				log.Printf("JavaScript API エラー: %s", errorMsg)
-			}
-			
-			log.Printf("API検索結果を取得しました: %d件", len(results))
+			log.Printf("Updated %d cookies from browser", len(bc.cookies))
 			return nil
 		}),
 	)
-
+	
 	if err != nil {
-		log.Printf("API検索処理でエラーが発生しました: %v", err)
-		return nil, fmt.Errorf("API検索処理でエラーが発生しました: %w", err)
+		log.Printf("Failed to get browser context: %v", err)
+		return nil, fmt.Errorf("failed to get browser context: %w", err)
 	}
 
-	// ネットワークレスポンスのログ出力
-	if len(networkResponses) > 0 {
-		log.Printf("検出されたネットワーク呼び出し:")
-		for _, response := range networkResponses {
-			log.Printf("  - %s", response)
+	// Try different API endpoints using Go HTTP client
+	endpoints := []string{
+		"https://learning.oreilly.com" + APIEndpointV2,
+		"https://learning.oreilly.com" + APIEndpointSearch,
+		"https://www.oreilly.com" + APIEndpointSearch,
+		"https://learning.oreilly.com" + APIEndpointLegacy,
+	}
+	
+	var results []map[string]interface{}
+	var lastErr error
+	
+	for i, endpoint := range endpoints {
+		log.Printf("Trying API endpoint %d/%d: %s", i+1, len(endpoints), endpoint)
+		
+		apiResponse, err := bc.makeHTTPSearchRequest(endpoint, query, rows, tzOffset, aiaOnly, featureFlags, report, isTopics)
+		if err != nil {
+			log.Printf("Endpoint %s failed: %v", endpoint, err)
+			lastErr = err
+			continue
+		}
+		
+		// Extract results from API response
+		var rawResults []RawSearchResult
+		if apiResponse.Data != nil && len(apiResponse.Data.Products) > 0 {
+			rawResults = apiResponse.Data.Products
+		} else if len(apiResponse.Results) > 0 {
+			rawResults = apiResponse.Results
+		} else if len(apiResponse.Items) > 0 {
+			rawResults = apiResponse.Items
+		} else if len(apiResponse.Hits) > 0 {
+			rawResults = apiResponse.Hits
+		}
+		
+		log.Printf("API endpoint %s returned %d results", endpoint, len(rawResults))
+		
+		// Normalize results using Go instead of JavaScript
+		for i, rawResult := range rawResults {
+			if i >= rows {
+				break
+			}
+			normalized := normalizeSearchResult(rawResult, i)
+			results = append(results, normalized)
+		}
+		
+		if len(results) > 0 {
+			log.Printf("Successfully retrieved %d results from %s", len(results), endpoint)
+			break
 		}
 	}
-
+	
+	if len(results) == 0 && lastErr != nil {
+		return nil, fmt.Errorf("all API endpoints failed, last error: %w", lastErr)
+	}
+	
 	log.Printf("API検索が完了しました。%d件の結果を取得: %s", len(results), query)
 	return results, nil
 }
