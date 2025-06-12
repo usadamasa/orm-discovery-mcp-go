@@ -10,6 +10,7 @@ O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経�
 
 - **コンテンツ検索**: O'Reillyコンテンツの高度な検索
 - **コレクション管理**: コレクションの作成、編集、コンテンツの追加・削除
+- **プレイリスト管理**: プレイリストの作成、一覧表示、コンテンツ追加、詳細取得
 - **マイコレクション表示**: 既存コレクションの一覧表示と詳細取得
 - **書籍要約生成**: 複数書籍の日本語要約とまとめ生成
 
@@ -83,15 +84,28 @@ go run .
 
 ## 利用可能なツール
 
+### コンテンツ検索・要約
 | ツール名 | 説明 |
 |---------|------|
 | `search_content` | O'Reillyコンテンツの検索 |
-| `list_collections` | マイコレクションの一覧表示 |
 | `summarize_books` | 書籍の日本語要約生成 |
+
+### コレクション管理
+| ツール名 | 説明 |
+|---------|------|
+| `list_collections` | マイコレクションの一覧表示 |
 | `create_collection` | 新しいコレクションの作成 |
 | `add_to_collection` | コレクションへのコンテンツ追加 |
 | `remove_from_collection` | コレクションからのコンテンツ削除 |
 | `get_collection_details` | コレクションの詳細情報取得 |
+
+### プレイリスト管理
+| ツール名 | 説明 |
+|---------|------|
+| `list_playlists` | プレイリストの一覧表示 |
+| `create_playlist` | 新しいプレイリストの作成 |
+| `add_to_playlist` | プレイリストへのコンテンツ追加 |
+| `get_playlist_details` | プレイリストの詳細情報取得 |
 
 ## 使用例
 

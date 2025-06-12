@@ -173,6 +173,73 @@ func (s *Server) registerHandlers() {
 	)
 	s.mcpServer.AddTool(getCollectionDetailsTool, s.GetCollectionDetailsHandler)
 
+	// プレイリスト管理ツールの追加
+	listPlaylistsTool := mcp.NewTool("list_playlists",
+		mcp.WithDescription("List playlists from O'Reilly Learning Platform"),
+	)
+	s.mcpServer.AddTool(listPlaylistsTool, s.ListPlaylistsHandler)
+
+	createPlaylistTool := mcp.NewTool("create_playlist",
+		mcp.WithDescription("Create a new playlist on O'Reilly Learning Platform"),
+		mcp.WithString("name",
+			mcp.Required(),
+			mcp.Description("Name of the playlist"),
+		),
+		mcp.WithString("description",
+			mcp.Description("Description of the playlist"),
+		),
+		mcp.WithBoolean("is_public",
+			mcp.Description("Whether the playlist should be public (default: false)"),
+		),
+	)
+	s.mcpServer.AddTool(createPlaylistTool, s.CreatePlaylistHandler)
+
+	addToPlaylistTool := mcp.NewTool("add_to_playlist",
+		mcp.WithDescription("Add content to a playlist"),
+		mcp.WithString("playlist_id",
+			mcp.Required(),
+			mcp.Description("ID of the playlist to add content to"),
+		),
+		mcp.WithString("content_id",
+			mcp.Required(),
+			mcp.Description("ID or OURN of the content to add"),
+		),
+	)
+	s.mcpServer.AddTool(addToPlaylistTool, s.AddToPlaylistHandler)
+
+	getPlaylistDetailsTool := mcp.NewTool("get_playlist_details",
+		mcp.WithDescription("Get detailed information about a specific playlist"),
+		mcp.WithString("playlist_id",
+			mcp.Required(),
+			mcp.Description("ID of the playlist to get details for"),
+		),
+	)
+	s.mcpServer.AddTool(getPlaylistDetailsTool, s.GetPlaylistDetailsHandler)
+
+	// 目次抽出ツールの追加
+	extractTocTool := mcp.NewTool("extract_table_of_contents",
+		mcp.WithDescription("Extract table of contents from O'Reilly book URL"),
+		mcp.WithString("url",
+			mcp.Required(),
+			mcp.Description("O'Reilly book URL (e.g., https://learning.oreilly.com/library/view/docker-deep-dive/9781806024032/chap04.xhtml)"),
+		),
+	)
+	s.mcpServer.AddTool(extractTocTool, s.ExtractTableOfContentsHandler)
+
+	// 書籍内検索ツールの追加
+	searchInBookTool := mcp.NewTool("search_in_book",
+		mcp.WithDescription("Search for terms within a specific O'Reilly book"),
+		mcp.WithString("book_id",
+			mcp.Required(),
+			mcp.Description("Book ID or ISBN (e.g., 9784814400607)"),
+		),
+		mcp.WithString("search_term",
+			mcp.Required(),
+			mcp.Description("Term or phrase to search for within the book"),
+		),
+	)
+	s.mcpServer.AddTool(searchInBookTool, s.SearchInBookHandler)
+
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
 }
 
@@ -256,6 +323,192 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
 	}
 	// レスポンスを返す
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// ListPlaylistsHandler はプレイリスト一覧取得リクエストを処理します
+func (s *Server) ListPlaylistsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("プレイリスト一覧取得リクエスト受信: %+v", request)
+
+	// ブラウザクライアントからプレイリストページのプレイリストを取得
+	var playlists []map[string]interface{}
+	if s.oreillyClient.browserClient != nil {
+		log.Printf("ブラウザクライアントからプレイリストページのプレイリストを取得します")
+		playlistResults, err := s.oreillyClient.browserClient.GetPlaylistsFromPlaylistsPage()
+		if err != nil {
+			log.Printf("プレイリストページからの取得に失敗: %v", err)
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get playlists: %v", err)), nil
+		} else {
+			playlists = playlistResults
+			log.Printf("プレイリストページから%d個のプレイリストを取得しました", len(playlistResults))
+		}
+	} else {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	// 結果をレスポンスに変換
+	response := struct {
+		Count   int           `json:"count"`
+		Results []interface{} `json:"results"`
+		Source  string        `json:"source"`
+	}{
+		Count:   len(playlists),
+		Results: make([]interface{}, 0, len(playlists)),
+		Source:  "playlists_page",
+	}
+
+	for _, playlist := range playlists {
+		response.Results = append(response.Results, playlist)
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// CreatePlaylistHandler はプレイリスト作成リクエストを処理します
+func (s *Server) CreatePlaylistHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("プレイリスト作成リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		Name        string `json:"name"`
+		Description string `json:"description,omitempty"`
+		IsPublic    bool   `json:"is_public,omitempty"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.Name == "" {
+		return mcp.NewToolResultError("name parameter is required"), nil
+	}
+
+	// ブラウザクライアントでプレイリスト作成を実行
+	if s.oreillyClient.browserClient == nil {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	log.Printf("ブラウザクライアント呼び出し前")
+	result, err := s.oreillyClient.browserClient.CreatePlaylist(requestParams.Name, requestParams.Description, requestParams.IsPublic)
+	if err != nil {
+		log.Printf("ブラウザクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to create playlist: %v", err)), nil
+	}
+	log.Printf("ブラウザクライアント呼び出し後: %v", result)
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("プレイリスト「%s」を正常に作成しました", requestParams.Name),
+		"playlist": result,
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// AddToPlaylistHandler はプレイリストへのコンテンツ追加リクエストを処理します
+func (s *Server) AddToPlaylistHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("プレイリストへのコンテンツ追加リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		PlaylistID string `json:"playlist_id"`
+		ContentID  string `json:"content_id"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.PlaylistID == "" {
+		return mcp.NewToolResultError("playlist_id parameter is required"), nil
+	}
+	if requestParams.ContentID == "" {
+		return mcp.NewToolResultError("content_id parameter is required"), nil
+	}
+
+	// ブラウザクライアントでコンテンツ追加を実行
+	if s.oreillyClient.browserClient == nil {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	log.Printf("ブラウザクライアント呼び出し前")
+	err = s.oreillyClient.browserClient.AddContentToPlaylist(requestParams.PlaylistID, requestParams.ContentID)
+	if err != nil {
+		log.Printf("ブラウザクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to add content to playlist: %v", err)), nil
+	}
+	log.Printf("ブラウザクライアント呼び出し後: 成功")
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("コンテンツ「%s」をプレイリスト「%s」に正常に追加しました", requestParams.ContentID, requestParams.PlaylistID),
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// GetPlaylistDetailsHandler はプレイリスト詳細取得リクエストを処理します
+func (s *Server) GetPlaylistDetailsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("プレイリスト詳細取得リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		PlaylistID string `json:"playlist_id"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.PlaylistID == "" {
+		return mcp.NewToolResultError("playlist_id parameter is required"), nil
+	}
+
+	// ブラウザクライアントでプレイリスト詳細取得を実行
+	if s.oreillyClient.browserClient == nil {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	log.Printf("ブラウザクライアント呼び出し前")
+	result, err := s.oreillyClient.browserClient.GetPlaylistDetails(requestParams.PlaylistID)
+	if err != nil {
+		log.Printf("ブラウザクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get playlist details: %v", err)), nil
+	}
+	log.Printf("ブラウザクライアント呼び出し後: %v", result)
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"playlist": result,
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
@@ -726,6 +979,114 @@ func (s *Server) handlePing(ctx context.Context, notification mcp.JSONRPCNotific
 			log.Printf("Failed to send pong notification")
 		}
 	}
+}
+
+// ExtractTableOfContentsHandler は目次抽出リクエストを処理します
+func (s *Server) ExtractTableOfContentsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("目次抽出リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		URL string `json:"url"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.URL == "" {
+		return mcp.NewToolResultError("url parameter is required"), nil
+	}
+
+	// ExtractTableOfContentsParamsに変換
+	extractParams := ExtractTableOfContentsParams{
+		URL: requestParams.URL,
+	}
+
+	// O'Reilly クライアントで目次抽出を実行
+	log.Printf("O'Reillyクライアント呼び出し前")
+	result, err := s.oreillyClient.ExtractTableOfContents(ctx, extractParams)
+	if err != nil {
+		log.Printf("O'Reillyクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to extract table of contents: %v", err)), nil
+	}
+	log.Printf("O'Reillyクライアント呼び出し後: %s (%d項目)", result.BookTitle, len(result.TableOfContents))
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"success":           true,
+		"book_title":        result.BookTitle,
+		"book_id":           result.BookID,
+		"book_url":          result.BookURL,
+		"authors":           result.Authors,
+		"publisher":         result.Publisher,
+		"table_of_contents": result.TableOfContents,
+		"extracted_at":      result.ExtractedAt,
+		"total_items":       len(result.TableOfContents),
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// SearchInBookHandler は書籍内検索リクエストを処理します
+func (s *Server) SearchInBookHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("書籍内検索リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		BookID     string `json:"book_id"`
+		SearchTerm string `json:"search_term"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.BookID == "" {
+		return mcp.NewToolResultError("book_id parameter is required"), nil
+	}
+	if requestParams.SearchTerm == "" {
+		return mcp.NewToolResultError("search_term parameter is required"), nil
+	}
+
+	// ブラウザクライアントで書籍内検索を実行
+	if s.oreillyClient.browserClient == nil {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	log.Printf("ブラウザクライアント呼び出し前")
+	results, err := s.oreillyClient.browserClient.SearchInBook(requestParams.BookID, requestParams.SearchTerm)
+	if err != nil {
+		log.Printf("ブラウザクライアント失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to search in book: %v", err)), nil
+	}
+	log.Printf("ブラウザクライアント呼び出し後: %d件の結果", len(results))
+
+	// 結果をレスポンスに変換
+	response := map[string]interface{}{
+		"success":     true,
+		"book_id":     requestParams.BookID,
+		"search_term": requestParams.SearchTerm,
+		"results":     results,
+		"total_matches": len(results),
+		"message":     fmt.Sprintf("書籍「%s」で「%s」を検索し、%d件の結果が見つかりました", requestParams.BookID, requestParams.SearchTerm, len(results)),
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
 func (s *Server) ListCollectionsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {

@@ -627,3 +627,52 @@ func (c *OreillyClient) GetCollectionDetails(ctx context.Context, params GetColl
 	log.Printf("コレクション詳細取得成功: %s", detailsResp.Collection.Name)
 	return &detailsResp, nil
 }
+
+// ExtractTableOfContentsParams は目次抽出パラメータの構造体です
+type ExtractTableOfContentsParams struct {
+	URL string `json:"url"`
+}
+
+// TableOfContentsItem は目次の1項目を表します
+type TableOfContentsItem struct {
+	Level       int    `json:"level"`
+	Title       string `json:"title"`
+	URL         string `json:"url,omitempty"`
+	ChapterID   string `json:"chapter_id,omitempty"`
+	SectionID   string `json:"section_id,omitempty"`
+	PageNumber  string `json:"page_number,omitempty"`
+}
+
+// TableOfContentsResponse は目次抽出レスポンスの構造体です
+type TableOfContentsResponse struct {
+	BookTitle    string                `json:"book_title"`
+	BookID       string                `json:"book_id"`
+	BookURL      string                `json:"book_url"`
+	Authors      []string              `json:"authors"`
+	Publisher    string                `json:"publisher"`
+	TableOfContents []TableOfContentsItem `json:"table_of_contents"`
+	ExtractedAt  string                `json:"extracted_at"`
+}
+
+// ExtractTableOfContents はO'Reilly書籍の目次を抽出します
+func (c *OreillyClient) ExtractTableOfContents(ctx context.Context, params ExtractTableOfContentsParams) (*TableOfContentsResponse, error) {
+	log.Printf("O'Reilly書籍の目次抽出が要求されました: %s\n", params.URL)
+	
+	if params.URL == "" {
+		return nil, fmt.Errorf("URL cannot be empty")
+	}
+	
+	// ブラウザクライアントが利用可能かチェック
+	if c.browserClient == nil {
+		return nil, fmt.Errorf("browser client is not available")
+	}
+	
+	// ブラウザクライアントで目次を抽出
+	result, err := c.browserClient.ExtractTableOfContents(params.URL)
+	if err != nil {
+		return nil, fmt.Errorf("table of contents extraction failed: %w", err)
+	}
+	
+	log.Printf("目次抽出が完了しました: %s", result.BookTitle)
+	return result, nil
+}
