@@ -57,7 +57,7 @@
 ### 2. browser_client.go の機能拡張 🟡 MEDIUM PRIORITY
 
 #### 2.1 検索機能の実装
-- [ ] `SearchContent`メソッドを追加
+- [x] `SearchContent`メソッドを追加
   - 検索ページへの遷移
   - 検索クエリの入力
   - 検索結果の取得とパース

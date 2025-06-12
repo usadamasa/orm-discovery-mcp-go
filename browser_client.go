@@ -361,6 +361,298 @@ func (bc *BrowserClient) RefreshSession() error {
 	return nil
 }
 
+// SearchContent はO'Reilly Learning Platformでコンテンツを検索します
+func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, error) {
+	log.Printf("検索を開始します: %s", query)
+	
+	var results []map[string]interface{}
+	
+	// オプションのデフォルト値を設定
+	rows := 100
+	if r, ok := options["rows"].(int); ok && r > 0 {
+		rows = r
+	}
+	
+	// 言語オプションは現在使用していないため、将来の拡張用として保持
+	_ = options["languages"] // 未使用警告を回避
+	
+	// URLエンコードされた検索クエリで直接検索結果ページにアクセス
+	searchURL := fmt.Sprintf("https://www.oreilly.com/search/?q=%s&rows=%d", 
+		strings.ReplaceAll(query, " ", "+"), rows)
+	
+	err := chromedp.Run(bc.ctx,
+		// 検索結果ページに直接移動
+		chromedp.Navigate(searchURL),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			log.Printf("検索結果ページに直接移動しました: %s", searchURL)
+			return nil
+		}),
+		
+		// ページの読み込み完了を待機
+		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.Sleep(3*time.Second), // 検索結果の読み込み待機
+		
+		// 現在のURLを確認
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var currentURL string
+			if err := chromedp.Location(&currentURL).Do(ctx); err == nil {
+				log.Printf("検索結果ページのURL: %s", currentURL)
+			}
+			return nil
+		}),
+		
+		// 検索結果を取得（O'Reillyの新しい検索ページ構造に対応）
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			log.Printf("検索結果の抽出を開始します")
+			
+			// より広範囲なリンクセレクターで検索結果を確認
+			var hasResults bool
+			if err := chromedp.Evaluate(`
+				const resultElements = document.querySelectorAll('a[href*="oreilly.com"], a[href*="/library/"], a[href*="/view/"], a[href*="/book/"], a[href*="/video"]');
+				console.log('検索結果リンク数:', resultElements.length);
+				resultElements.length > 0
+			`, &hasResults).Do(ctx); err != nil || !hasResults {
+				log.Printf("検索結果のリンクが見つかりませんでした")
+				
+				// デバッグ情報を取得
+				var pageContent string
+				if err := chromedp.Evaluate(`document.body.textContent.substring(0, 1000)`, &pageContent).Do(ctx); err == nil {
+					log.Printf("ページ内容の一部: %s", pageContent)
+				}
+				return nil
+			}
+			
+			log.Printf("検索結果のリンクが見つかりました")
+			
+			// O'Reillyの新しい検索ページ構造に対応した抽出ロジック
+			var searchResults []map[string]interface{}
+			if err := chromedp.Evaluate(fmt.Sprintf(`
+				(function() {
+					const results = [];
+					const processedTitles = new Set();
+					
+					// より広範囲なセレクターでリンクを取得
+					const linkSelectors = [
+						'a[href*="learning.oreilly.com"]',
+						'a[href*="/library/view/"]',
+						'a[href*="/library/book/"]',
+						'a[href*="/videos/"]',
+						'a[href*="/book/"]',
+						'a[href*="/video"]'
+					];
+					
+					let allLinks = [];
+					for (const selector of linkSelectors) {
+						const links = Array.from(document.querySelectorAll(selector));
+						allLinks = allLinks.concat(links);
+					}
+					
+					// 重複を除去
+					const uniqueLinks = Array.from(new Set(allLinks));
+					console.log('処理対象リンク数:', uniqueLinks.length);
+					
+					for (let i = 0; i < Math.min(uniqueLinks.length, %d); i++) {
+						const link = uniqueLinks[i];
+						
+						// リンクの親要素を検索してコンテナを見つける
+						let container = link;
+						for (let j = 0; j < 5; j++) {
+							container = container.parentElement;
+							if (!container) break;
+							
+							// 適切なコンテナかチェック
+							const containerClasses = container.className || '';
+							if (containerClasses.includes('result') || 
+								containerClasses.includes('item') || 
+								containerClasses.includes('card') ||
+								container.tagName === 'ARTICLE' ||
+								container.tagName === 'LI') {
+								break;
+							}
+						}
+						
+						if (!container) container = link.parentElement || link;
+						
+						// タイトルを取得（より柔軟な方法）
+						let title = '';
+						
+						// 1. リンクのテキストを確認
+						if (link.textContent && link.textContent.trim()) {
+							title = link.textContent.trim();
+						}
+						
+						// 2. コンテナ内のタイトル要素を確認
+						if (!title || title.length < 5) {
+							const titleSelectors = [
+								'h1, h2, h3, h4, h5, h6',
+								'.title',
+								'[data-testid*="title"]',
+								'.book-title, .video-title',
+								'strong, b',
+								'.name'
+							];
+							
+							for (const selector of titleSelectors) {
+								const titleEl = container.querySelector(selector);
+								if (titleEl && titleEl.textContent.trim() && titleEl.textContent.trim().length > title.length) {
+									title = titleEl.textContent.trim();
+									break;
+								}
+							}
+						}
+						
+						// タイトルのクリーンアップ
+						title = title.replace(/^\s*[\d\.\-\*\+]\s*/, '').trim(); // 先頭の番号や記号を除去
+						
+						// 重複チェック
+						if (!title || title.length < 3 || processedTitles.has(title)) {
+							continue;
+						}
+						processedTitles.add(title);
+						
+						// URLとOURNを取得
+						const url = link.href;
+						let ourn = '';
+						const ournMatches = [
+							url.match(/\/library\/view\/[^\/]+\/([^\/\?]+)/),
+							url.match(/\/book\/([^\/\?]+)/),
+							url.match(/\/video\/([^\/\?]+)/)
+						];
+						
+						for (const match of ournMatches) {
+							if (match) {
+								ourn = match[1];
+								break;
+							}
+						}
+						
+						// 著者情報を取得
+						let authors = [];
+						const authorSelectors = [
+							'.author, .authors',
+							'[data-testid*="author"]',
+							'.by-author',
+							'.book-author',
+							'[class*="author"]'
+						];
+						
+						for (const selector of authorSelectors) {
+							const authorEl = container.querySelector(selector);
+							if (authorEl && authorEl.textContent.trim()) {
+								const authorText = authorEl.textContent.trim();
+								authors = [authorText.replace(/^(by|著者?:?)\s*/i, '')];
+								break;
+							}
+						}
+						
+						// コンテンツタイプを推測
+						let contentType = 'unknown';
+						if (url.includes('/book/') || url.includes('/library/view/')) {
+							contentType = 'book';
+						} else if (url.includes('/video')) {
+							contentType = 'video';
+						} else if (url.includes('/learning-path')) {
+							contentType = 'learning-path';
+						}
+						
+						// 説明を取得
+						let description = '';
+						const descSelectors = [
+							'.description, .summary',
+							'p',
+							'.excerpt',
+							'.content'
+						];
+						
+						for (const selector of descSelectors) {
+							const descEl = container.querySelector(selector);
+							if (descEl && descEl.textContent.trim()) {
+								description = descEl.textContent.trim().substring(0, 200);
+								break;
+							}
+						}
+						
+						// 出版社を取得
+						let publisher = '';
+						const publisherSelectors = [
+							'.publisher',
+							'[data-testid*="publisher"]',
+							'.imprint',
+							'[class*="publisher"]'
+						];
+						
+						for (const selector of publisherSelectors) {
+							const publisherEl = container.querySelector(selector);
+							if (publisherEl && publisherEl.textContent.trim()) {
+								publisher = publisherEl.textContent.trim();
+								break;
+							}
+						}
+						
+						results.push({
+							id: ourn || 'item_' + (results.length + 1),
+							ourn: ourn,
+							title: title,
+							authors: authors,
+							content_type: contentType,
+							description: description,
+							url: url,
+							publisher: publisher,
+							published_date: '',
+							source: 'browser_search_oreilly_new'
+						});
+					}
+					
+					console.log('抽出された結果数:', results.length);
+					return results;
+				})()
+			`, rows), &searchResults).Do(ctx); err != nil {
+				log.Printf("検索結果の抽出でエラーが発生しました: %v", err)
+				return err
+			}
+			
+			results = searchResults
+			log.Printf("検索結果を取得しました: %d件", len(results))
+			return nil
+		}),
+	)
+
+	if err != nil {
+		log.Printf("検索処理でエラーが発生しました: %v", err)
+		return nil, fmt.Errorf("検索処理でエラーが発生しました: %w", err)
+	}
+
+	if len(results) == 0 {
+		log.Printf("検索結果が見つかりませんでした: %s", query)
+		
+		// デバッグ情報を取得
+		debugErr := chromedp.Run(bc.ctx,
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				var pageTitle, currentURL string
+				chromedp.Title(&pageTitle).Do(ctx)
+				chromedp.Location(&currentURL).Do(ctx)
+				log.Printf("デバッグ情報 - ページタイトル: %s, URL: %s", pageTitle, currentURL)
+				
+				// ページの内容を確認
+				var bodyText string
+				if err := chromedp.Evaluate(`document.body.textContent.substring(0, 500)`, &bodyText).Do(ctx); err == nil {
+					log.Printf("ページ内容の一部: %s", bodyText)
+				}
+				
+				return nil
+			}),
+		)
+		if debugErr != nil {
+			log.Printf("デバッグ情報の取得に失敗: %v", debugErr)
+		}
+		
+		return []map[string]interface{}{}, nil
+	}
+
+	log.Printf("検索が完了しました。%d件の結果を取得: %s", len(results), query)
+	return results, nil
+}
+
 // GetCollectionsFromHomePage はホームページからコレクション一覧を取得します
 func (bc *BrowserClient) GetCollectionsFromHomePage() ([]map[string]interface{}, error) {
 	log.Printf("ホームページからコレクション一覧を取得します")

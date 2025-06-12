@@ -137,11 +137,16 @@ type SearchResult struct {
 	Metadata    map[string]interface{} `json:"metadata"`
 }
 
-// Search はO'Reilly Learning Platformで検索を実行します
+// Search はO'Reilly Learning Platformで検索を実行します（ブラウザベース）
 func (c *OreillyClient) Search(ctx context.Context, params SearchParams) (*SearchResponse, error) {
-	log.Printf("O'Reilly APIで検索が要求されました: %s\n", params.Query)
+	log.Printf("O'Reillyブラウザクライアントで検索が要求されました: %s\n", params.Query)
 	if params.Query == "" {
 		return nil, fmt.Errorf("search query cannot be empty")
+	}
+
+	// ブラウザクライアントが利用可能かチェック
+	if c.browserClient == nil {
+		return nil, fmt.Errorf("browser client is not available")
 	}
 
 	// デフォルト値の設定
@@ -151,76 +156,65 @@ func (c *OreillyClient) Search(ctx context.Context, params SearchParams) (*Searc
 	if len(params.Languages) == 0 {
 		params.Languages = []string{"en", "ja"}
 	}
-	if params.TzOffset == 0 {
-		params.TzOffset = -9 // JST
+
+	// ブラウザクライアント用のオプションを準備
+	options := map[string]interface{}{
+		"rows":      params.Rows,
+		"languages": params.Languages,
 	}
 
-	// URLの構築
-	searchURL := fmt.Sprintf("%s/api/v2/search/", baseURL)
-	
-	// リクエストの作成
-	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	// ブラウザクライアントで検索を実行
+	results, err := c.browserClient.SearchContent(params.Query, options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("browser search failed: %w", err)
 	}
 
-	// クエリパラメータの設定
-	q := req.URL.Query()
-	q.Set("q", params.Query)
-	q.Set("rows", fmt.Sprintf("%d", params.Rows))
-	for _, lang := range params.Languages {
-		q.Add("language", lang)
-	}
-	q.Set("tzOffset", fmt.Sprintf("%d", params.TzOffset))
-	q.Set("aia_only", fmt.Sprintf("%t", params.AiaOnly))
-	if params.FeatureFlags != "" {
-		q.Set("feature_flags", params.FeatureFlags)
-	} else {
-		q.Set("feature_flags", "improveSearchFilters")
-	}
-	q.Set("report", fmt.Sprintf("%t", params.Report))
-	q.Set("isTopics", fmt.Sprintf("%t", params.IsTopics))
-	req.URL.RawQuery = q.Encode()
+	// ブラウザクライアントの結果をAPIレスポンス形式に変換
+	searchResults := make([]SearchResult, 0, len(results))
+	for _, result := range results {
+		searchResult := SearchResult{
+			ID:          getStringValue(result, "id"),
+			Title:       getStringValue(result, "title"),
+			Description: getStringValue(result, "description"),
+			URL:         getStringValue(result, "url"),
+			WebURL:      getStringValue(result, "url"),
+			Type:        getStringValue(result, "content_type"),
+			Language:    "unknown", // ブラウザからは言語情報を取得できない場合が多い
+			Metadata:    result,
+		}
 
-	// ヘッダーの設定 - Cookie認証とJWT認証の両方を送信
-	if c.jwtToken != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
-	}
-	cookieStr := c.buildCookieString()
-	if cookieStr != "" {
-		req.Header.Set("Cookie", cookieStr)
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		// 著者情報の変換
+		if authors, ok := result["authors"].([]string); ok {
+			searchResult.Authors = authors
+		} else if author, ok := result["author"].(string); ok && author != "" {
+			searchResult.Authors = []string{author}
+		}
 
-	// リクエストの実行
-	log.Printf("O'Reilly APIで検索を実行します: %s\n", req.URL.String())
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
+		// 出版社情報の変換
+		if publisher, ok := result["publisher"].(string); ok && publisher != "" {
+			searchResult.Publishers = []string{publisher}
+		}
 
-	log.Printf("O'Reilly APIからのレスポンスステータス: %d\n", resp.StatusCode)
-	// レスポンスボディの読み取り
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		searchResults = append(searchResults, searchResult)
 	}
 
-	// エラーレスポンスの処理
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	// レスポンスを構築
+	searchResp := &SearchResponse{
+		Results: searchResults,
+		Count:   len(searchResults),
+		Total:   len(searchResults),
 	}
 
-	// レスポンスのパース
-	var searchResp SearchResponse
-	if err := json.Unmarshal(body, &searchResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
+	log.Printf("O'Reillyブラウザクライアントからの検索結果: %d件", len(searchResp.Results))
+	return searchResp, nil
+}
 
-	log.Printf("O'Reilly APIからの検索結果: %d件", len(searchResp.Results))
-	return &searchResp, nil
+// getStringValue はmap[string]interface{}から文字列値を安全に取得するヘルパー関数
+func getStringValue(m map[string]interface{}, key string) string {
+	if value, ok := m[key].(string); ok {
+		return value
+	}
+	return ""
 }
 
 type Collection struct {
