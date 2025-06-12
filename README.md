@@ -1,148 +1,37 @@
-# orm-discovery-mcp-go
-Inspired by [odewahn/orm-discovery-mcp](https://github.com/odewahn/orm-discovery-mcp),
-this project provides an example of how to build a MCP server using the mcp-go package.
+# O'Reilly Learning Platform MCP Server
 
-# Disclaimer
-The developers and contributors of this tool shall not be liable for
-any damages, losses, or disadvantages arising from the use of this tool.
-This includes but is not limited to:
+O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経由で検索・管理できるGoサーバーです。
 
-- Data loss or corruption
-- System downtime or interruption
-- Third-party rights infringement
-- Financial losses
-- Any other direct or indirect damages
+## 概要
 
-This tool is provided "AS IS" without a warranty of any kind, either express or implied.
-Users shall use this tool at their own risk.
+このプロジェクトは[odewahn/orm-discovery-mcp](https://github.com/odewahn/orm-discovery-mcp)にインスパイアされ、mcp-goパッケージを使用してMCPサーバーを構築する例を提供します。
 
-# Usage
-Set Environment Variables
+## 主な機能
 
-## 方法1: 完全なCookie文字列を使用
+- O'Reillyコンテンツの検索
+- マイコレクションの一覧表示
+- 書籍の日本語要約生成
+
+## クイックスタート
+
+### 1. 認証情報の設定
+
+重要なCookieキーを個別に設定（推奨）：
+
 ```bash
-export PORT=8080
-export OREILLY_COOKIE="your_complete_cookie_string_here"
-export TRANSPORT=http
-```
-
-## 方法2: 重要なCookieキーのみを個別に設定（推奨）
-```bash
-export PORT=8080
 export OREILLY_JWT="your_orm_jwt_token_here"
 export OREILLY_SESSION_ID="your_groot_sessionid_here"
 export OREILLY_REFRESH_TOKEN="your_orm_rt_token_here"
-export TRANSPORT=http
 ```
 
-## 認証に必要なCookieキーの取得方法:
-1. ブラウザでO'Reilly Learning Platformにログイン
-2. 開発者ツールを開く (F12)
-3. Applicationタブ → Cookies → learning.oreilly.com を選択
-4. 以下の重要なキーの値をコピー:
-   - **`orm-jwt`** (最重要) - JWTトークン
-   - **`groot_sessionid`** - セッションID  
-   - **`orm-rt`** - リフレッシュトークン
+### 2. サーバーの起動
 
-または、Networkタブで任意のリクエストを確認してRequest HeadersのCookie全体をコピーすることも可能です。
-
-Run Server.
 ```bash
 go run .
 ```
 
-In another terminal, you can see `tools/list` of the server.
-```bash
-$ curl -X POST -H "Content-Type: application/json" http://localhost:8080/mcp -d '
-{
-    "jsonrpc": "2.0",
-    "method": "tools/list",
-    "id": 1
-}' | jq .
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "tools": [
-      {
-        "annotations": {
-          "readOnlyHint": false,
-          "destructiveHint": true,
-          "idempotentHint": false,
-          "openWorldHint": true
-        },
-        "description": "Search content on O'Reilly Learning Platform",
-        "inputSchema": {
-          "properties": {
-            "query": {
-              "description": "The search query to find content on O'Reilly Learning Platform",
-              "type": "string"
-            }
-          },
-          "required": [
-            "query"
-          ],
-          "type": "object"
-        },
-        "name": "search_content"
-      }
-    ]
-  }
-}
-```
+### 3. Cline（Claude Desktop）での設定
 
-And you can search content using the `search_content` tool.
-```bash
-$ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-    "jsonrpc": "2.0",
-    "method": "tools/call",
-    "params": {
-        "name": "search_content",
-        "arguments": {
-          "query": "GraphQL",
-          "rows": 50,
-          "languages": ["en", "ja"],
-          "tzOffset": -9,
-          "aia_only": false,
-          "feature_flags": "improveSearchFilters",
-          "report": true,
-          "isTopics": false
-        }
-    },
-    "id": 2
-  }' | jq .
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "SEARCH RESPONSE"
-      }
-    ]
-  }
-}
-```
-
-# On Claude Desktop
-
-## 方法1: 完全なCookie文字列を使用
-```json
-{
-  "mcpServers": {
-    "orm-discovery-mcp-go": {
-      "command": "/your/path/to/orm-discovery-mcp-go",
-      "args": [],
-      "env": {
-        "OREILLY_COOKIE": "your_complete_cookie_string_here"
-      }
-    }
-  }
-}
-```
-
-## 方法2: 重要なCookieキーのみを個別に設定（推奨）
 ```json
 {
   "mcpServers": {
@@ -158,3 +47,33 @@ $ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -
   }
 }
 ```
+
+## 利用可能なツール
+
+| ツール名 | 説明 |
+|---------|------|
+| `search_content` | O'Reillyコンテンツの検索 |
+| `list_collections` | マイコレクションの一覧表示 |
+| `summarize_books` | 書籍の日本語要約生成 |
+
+## ドキュメント
+
+- [技術概要](TECHNICAL_OVERVIEW.md) - アーキテクチャと実装詳細
+- [API仕様](API_REFERENCE.md) - 利用可能なAPIとパラメータ
+
+## 認証情報の取得方法
+
+1. ブラウザでO'Reilly Learning Platformにログイン
+2. 開発者ツール（F12）→ Application → Cookies → learning.oreilly.com
+3. 以下のキーの値をコピー：
+   - `orm-jwt` (最重要)
+   - `groot_sessionid`
+   - `orm-rt`
+
+## 免責事項
+
+このツールの使用により生じるいかなる損害、損失、または不利益についても、開発者および貢献者は一切の責任を負いません。ユーザーは自己責任でこのツールを使用してください。
+
+## ライセンス
+
+[LICENSE](LICENSE)ファイルを参照してください。
