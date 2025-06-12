@@ -69,7 +69,7 @@ func (s *Server) StartStdioServer() error {
 func (s *Server) registerHandlers() {
 	// Add tool
 	searchTool := mcp.NewTool("search_content",
-		mcp.WithDescription("Search content on O'Reilly Learning Platform"),
+		mcp.WithDescription("Search content on O'Reilly Learning Platform. Returns URLs that can be used with get_book_details_by_url tool."),
 		mcp.WithString("query",
 			mcp.Required(),
 			mcp.Description("The search query to find content on O'Reilly Learning Platform"),
@@ -185,6 +185,19 @@ func (s *Server) registerHandlers() {
 		),
 	)
 	s.mcpServer.AddTool(searchInBookTool, s.SearchInBookHandler)
+
+	// 書籍詳細取得ツールの追加
+	getBookDetailsTool := mcp.NewTool("get_book_details",
+		mcp.WithDescription("Get detailed book information and table of contents from O'Reilly. Accepts either book URL (from search_content) or product ID."),
+		mcp.WithString("product_id",
+			mcp.Description("Book product ID or ISBN (e.g., 9781098166298). Either product_id or url is required."),
+		),
+		mcp.WithString("url",
+			mcp.Description("O'Reilly book URL (e.g., 'https://learning.oreilly.com/library/view/learning-systems-thinking/9781492055693/'). Either product_id or url is required."),
+		),
+	)
+	s.mcpServer.AddTool(getBookDetailsTool, s.GetBookDetailsHandler)
+
 
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
 }
@@ -699,7 +712,7 @@ func (s *Server) ExtractTableOfContentsHandler(ctx context.Context, request mcp.
 		log.Printf("O'Reillyクライアント失敗: %v", err)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to extract table of contents: %v", err)), nil
 	}
-	log.Printf("O'Reillyクライアント呼び出し後: %s (%d項目)", result.BookTitle, len(result.Items))
+	log.Printf("O'Reillyクライアント呼び出し後: %s (%d項目)", result.BookTitle, len(result.TableOfContents))
 
 	// 結果をレスポンスに変換
 	response := map[string]interface{}{
@@ -709,9 +722,9 @@ func (s *Server) ExtractTableOfContentsHandler(ctx context.Context, request mcp.
 		"book_url":          requestParams.URL, // Use original URL since BookURL is not in new struct
 		"authors":           []string{},        // Not available in new struct, use empty array
 		"publisher":         "",                // Not available in new struct
-		"table_of_contents": result.Items,
+		"table_of_contents": result.TableOfContents,
 		"extracted_at":      "",                // Not available in new struct
-		"total_items":       result.TotalItems,
+		"total_chapters":    result.TotalChapters,
 	}
 
 	jsonBytes, err := json.Marshal(response)
@@ -815,3 +828,61 @@ func (s *Server) ListCollectionsHandler(ctx context.Context, request mcp.CallToo
 	}
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
+
+// GetBookDetailsHandler handles book detail requests with URL or product ID
+func (s *Server) GetBookDetailsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("書籍詳細取得リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		ProductID string `json:"product_id"`
+		URL       string `json:"url"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	// Either product_id or url must be provided
+	if requestParams.ProductID == "" && requestParams.URL == "" {
+		return mcp.NewToolResultError("either product_id or url parameter is required"), nil
+	}
+
+	// ブラウザクライアントで書籍詳細を取得
+	if s.oreillyClient.browserClient == nil {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	var result interface{}
+
+	if requestParams.URL != "" {
+		// URL指定の場合は書籍詳細と目次を両方取得
+		log.Printf("URLから書籍詳細を取得: %s", requestParams.URL)
+		bookOverviewAndTOC, err := s.oreillyClient.browserClient.GetBookDetailsByURL(requestParams.URL)
+		if err != nil {
+			log.Printf("URL指定書籍詳細取得失敗: %v", err)
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get book details by URL: %v", err)), nil
+		}
+		result = bookOverviewAndTOC
+	} else {
+		// Product ID指定の場合は書籍詳細のみ取得
+		log.Printf("プロダクトIDから書籍詳細を取得: %s", requestParams.ProductID)
+		bookDetail, err := s.oreillyClient.browserClient.GetBookDetails(requestParams.ProductID)
+		if err != nil {
+			log.Printf("プロダクトID指定書籍詳細取得失敗: %v", err)
+			return mcp.NewToolResultError(fmt.Sprintf("failed to get book details: %v", err)), nil
+		}
+		result = bookDetail
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+

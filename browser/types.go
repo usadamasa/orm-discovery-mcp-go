@@ -85,11 +85,11 @@ type TableOfContentsItem struct {
 
 // TableOfContentsResponse represents the complete table of contents response
 type TableOfContentsResponse struct {
-	BookID      string                 `json:"book_id"`
-	BookTitle   string                 `json:"book_title"`
-	Items       []TableOfContentsItem  `json:"items"`
-	TotalItems  int                    `json:"total_items"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	BookID          string                    `json:"book_id"`
+	BookTitle       string                    `json:"book_title"`
+	TableOfContents []TableOfContentsItem     `json:"table_of_contents"`
+	TotalChapters   int                       `json:"total_chapters"`
+	Metadata        map[string]interface{}    `json:"metadata,omitempty"`
 }
 
 // ExtractTableOfContentsParams represents parameters for extracting table of contents
@@ -98,4 +98,38 @@ type ExtractTableOfContentsParams struct {
 	IncludeHref   bool   `json:"include_href,omitempty"`
 	MaxDepth      int    `json:"max_depth,omitempty"`
 	IncludeParent bool   `json:"include_parent,omitempty"`
+}
+
+// BookDetailResponse represents comprehensive book metadata from O'Reilly API
+type BookDetailResponse struct {
+	ID              string                 `json:"id"`
+	Title           string                 `json:"title"`
+	Description     string                 `json:"description"`
+	Authors         []string               `json:"authors"`
+	Publishers      []string               `json:"publishers"`
+	ISBN            string                 `json:"isbn"`
+	OURN            string                 `json:"ourn"`
+	PublicationDate string                 `json:"publication_date"`
+	VirtualPages    int                    `json:"virtual_pages"`
+	AverageRating   float64                `json:"average_rating"`
+	CoverURL        string                 `json:"cover_url"`
+	Topics          []string               `json:"topics"`
+	Language        string                 `json:"language"`
+	Metadata        map[string]interface{} `json:"metadata"`
+}
+
+// BookSearchResult represents a book found through search
+type BookSearchResult struct {
+	ProductID   string   `json:"product_id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	URL         string   `json:"url"`
+	Authors     []string `json:"authors"`
+	Publisher   string   `json:"publisher"`
+}
+
+// BookOverviewAndTOCResponse combines book details and table of contents
+type BookOverviewAndTOCResponse struct {
+	BookDetail      BookDetailResponse      `json:"book_detail"`
+	TableOfContents TableOfContentsResponse `json:"table_of_contents"`
 }
