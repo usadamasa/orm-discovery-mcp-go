@@ -146,17 +146,6 @@ go run .
 - `OREILLY_USER_ID`: O'Reillyのメールアドレス
 - `OREILLY_PASSWORD`: O'Reillyのパスワード
 
-### 従来の手動Cookie設定（オプション）
-
-手動でCookieを設定したい場合：
-
-1. ブラウザでO'Reilly Learning Platformにログイン
-2. 開発者ツール（F12）→ Application → Cookies → learning.oreilly.com
-3. 以下のキーの値をコピー：
-   - `orm-jwt` (最重要)
-   - `groot_sessionid`
-   - `orm-rt`
-
 ## 免責事項
 
 このツールの使用により生じるいかなる損害、損失、または不利益についても、開発者および貢献者は一切の責任を負いません。ユーザーは自己責任でこのツールを使用してください。
