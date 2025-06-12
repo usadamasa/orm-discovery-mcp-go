@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -23,12 +24,22 @@ type Config struct {
 
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
 func LoadConfig() (*Config, error) {
-	// .envファイルを読み込み（存在しない場合はエラーを無視）
-	if err := godotenv.Load(); err != nil {
-		log.Printf(".envファイルが見つからないか読み込めませんでした: %v", err)
+	// 実行バイナリのディレクトリを取得
+	execPath, err := os.Executable()
+	if err != nil {
+		log.Printf("実行バイナリのパスを取得できませんでした: %v", err)
+		log.Printf("カレントディレクトリの.envファイルを試行します")
+		execPath = "."
+	}
+	execDir := filepath.Dir(execPath)
+	envPath := filepath.Join(execDir, ".env")
+
+	// 実行バイナリのディレクトリの.envファイルを読み込み（存在しない場合はエラーを無視）
+	if err := godotenv.Load(envPath); err != nil {
+		log.Printf(".envファイルが見つからないか読み込めませんでした (%s): %v", envPath, err)
 		log.Printf("実行時の環境変数を使用します")
 	} else {
-		log.Printf(".envファイルを読み込みました")
+		log.Printf(".envファイルを読み込みました: %s", envPath)
 	}
 
 	// ポート番号の取得（デフォルト: 8080）
