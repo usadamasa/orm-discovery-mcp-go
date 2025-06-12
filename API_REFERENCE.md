@@ -113,17 +113,13 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
 - 統計情報と学習推奨事項を含む日本語のまとめを生成
 - Markdownフォーマットで読みやすく整理
 
-### 4. create_collection
+### 4. list_playlists
 
-O'Reilly Learning Platformで新しいコレクションを作成します。
+O'Reilly Learning Platformのプレイリストを一覧表示します。
 
 #### パラメータ
 
-| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
-|-----------|---|------|-------------|------|
-| `name` | string | ✅ | - | コレクション名 |
-| `description` | string | ❌ | - | コレクションの説明 |
-| `privacy_setting` | string | ❌ | "private" | プライバシー設定（private, public, unlisted） |
+パラメータはありません。
 
 #### 使用例
 
@@ -132,28 +128,24 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "create_collection",
-    "arguments": {
-      "name": "Go言語学習リソース",
-      "description": "Go言語を学習するための書籍とリソース集",
-      "privacy_setting": "private"
-    }
+    "name": "list_playlists",
+    "arguments": {}
   },
   "id": 4
 }'
 ```
 
-### 5. add_to_collection
+### 5. create_playlist
 
-既存のコレクションにコンテンツを追加します。
+O'Reilly Learning Platformで新しいプレイリストを作成します。
 
 #### パラメータ
 
 | パラメータ | 型 | 必須 | デフォルト値 | 説明 |
 |-----------|---|------|-------------|------|
-| `collection_id` | string | ✅ | - | コレクションID |
-| `content_id` | string | ✅ | - | 追加するコンテンツのIDまたはOURN |
-| `content_type` | string | ❌ | - | コンテンツタイプ（book, video等） |
+| `name` | string | ✅ | - | プレイリスト名 |
+| `description` | string | ❌ | - | プレイリストの説明 |
+| `is_public` | boolean | ❌ | false | 公開設定 |
 
 #### 使用例
 
@@ -162,27 +154,27 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "add_to_collection",
+    "name": "create_playlist",
     "arguments": {
-      "collection_id": "12345",
-      "content_id": "urn:orm:book:9781492077992",
-      "content_type": "book"
+      "name": "Go言語学習プレイリスト",
+      "description": "Go言語を学習するための動画とリソース集",
+      "is_public": false
     }
   },
   "id": 5
 }'
 ```
 
-### 6. remove_from_collection
+### 6. add_to_playlist
 
-コレクションからコンテンツを削除します。
+既存のプレイリストにコンテンツを追加します。
 
 #### パラメータ
 
 | パラメータ | 型 | 必須 | デフォルト値 | 説明 |
 |-----------|---|------|-------------|------|
-| `collection_id` | string | ✅ | - | コレクションID |
-| `content_id` | string | ✅ | - | 削除するコンテンツのIDまたはOURN |
+| `playlist_id` | string | ✅ | - | プレイリストID |
+| `content_id` | string | ✅ | - | 追加するコンテンツのIDまたはOURN |
 
 #### 使用例
 
@@ -191,26 +183,25 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "remove_from_collection",
+    "name": "add_to_playlist",
     "arguments": {
-      "collection_id": "12345",
-      "content_id": "urn:orm:book:9781492077992"
+      "playlist_id": "12345",
+      "content_id": "urn:orm:video:9781492077992"
     }
   },
   "id": 6
 }'
 ```
 
-### 7. get_collection_details
+### 7. get_playlist_details
 
-特定のコレクションの詳細情報を取得します。
+特定のプレイリストの詳細情報を取得します。
 
 #### パラメータ
 
 | パラメータ | 型 | 必須 | デフォルト値 | 説明 |
 |-----------|---|------|-------------|------|
-| `collection_id` | string | ✅ | - | コレクションID |
-| `include_content` | boolean | ❌ | true | コンテンツ一覧を含めるかどうか |
+| `playlist_id` | string | ✅ | - | プレイリストID |
 
 #### 使用例
 
@@ -219,58 +210,92 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "get_collection_details",
+    "name": "get_playlist_details",
     "arguments": {
-      "collection_id": "12345",
-      "include_content": true
+      "playlist_id": "12345"
     }
   },
   "id": 7
 }'
 ```
 
-#### レスポンス例
+### 8. extract_table_of_contents
 
-```json
-{
+O'Reilly書籍の目次を抽出します。
+
+#### パラメータ
+
+| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
+|-----------|---|------|-------------|------|
+| `url` | string | ✅ | - | O'Reilly書籍のURL |
+
+#### 使用例
+
+```bash
+curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
   "jsonrpc": "2.0",
-  "id": 7,
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "{\"collection\":{\"id\":\"12345\",\"name\":\"Go言語学習リソース\",\"description\":\"Go言語を学習するための書籍とリソース集\",\"sharing\":\"private\",\"web_url\":\"https://learning.oreilly.com/collections/12345\",\"created_time\":\"2024-01-01T00:00:00Z\",\"last_modified_time\":\"2024-01-02T00:00:00Z\",\"is_default\":false,\"is_owned\":true,\"is_following\":false,\"owner_display_name\":\"Your Name\",\"follower_count\":0,\"can_be_assigned\":true,\"type\":\"collection\",\"topics\":[\"Programming\",\"Go\"],\"content_count\":5},\"content\":[{\"id\":\"content1\",\"ourn\":\"urn:orm:book:9781492077992\",\"content_type\":\"book\",\"date_added\":\"2024-01-01T00:00:00Z\",\"index\":1.0,\"title\":\"Learning Go\",\"description\":\"An Idiomatic Approach to Real-World Go Programming\"}]}"
-      }
-    ]
-  }
-}
+  "method": "tools/call",
+  "params": {
+    "name": "extract_table_of_contents",
+    "arguments": {
+      "url": "https://learning.oreilly.com/library/view/docker-deep-dive/9781806024032/chap04.xhtml"
+    }
+  },
+  "id": 8
+}'
+```
+
+### 9. search_in_book
+
+特定のO'Reilly書籍内で用語を検索します。
+
+#### パラメータ
+
+| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
+|-----------|---|------|-------------|------|
+| `book_id` | string | ✅ | - | 書籍IDまたはISBN |
+| `search_term` | string | ✅ | - | 検索する用語またはフレーズ |
+
+#### 使用例
+
+```bash
+curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "search_in_book",
+    "arguments": {
+      "book_id": "9784814400607",
+      "search_term": "アーキテクチャ"
+    }
+  },
+  "id": 9
+}'
 ```
 
 ## 認証
 
-### 環境変数設定
-
-#### 方法1: 個別キー設定（推奨）
+### 環境変数設定（ブラウザベース認証）
 
 ```bash
-export OREILLY_JWT="your_orm_jwt_token_here"
-export OREILLY_SESSION_ID="your_groot_sessionid_here"
-export OREILLY_REFRESH_TOKEN="your_orm_rt_token_here"
+export OREILLY_USER_ID="your_email@acm.org"
+export OREILLY_PASSWORD="your_password"
 ```
 
-#### 方法2: 完全Cookie文字列
+### 認証方式
 
-```bash
-export OREILLY_COOKIE="your_complete_cookie_string_here"
-```
+このサーバーはヘッドレスブラウザを使用して自動的にO'Reillyにログインします：
 
-### 必要なCookieキー
+1. **自動ログイン**: 環境変数のユーザーID/パスワードでログイン
+2. **ACM対応**: ACM IDPリダイレクトを自動処理
+3. **セッション管理**: ログイン後のCookieを自動取得・管理
 
-| キー | 説明 | 重要度 |
-|-----|------|--------|
-| `orm-jwt` | JWTトークン | 最重要 |
-| `groot_sessionid` | セッションID | 重要 |
-| `orm-rt` | リフレッシュトークン | 重要 |
+### 必要な認証情報
+
+| 変数名 | 説明 | 例 |
+|-------|------|---|
+| `OREILLY_USER_ID` | O'Reillyのメールアドレス | your_email@acm.org |
+| `OREILLY_PASSWORD` | O'Reillyのパスワード | your_password |
 
 ## エラーレスポンス
 
@@ -323,6 +348,8 @@ go build -o orm-discovery-mcp-go
 
 ## 制限事項
 
-- API呼び出し頻度に制限がある可能性があります
-- JWTトークンには有効期限があり、定期的な更新が必要です
+- ブラウザ操作のため、通常のAPI呼び出しよりも処理時間が長くなる場合があります
+- ヘッドレスブラウザ（Chrome）が必要です
+- ログインセッションには有効期限があり、長時間使用しない場合は再ログインが必要です
 - 地域によってアクセス可能なコンテンツが異なる場合があります
+- O'Reillyのページ構造変更により、一部の機能が影響を受ける可能性があります

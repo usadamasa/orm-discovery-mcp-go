@@ -30,7 +30,7 @@ func main() {
 	// O'Reillyクライアントの初期化（ブラウザクライアントを使用）
 	log.Printf("ブラウザクライアントを使用してO'Reillyにログインします...")
 	
-	oreillyClient, err := NewOreillyClientWithBrowser(cfg.OReillyUserID, cfg.OReillyPassword)
+	oreillyClient, err := NewOreillyClient(cfg.OReillyUserID, cfg.OReillyPassword)
 	if err != nil {
 		log.Fatalf("ブラウザクライアントの初期化に失敗しました: %v", err)
 	}
@@ -58,7 +58,7 @@ func runSearchTest(cfg *Config) {
 	log.Printf("SearchContentのテストを開始します")
 
 	// O'Reillyクライアントの初期化
-	oreillyClient, err := NewOreillyClientWithBrowser(cfg.OReillyUserID, cfg.OReillyPassword)
+	oreillyClient, err := NewOreillyClient(cfg.OReillyUserID, cfg.OReillyPassword)
 	if err != nil {
 		log.Fatalf("ブラウザクライアントの初期化に失敗しました: %v", err)
 	}

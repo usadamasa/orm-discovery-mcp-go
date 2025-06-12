@@ -6,18 +6,24 @@
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
-│     Cline       │◄──►│  MCP Server      │◄──►│ O'Reilly API        │
-│   (Claude)      │    │  (Go実装)        │    │ (REST API)          │
+│     Cline       │◄──►│  MCP Server      │◄──►│ O'Reilly Platform   │
+│   (Claude)      │    │  (Go実装)        │    │ (ブラウザベース)    │
 └─────────────────┘    └──────────────────┘    └─────────────────────┘
+                                │
+                                ▼
+                        ┌──────────────────┐
+                        │ ヘッドレスブラウザ │
+                        │   (Chrome)       │
+                        └──────────────────┘
 ```
 
 ### 技術スタック
 
 - **言語**: Go 1.21+
 - **プロトコル**: Model Context Protocol (MCP)
-- **ライブラリ**: mcp-go
-- **認証**: Cookie ベース認証（JWT）
-- **通信**: HTTP/HTTPS、JSON-RPC 2.0
+- **ライブラリ**: mcp-go, chromedp
+- **認証**: ブラウザベース認証（自動ログイン）
+- **通信**: JSON-RPC 2.0, WebDriver Protocol
 
 ## コンポーネント
 
@@ -27,38 +33,47 @@
 |---------|------|
 | `main.go` | エントリーポイント、設定読み込み |
 | `server.go` | MCPサーバー実装、ツール登録 |
-| `oreilly_client.go` | O'Reilly API クライアント |
+| `oreilly_client.go` | O'Reillyクライアント（ブラウザベース） |
+| `browser_client.go` | ヘッドレスブラウザクライアント |
 | `config.go` | 環境変数設定管理 |
 
 ### MCPツール
 
 | ツール名 | 機能 | 実装状況 |
 |---------|------|----------|
-| `search_content` | コンテンツ検索 | ✅ 実装済み |
-| `list_collections` | コレクション一覧 | ✅ 実装済み |
+| `search_content` | コンテンツ検索（ブラウザベース） | ✅ 実装済み |
+| `list_collections` | コレクション一覧（ホームページ） | ✅ 実装済み |
+| `list_playlists` | プレイリスト一覧 | ✅ 実装済み |
+| `create_playlist` | プレイリスト作成 | ✅ 実装済み |
+| `add_to_playlist` | プレイリストへのコンテンツ追加 | ✅ 実装済み |
+| `get_playlist_details` | プレイリスト詳細取得 | ✅ 実装済み |
 | `summarize_books` | 書籍要約生成 | ✅ 実装済み |
+| `extract_table_of_contents` | 書籍目次抽出 | ✅ 実装済み |
+| `search_in_book` | 書籍内検索 | ✅ 実装済み |
 
 ## 認証システム
 
-### Cookie認証
+### ブラウザベース認証
 
-O'Reilly Learning Platformの認証には以下のCookieを使用：
+O'Reilly Learning Platformへの認証はヘッドレスブラウザを使用：
 
 ```go
-type AuthConfig struct {
-    JWT          string // orm-jwt (最重要)
-    SessionID    string // groot_sessionid
-    RefreshToken string // orm-rt
-    FullCookie   string // 完全Cookie文字列（代替）
+type BrowserClient struct {
+    ctx        context.Context
+    cancel     context.CancelFunc
+    httpClient *http.Client
+    cookies    []*http.Cookie
+    userAgent  string
 }
 ```
 
 ### 認証フロー
 
-1. ブラウザからCookie情報を取得
-2. 環境変数に設定
-3. HTTPリクエストヘッダーに付与
-4. O'Reilly APIで認証
+1. ヘッドレスブラウザでO'Reillyログインページにアクセス
+2. 環境変数のユーザーID/パスワードで自動ログイン
+3. ACM IDPリダイレクトを自動処理
+4. ログイン後のCookieを自動取得・保存
+5. 以降のリクエストでCookieを使用
 
 ## データ構造
 
@@ -110,10 +125,9 @@ type Collection struct {
 ### 環境変数
 
 ```bash
-# 認証情報
-OREILLY_JWT=<jwt_token>
-OREILLY_SESSION_ID=<session_id>
-OREILLY_REFRESH_TOKEN=<refresh_token>
+# 認証情報（ブラウザベース）
+OREILLY_USER_ID=your_email@acm.org
+OREILLY_PASSWORD=your_password
 
 # サーバー設定
 PORT=8080
@@ -130,9 +144,8 @@ DEBUG=false
       "command": "/path/to/orm-discovery-mcp-go",
       "args": [],
       "env": {
-        "OREILLY_JWT": "jwt_token",
-        "OREILLY_SESSION_ID": "session_id",
-        "OREILLY_REFRESH_TOKEN": "refresh_token"
+        "OREILLY_USER_ID": "your_email@acm.org",
+        "OREILLY_PASSWORD": "your_password"
       }
     }
   }

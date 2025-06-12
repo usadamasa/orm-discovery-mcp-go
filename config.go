@@ -11,14 +11,10 @@ import (
 
 // Config はアプリケーションの設定を保持します
 type Config struct {
-	Port          string
-	Debug         bool
-	Transport     string
-	OReillyCookie string
-	OReillyJWT    string
-	SessionID     string
-	RefreshToken  string
-	OReillyUserID string
+	Port            string
+	Debug           bool
+	Transport       string
+	OReillyUserID   string
 	OReillyPassword string
 }
 
@@ -65,10 +61,6 @@ func LoadConfig() (*Config, error) {
 		Port:            port,
 		Debug:           debug,
 		Transport:       transport,
-		OReillyCookie:   getEnv("OREILLY_COOKIE"),
-		OReillyJWT:      getEnv("OREILLY_JWT"),
-		SessionID:       getEnv("OREILLY_SESSION_ID"),
-		RefreshToken:    getEnv("OREILLY_REFRESH_TOKEN"),
 		OReillyUserID:   getEnv("OREILLY_USER_ID"),
 		OReillyPassword: getEnv("OREILLY_PASSWORD"),
 	}, nil
