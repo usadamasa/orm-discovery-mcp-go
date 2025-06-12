@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,86 +11,158 @@ import (
 )
 
 const (
-	baseURL    = "https://learning.oreilly.com/api"
+	baseURL    = "https://learning.oreilly.com"
 	apiTimeout = 30 * time.Second
 )
 
 // OreillyClient はO'Reilly Learning Platform APIのクライアントです
 type OreillyClient struct {
-	httpClient *http.Client
-	jwtToken   string
+	httpClient   *http.Client
+	cookieStr    string
+	jwtToken     string
+	sessionID    string
+	refreshToken string
 }
 
 // NewOreillyClient は新しいO'Reillyクライアントを作成します
-func NewOreillyClient(jwtToken string) *OreillyClient {
+func NewOreillyClient(cookieStr, jwtToken, sessionID, refreshToken string) *OreillyClient {
 	return &OreillyClient{
 		httpClient: &http.Client{
 			Timeout: apiTimeout,
 		},
-		jwtToken: jwtToken,
+		cookieStr:    cookieStr,
+		jwtToken:     jwtToken,
+		sessionID:    sessionID,
+		refreshToken: refreshToken,
 	}
 }
 
-// SearchRequest は検索リクエストの構造体です
-type SearchRequest struct {
-	Query string `json:"query"`
-	Limit int    `json:"limit,omitempty"`
+// buildCookieString は認証に必要なCookieを構築します
+func (c *OreillyClient) buildCookieString() string {
+	if c.cookieStr != "" {
+		// 完全なCookie文字列が提供されている場合はそれを使用
+		return c.cookieStr
+	}
+	
+	// 個別のキーから必要最小限のCookieを構築
+	var cookies []string
+	if c.jwtToken != "" {
+		cookies = append(cookies, fmt.Sprintf("orm-jwt=%s", c.jwtToken))
+	}
+	if c.sessionID != "" {
+		cookies = append(cookies, fmt.Sprintf("groot_sessionid=%s", c.sessionID))
+	}
+	if c.refreshToken != "" {
+		cookies = append(cookies, fmt.Sprintf("orm-rt=%s", c.refreshToken))
+	}
+	
+	if len(cookies) == 0 {
+		return ""
+	}
+	
+	// 複数のCookieを; で結合
+	result := ""
+	for i, cookie := range cookies {
+		if i > 0 {
+			result += "; "
+		}
+		result += cookie
+	}
+	return result
+}
+
+// SearchParams は検索パラメータの構造体です
+type SearchParams struct {
+	Query       string   `json:"q"`
+	Rows        int      `json:"rows,omitempty"`
+	Languages   []string `json:"language,omitempty"`
+	TzOffset    int      `json:"tzOffset,omitempty"`
+	AiaOnly     bool     `json:"aia_only,omitempty"`
+	FeatureFlags string  `json:"feature_flags,omitempty"`
+	Report      bool     `json:"report,omitempty"`
+	IsTopics    bool     `json:"isTopics,omitempty"`
 }
 
 // SearchResponse は検索レスポンスの構造体です
 type SearchResponse struct {
 	Results []SearchResult `json:"results"`
 	Count   int            `json:"count"`
+	Total   int            `json:"total"`
 }
 
 // SearchResult は検索結果の1件を表します
 type SearchResult struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	URL         string `json:"url"`
-	Type        string `json:"type"`
+	ID          string                 `json:"id"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description"`
+	URL         string                 `json:"url"`
+	WebURL      string                 `json:"web_url"`
+	Type        string                 `json:"content_type"`
+	Authors     []string               `json:"authors"`
+	Publishers  []string               `json:"publishers"`
+	Topics      []string               `json:"topics"`
+	Language    string                 `json:"language"`
+	Metadata    map[string]interface{} `json:"metadata"`
 }
 
 // Search はO'Reilly Learning Platformで検索を実行します
-func (c *OreillyClient) Search(ctx context.Context, query string, limit int) (*SearchResponse, error) {
-	log.Printf("O'Reilly APIで検索が要求されました: %s\n", query)
-	if query == "" {
+func (c *OreillyClient) Search(ctx context.Context, params SearchParams) (*SearchResponse, error) {
+	log.Printf("O'Reilly APIで検索が要求されました: %s\n", params.Query)
+	if params.Query == "" {
 		return nil, fmt.Errorf("search query cannot be empty")
 	}
 
-	if limit <= 0 {
-		limit = 10 // デフォルト値
+	// デフォルト値の設定
+	if params.Rows <= 0 {
+		params.Rows = 100
+	}
+	if len(params.Languages) == 0 {
+		params.Languages = []string{"en", "ja"}
+	}
+	if params.TzOffset == 0 {
+		params.TzOffset = -9 // JST
 	}
 
-	// リクエストボディの作成
-	reqBody := SearchRequest{
-		Query: query,
-		Limit: limit,
-	}
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
+	// URLの構築
+	searchURL := fmt.Sprintf("%s/api/v2/search/", baseURL)
+	
 	// リクエストの作成
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		fmt.Sprintf("%s/v2/search/", baseURL),
-		bytes.NewBuffer(jsonData),
-	)
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// ヘッダーの設定
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
-	req.Header.Set("Content-Type", "application/json")
+	// クエリパラメータの設定
+	q := req.URL.Query()
+	q.Set("q", params.Query)
+	q.Set("rows", fmt.Sprintf("%d", params.Rows))
+	for _, lang := range params.Languages {
+		q.Add("language", lang)
+	}
+	q.Set("tzOffset", fmt.Sprintf("%d", params.TzOffset))
+	q.Set("aia_only", fmt.Sprintf("%t", params.AiaOnly))
+	if params.FeatureFlags != "" {
+		q.Set("feature_flags", params.FeatureFlags)
+	} else {
+		q.Set("feature_flags", "improveSearchFilters")
+	}
+	q.Set("report", fmt.Sprintf("%t", params.Report))
+	q.Set("isTopics", fmt.Sprintf("%t", params.IsTopics))
+	req.URL.RawQuery = q.Encode()
+
+	// ヘッダーの設定 - Cookie認証とJWT認証の両方を送信
+	if c.jwtToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
+	}
+	cookieStr := c.buildCookieString()
+	if cookieStr != "" {
+		req.Header.Set("Cookie", cookieStr)
+	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 	// リクエストの実行
-	log.Printf("O'Reilly APIで検索を実行します: %s\n", query)
+	log.Printf("O'Reilly APIで検索を実行します: %s\n", req.URL.String())
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -116,7 +187,7 @@ func (c *OreillyClient) Search(ctx context.Context, query string, limit int) (*S
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	log.Printf("O'Reilly APIからの検索結果: %d件", searchResp.Count)
+	log.Printf("O'Reilly APIからの検索結果: %d件", len(searchResp.Results))
 	return &searchResp, nil
 }
 
@@ -174,15 +245,21 @@ func (c *OreillyClient) ListCollections(ctx context.Context) (*CollectionRespons
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"GET",
-		fmt.Sprintf("%s/v3/collections/", baseURL),
+		fmt.Sprintf("%s/api/v3/collections/", baseURL),
 		nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// ヘッダーの設定
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
+	// ヘッダーの設定 - Cookie認証とJWT認証の両方を送信
+	if c.jwtToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.jwtToken))
+	}
+	cookieStr := c.buildCookieString()
+	if cookieStr != "" {
+		req.Header.Set("Cookie", cookieStr)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 

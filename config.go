@@ -7,10 +7,13 @@ import (
 
 // Config はアプリケーションの設定を保持します
 type Config struct {
-	Port       string
-	Debug      bool
-	Transport  string
-	OReillyJWT string
+	Port          string
+	Debug         bool
+	Transport     string
+	OReillyCookie string
+	OReillyJWT    string
+	SessionID     string
+	RefreshToken  string
 }
 
 // LoadConfig は環境変数から設定を読み込みます
@@ -35,9 +38,12 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &Config{
-		Port:       port,
-		Debug:      debug,
-		Transport:  transport,
-		OReillyJWT: os.Getenv("ORM_JWT"),
+		Port:          port,
+		Debug:         debug,
+		Transport:     transport,
+		OReillyCookie: os.Getenv("OREILLY_COOKIE"),
+		OReillyJWT:    os.Getenv("OREILLY_JWT"),
+		SessionID:     os.Getenv("OREILLY_SESSION_ID"),
+		RefreshToken:  os.Getenv("OREILLY_REFRESH_TOKEN"),
 	}, nil
 }

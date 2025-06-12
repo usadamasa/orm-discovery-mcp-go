@@ -14,7 +14,7 @@ func main() {
 	log.Printf("設定を読み込みました")
 
 	// O'Reillyクライアントの初期化
-	oreillyClient := NewOreillyClient(cfg.OReillyJWT)
+	oreillyClient := NewOreillyClient(cfg.OReillyCookie, cfg.OReillyJWT, cfg.SessionID, cfg.RefreshToken)
 	s := NewServer(oreillyClient)
 
 	if cfg.Transport == "http" {

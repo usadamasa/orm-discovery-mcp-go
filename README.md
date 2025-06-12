@@ -18,11 +18,33 @@ Users shall use this tool at their own risk.
 
 # Usage
 Set Environment Variables
+
+## 方法1: 完全なCookie文字列を使用
 ```bash
 export PORT=8080
-export OREILLY_API_KEY=YOUR_API_KEY
+export OREILLY_COOKIE="your_complete_cookie_string_here"
 export TRANSPORT=http
 ```
+
+## 方法2: 重要なCookieキーのみを個別に設定（推奨）
+```bash
+export PORT=8080
+export OREILLY_JWT="your_orm_jwt_token_here"
+export OREILLY_SESSION_ID="your_groot_sessionid_here"
+export OREILLY_REFRESH_TOKEN="your_orm_rt_token_here"
+export TRANSPORT=http
+```
+
+## 認証に必要なCookieキーの取得方法:
+1. ブラウザでO'Reilly Learning Platformにログイン
+2. 開発者ツールを開く (F12)
+3. Applicationタブ → Cookies → learning.oreilly.com を選択
+4. 以下の重要なキーの値をコピー:
+   - **`orm-jwt`** (最重要) - JWTトークン
+   - **`groot_sessionid`** - セッションID  
+   - **`orm-rt`** - リフレッシュトークン
+
+または、Networkタブで任意のリクエストを確認してRequest HeadersのCookie全体をコピーすることも可能です。
 
 Run Server.
 ```bash
@@ -77,8 +99,14 @@ $ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -
     "params": {
         "name": "search_content",
         "arguments": {
-          "query": "golang",
-          "limit": 10
+          "query": "GraphQL",
+          "rows": 50,
+          "languages": ["en", "ja"],
+          "tzOffset": -9,
+          "aia_only": false,
+          "feature_flags": "improveSearchFilters",
+          "report": true,
+          "isTopics": false
         }
     },
     "id": 2
@@ -99,6 +127,7 @@ $ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -
 
 # On Claude Desktop
 
+## 方法1: 完全なCookie文字列を使用
 ```json
 {
   "mcpServers": {
@@ -106,7 +135,24 @@ $ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -
       "command": "/your/path/to/orm-discovery-mcp-go",
       "args": [],
       "env": {
-        "ORM_JWT": "YOUR_API_KEY"
+        "OREILLY_COOKIE": "your_complete_cookie_string_here"
+      }
+    }
+  }
+}
+```
+
+## 方法2: 重要なCookieキーのみを個別に設定（推奨）
+```json
+{
+  "mcpServers": {
+    "orm-discovery-mcp-go": {
+      "command": "/your/path/to/orm-discovery-mcp-go",
+      "args": [],
+      "env": {
+        "OREILLY_JWT": "your_orm_jwt_token_here",
+        "OREILLY_SESSION_ID": "your_groot_sessionid_here",
+        "OREILLY_REFRESH_TOKEN": "your_orm_rt_token_here"
       }
     }
   }

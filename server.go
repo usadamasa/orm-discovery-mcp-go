@@ -72,6 +72,27 @@ func (s *Server) registerHandlers() {
 			mcp.Required(),
 			mcp.Description("The search query to find content on O'Reilly Learning Platform"),
 		),
+		mcp.WithNumber("rows",
+			mcp.Description("Number of results to return (default: 100)"),
+		),
+		mcp.WithArray("languages",
+			mcp.Description("Languages to search in (default: ['en', 'ja'])"),
+		),
+		mcp.WithNumber("tzOffset",
+			mcp.Description("Timezone offset (default: -9 for JST)"),
+		),
+		mcp.WithBoolean("aia_only",
+			mcp.Description("Search only AI-assisted content (default: false)"),
+		),
+		mcp.WithString("feature_flags",
+			mcp.Description("Feature flags (default: 'improveSearchFilters')"),
+		),
+		mcp.WithBoolean("report",
+			mcp.Description("Include reporting data (default: true)"),
+		),
+		mcp.WithBoolean("isTopics",
+			mcp.Description("Search topics only (default: false)"),
+		),
 	)
 	s.mcpServer.AddTool(searchTool, s.SearchContentHandler)
 
@@ -88,30 +109,43 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 	log.Printf("リクエスト受信: %+v", request)
 
 	// リクエストパラメータの取得
-	var params struct {
-		Query string `json:"query"`
-		Limit int    `json:"limit,omitempty"`
+	var requestParams struct {
+		Query        string      `json:"query"`
+		Rows         int         `json:"rows,omitempty"`
+		Languages    []string    `json:"languages,omitempty"`
+		TzOffset     int         `json:"tzOffset,omitempty"`
+		AiaOnly      bool        `json:"aia_only,omitempty"`
+		FeatureFlags string      `json:"feature_flags,omitempty"`
+		Report       bool        `json:"report,omitempty"`
+		IsTopics     bool        `json:"isTopics,omitempty"`
 	}
 	argumentsBytes, err := json.Marshal(request.Params.Arguments)
 	if err != nil {
 		return mcp.NewToolResultError("failed to marshal arguments"), nil
 	}
-	if err := json.Unmarshal(argumentsBytes, &params); err != nil {
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
 		return mcp.NewToolResultError("invalid parameters"), nil
 	}
 
-	if params.Query == "" {
+	if requestParams.Query == "" {
 		return mcp.NewToolResultError("query parameter is required"), nil
 	}
 
-	// デフォルト値の設定
-	if params.Limit <= 0 {
-		params.Limit = 10
+	// SearchParamsに変換
+	searchParams := SearchParams{
+		Query:        requestParams.Query,
+		Rows:         requestParams.Rows,
+		Languages:    requestParams.Languages,
+		TzOffset:     requestParams.TzOffset,
+		AiaOnly:      requestParams.AiaOnly,
+		FeatureFlags: requestParams.FeatureFlags,
+		Report:       requestParams.Report,
+		IsTopics:     requestParams.IsTopics,
 	}
 
 	// O'Reilly APIで検索を実行
 	log.Printf("O'Reillyクライアント呼び出し前")
-	results, err := s.oreillyClient.Search(ctx, params.Query, params.Limit)
+	results, err := s.oreillyClient.Search(ctx, searchParams)
 	if err != nil {
 		log.Printf("O'Reillyクライアント失敗: %v", err)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil
@@ -121,9 +155,11 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 	// 結果をレスポンスに変換
 	response := struct {
 		Count   int           `json:"count"`
+		Total   int           `json:"total"`
 		Results []interface{} `json:"results"`
 	}{
-		Count:   results.Count,
+		Count:   len(results.Results),
+		Total:   results.Total,
 		Results: make([]interface{}, 0, len(results.Results)),
 	}
 
@@ -133,7 +169,13 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 			"title":       result.Title,
 			"description": result.Description,
 			"url":         result.URL,
+			"web_url":     result.WebURL,
 			"type":        result.Type,
+			"authors":     result.Authors,
+			"publishers":  result.Publishers,
+			"topics":      result.Topics,
+			"language":    result.Language,
+			"metadata":    result.Metadata,
 		})
 	}
 
