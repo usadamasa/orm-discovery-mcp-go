@@ -7,10 +7,10 @@ import (
 
 // O'Reilly API endpoints
 const (
-	APIEndpointV2       = "/api/v2/search/"
-	APIEndpointSearch   = "/search/api/search/"
-	APIEndpointLegacy   = "/api/search/"
-	APIEndpointLearning = "/learningapi/v1/search/"
+	APIEndpointBase = "https://learning.oreilly.com"
+
+	BookAPIV1   = "/api/v1/book/%s/"
+	SearchAPIV2 = "/api/v2/search/"
 )
 
 // SearchAPIResponse represents O'Reilly search API response structure
@@ -26,15 +26,15 @@ type SearchDataContainer struct {
 }
 
 type RawSearchResult struct {
-	ID                     string   `json:"id,omitempty"`
-	ProductID              string   `json:"product_id,omitempty"`
-	Title                  string   `json:"title,omitempty"`
-	Name                   string   `json:"name,omitempty"`
-	DisplayTitle           string   `json:"display_title,omitempty"`
-	ProductName            string   `json:"product_name,omitempty"`
-	Authors                []string `json:"authors,omitempty"`
-	Author                 string   `json:"author,omitempty"`
-	Creators               []struct {
+	ID           string   `json:"id,omitempty"`
+	ProductID    string   `json:"product_id,omitempty"`
+	Title        string   `json:"title,omitempty"`
+	Name         string   `json:"name,omitempty"`
+	DisplayTitle string   `json:"display_title,omitempty"`
+	ProductName  string   `json:"product_name,omitempty"`
+	Authors      []string `json:"authors,omitempty"`
+	Author       Author   `json:"author,omitempty"`
+	Creators     []struct {
 		Name string `json:"name,omitempty"`
 	} `json:"creators,omitempty"`
 	AuthorNames            []string `json:"author_names,omitempty"`
@@ -74,22 +74,22 @@ type BrowserClient struct {
 
 // TableOfContentsItem represents a single item in the table of contents
 type TableOfContentsItem struct {
-	ID          string                 `json:"id"`
-	Title       string                 `json:"title"`
-	Href        string                 `json:"href"`
-	Level       int                    `json:"level"`
-	Parent      string                 `json:"parent,omitempty"`
-	Children    []TableOfContentsItem  `json:"children,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	ID       string                 `json:"id"`
+	Title    string                 `json:"title"`
+	Href     string                 `json:"href"`
+	Level    int                    `json:"level"`
+	Parent   string                 `json:"parent,omitempty"`
+	Children []TableOfContentsItem  `json:"children,omitempty"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // TableOfContentsResponse represents the complete table of contents response
 type TableOfContentsResponse struct {
-	BookID          string                    `json:"book_id"`
-	BookTitle       string                    `json:"book_title"`
-	TableOfContents []TableOfContentsItem     `json:"table_of_contents"`
-	TotalChapters   int                       `json:"total_chapters"`
-	Metadata        map[string]interface{}    `json:"metadata,omitempty"`
+	BookID          string                 `json:"book_id"`
+	BookTitle       string                 `json:"book_title"`
+	TableOfContents []TableOfContentsItem  `json:"table_of_contents"`
+	TotalChapters   int                    `json:"total_chapters"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ExtractTableOfContentsParams represents parameters for extracting table of contents
@@ -100,22 +100,41 @@ type ExtractTableOfContentsParams struct {
 	IncludeParent bool   `json:"include_parent,omitempty"`
 }
 
+type Author struct {
+	Name string `json:"name"`
+}
+
+type Publisher struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+type Topics struct {
+	Name           string  `json:"name"`
+	Slug           string  `json:"slug"`
+	Score          float64 `json:"score"`
+	UUID           string  `json:"uuid"`
+	EpubIdentifier string  `json:"epub_identifier,omitempty"`
+}
+
 // BookDetailResponse represents comprehensive book metadata from O'Reilly API
 type BookDetailResponse struct {
-	ID              string                 `json:"id"`
-	Title           string                 `json:"title"`
-	Description     string                 `json:"description"`
-	Authors         []string               `json:"authors"`
-	Publishers      []string               `json:"publishers"`
-	ISBN            string                 `json:"isbn"`
-	OURN            string                 `json:"ourn"`
-	PublicationDate string                 `json:"publication_date"`
-	VirtualPages    int                    `json:"virtual_pages"`
-	AverageRating   float64                `json:"average_rating"`
-	CoverURL        string                 `json:"cover_url"`
-	Topics          []string               `json:"topics"`
-	Language        string                 `json:"language"`
-	Metadata        map[string]interface{} `json:"metadata"`
+	ID            string                 `json:"id"`
+	URL           string                 `json:"url"`
+	WebURL        string                 `json:"web_url"`
+	Title         string                 `json:"title"`
+	Description   string                 `json:"description"`
+	Authors       []Author               `json:"authors"`
+	Publishers    []Publisher            `json:"publishers"`
+	ISBN          string                 `json:"isbn"`
+	VirtualPages  int                    `json:"virtual_pages"`
+	AverageRating float64                `json:"average_rating"`
+	Cover         string                 `json:"cover"`
+	Issued        string                 `json:"issued"`
+	Topics        []Topics               `json:"topics"`
+	Language      string                 `json:"language"`
+	Metadata      map[string]interface{} `json:"metadata"`
 }
 
 // BookSearchResult represents a book found through search
@@ -124,7 +143,7 @@ type BookSearchResult struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	URL         string   `json:"url"`
-	Authors     []string `json:"authors"`
+	Authors     []Author `json:"authors"`
 	Publisher   string   `json:"publisher"`
 }
 

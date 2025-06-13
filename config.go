@@ -57,12 +57,19 @@ func LoadConfig() (*Config, error) {
 		transport = transportStr
 	}
 
+	// 認証情報の確認
+	OReillyUserID := getEnv("OREILLY_USER_ID")
+	OReillyPassword := getEnv("OREILLY_PASSWORD")
+	if OReillyUserID == "" || OReillyPassword == "" {
+		log.Fatalf("OREILLY_USER_ID と OREILLY_PASSWORD が設定されていません")
+	}
+
 	return &Config{
 		Port:            port,
 		Debug:           debug,
 		Transport:       transport,
-		OReillyUserID:   getEnv("OREILLY_USER_ID"),
-		OReillyPassword: getEnv("OREILLY_PASSWORD"),
+		OReillyUserID:   OReillyUserID,
+		OReillyPassword: OReillyPassword,
 	}, nil
 }
 

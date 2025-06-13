@@ -36,17 +36,16 @@ func (c *OreillyClient) Close() {
 	}
 }
 
-
 // SearchParams は検索パラメータの構造体です
 type SearchParams struct {
-	Query       string   `json:"q"`
-	Rows        int      `json:"rows,omitempty"`
-	Languages   []string `json:"language,omitempty"`
-	TzOffset    int      `json:"tzOffset,omitempty"`
-	AiaOnly     bool     `json:"aia_only,omitempty"`
-	FeatureFlags string  `json:"feature_flags,omitempty"`
-	Report      bool     `json:"report,omitempty"`
-	IsTopics    bool     `json:"isTopics,omitempty"`
+	Query        string   `json:"q"`
+	Rows         int      `json:"rows,omitempty"`
+	Languages    []string `json:"language,omitempty"`
+	TzOffset     int      `json:"tzOffset,omitempty"`
+	AiaOnly      bool     `json:"aia_only,omitempty"`
+	FeatureFlags string   `json:"feature_flags,omitempty"`
+	Report       bool     `json:"report,omitempty"`
+	IsTopics     bool     `json:"isTopics,omitempty"`
 }
 
 // SearchResponse は検索レスポンスの構造体です
@@ -149,72 +148,4 @@ func getStringValue(m map[string]interface{}, key string) string {
 		return value
 	}
 	return ""
-}
-
-type Collection struct {
-	ID                    string           `json:"id"`
-	Ourn                  string           `json:"ourn"`
-	Name                  string           `json:"name"`
-	Description           string           `json:"description"`
-	IsDefault             bool             `json:"is_default"`
-	Content               []CollectionItem `json:"content"`
-	LastModifiedTime      string           `json:"last_modified_time"`
-	CreatedTime           string           `json:"created_time"`
-	CoverImage            string           `json:"cover_image"`
-	FollowerCount         int              `json:"follower_count"`
-	Sharing               string           `json:"sharing"`
-	IsOwned               bool             `json:"is_owned"`
-	IsFollowing           bool             `json:"is_following"`
-	OwnerDisplayName      string           `json:"owner_display_name"`
-	SharingOptions        []string         `json:"sharing_options"`
-	WebURL                string           `json:"web_url"`
-	CanBeAssigned         bool             `json:"can_be_assigned"`
-	Type                  string           `json:"type"`
-	PrimaryAccount        string           `json:"primary_account"`
-	PrimaryAccountDisplay string           `json:"primary_account_display_name"`
-	Topics                []string         `json:"topics"`
-	PublicationTime       *string          `json:"publication_time"`
-	MarketingType         MarketingType    `json:"marketing_type"`
-}
-
-type CollectionItem struct {
-	ID          string                 `json:"id"`
-	APIURL      string                 `json:"api_url"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	Ourn        string                 `json:"ourn"`
-	DateAdded   string                 `json:"date_added"`
-	ContentType string                 `json:"content_type"`
-	Index       float64                `json:"index"`
-	Title       *string                `json:"title"`
-	Description *string                `json:"description"`
-}
-
-type MarketingType struct {
-	Name string `json:"name"`
-	ID   string `json:"id"`
-}
-
-
-
-// ExtractTableOfContents はO'Reilly書籍の目次を抽出します
-func (c *OreillyClient) ExtractTableOfContents(ctx context.Context, params browser.ExtractTableOfContentsParams) (*browser.TableOfContentsResponse, error) {
-	log.Printf("O'Reilly書籍の目次抽出が要求されました: %s\n", params.URL)
-	
-	if params.URL == "" {
-		return nil, fmt.Errorf("URL cannot be empty")
-	}
-	
-	// ブラウザクライアントが利用可能かチェック
-	if c.browserClient == nil {
-		return nil, fmt.Errorf("browser client is not available")
-	}
-	
-	// ブラウザクライアントで目次を抽出
-	result, err := c.browserClient.ExtractTableOfContents(params.URL)
-	if err != nil {
-		return nil, fmt.Errorf("table of contents extraction failed: %w", err)
-	}
-	
-	log.Printf("目次抽出が完了しました: %s", result.BookTitle)
-	return result, nil
 }

@@ -28,7 +28,7 @@ func NewBrowserClient(userID, password string) (*BrowserClient, error) {
 		chromedp.Flag("disable-features", "VizDisplayCompositor"),
 		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
 	)
-	
+
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	ctx, _ := chromedp.NewContext(allocCtx)
 
@@ -63,7 +63,7 @@ func (bc *BrowserClient) login(userID, password string) error {
 	log.Printf("O'Reillyへのログインを開始します: %s", userID)
 
 	var cookies []*http.Cookie
-	
+
 	err := chromedp.Run(bc.ctx,
 		// ログインページに移動
 		chromedp.Navigate("https://www.oreilly.com/member/login/"),
@@ -76,14 +76,14 @@ func (bc *BrowserClient) login(userID, password string) error {
 			log.Printf("メールアドレス入力フィールドが表示されました")
 			return nil
 		}),
-		
+
 		// 第1段階: メールアドレスを入力してContinueボタンをクリック
 		chromedp.SendKeys(`input[name="email"]`, userID, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			log.Printf("メールアドレスを入力しました: %s", userID)
 			return nil
 		}),
-		
+
 		// Continueボタンをクリック（第1段階）
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			log.Printf("Continueボタンをクリックしようとしています")
@@ -103,7 +103,7 @@ func (bc *BrowserClient) login(userID, password string) error {
 			log.Printf("JavaScriptでContinueボタンをクリックしました")
 			return nil
 		}),
-		
+
 		// リダイレクトまたはページ更新を待機
 		chromedp.Sleep(5*time.Second), // より長い待機時間
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -113,22 +113,22 @@ func (bc *BrowserClient) login(userID, password string) error {
 			}
 			return nil
 		}),
-		
+
 		// 複数のケースに対応する処理
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var currentURL string
 			if err := chromedp.Location(&currentURL).Do(ctx); err != nil {
 				return err
 			}
-			
+
 			// ケース1: ACMのIDPにリダイレクトされた場合
 			if strings.Contains(currentURL, "idp.acm.org") {
 				log.Printf("ACM IDPにリダイレクトされました")
-				
+
 				// @acm.orgを除いたユーザー名を取得
 				username := strings.TrimSuffix(userID, "@acm.org")
 				log.Printf("ACMユーザー名: %s", username)
-				
+
 				return chromedp.Run(ctx,
 					// ユーザー名フィールドを待機
 					chromedp.WaitVisible(`input[placeholder*="username"]`, chromedp.ByQuery),
@@ -159,16 +159,16 @@ func (bc *BrowserClient) login(userID, password string) error {
 					chromedp.Sleep(5*time.Second),
 				)
 			}
-			
+
 			// ケース2: 同じO'Reillyページでパスワード入力フィールドが表示された場合
 			if strings.Contains(currentURL, "oreilly.com/member/login") {
 				log.Printf("O'Reillyページでパスワード入力フィールドを確認します")
-				
+
 				// パスワード入力フィールドが存在するかチェック
 				var passwordExists bool
 				if err := chromedp.Evaluate(`!!document.querySelector('input[name="password"]')`, &passwordExists).Do(ctx); err == nil && passwordExists {
 					log.Printf("O'Reillyページでパスワード入力フィールドが見つかりました")
-					
+
 					return chromedp.Run(ctx,
 						// パスワードを入力
 						chromedp.SendKeys(`input[name="password"]`, password, chromedp.ByQuery),
@@ -185,11 +185,11 @@ func (bc *BrowserClient) login(userID, password string) error {
 					)
 				}
 			}
-			
+
 			log.Printf("想定されたログインフローが見つかりませんでした。現在のURL: %s", currentURL)
 			return nil // エラーにせず、次のステップに進む
 		}),
-		
+
 		// ログイン完了まで待機（ホームページまたは学習プラットフォームページ）
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// 最大60秒待機（時間を延長）
@@ -201,105 +201,77 @@ func (bc *BrowserClient) login(userID, password string) error {
 					time.Sleep(2 * time.Second)
 					continue
 				}
-				
+
 				log.Printf("ログイン処理中のURL: %s", currentURL)
-				
+
 				// ログイン成功の判定
-				if strings.Contains(currentURL, "learning.oreilly.com") || 
-				   strings.Contains(currentURL, "oreilly.com/home") ||
-				   strings.Contains(currentURL, "oreilly.com/member") {
+				if strings.Contains(currentURL, "learning.oreilly.com") ||
+					strings.Contains(currentURL, "oreilly.com/home") ||
+					strings.Contains(currentURL, "oreilly.com/member") {
 					log.Printf("ログイン成功を確認しました")
 					return nil
 				}
-				
+
 				// エラーページの確認
 				if strings.Contains(currentURL, "error") || strings.Contains(currentURL, "denied") {
 					return fmt.Errorf("ログインエラーページが検出されました: %s", currentURL)
 				}
-				
+
 				time.Sleep(2 * time.Second)
 			}
-			
+
 			return fmt.Errorf("ログインがタイムアウトしました（60秒）")
 		}),
-		
+
 		// 学習プラットフォームに移動して確実にログイン状態を確立
 		chromedp.Navigate("https://learning.oreilly.com/"),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
 		chromedp.Sleep(5*time.Second), // より長い待機時間
-		
+
 		// ログイン状態を確認し、必要に応じて再ログイン
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var currentURL string
 			if err := chromedp.Location(&currentURL).Do(ctx); err == nil {
-				log.Printf("学習プラットフォームアクセス後のURL: %s", currentURL)
-				
-				// ログインページにリダイレクトされている場合の処理
-				if strings.Contains(currentURL, "/member/login") || strings.Contains(currentURL, "/login") {
-					log.Printf("ログインページにリダイレクトされました。直接学習プラットフォームにアクセスを試行します")
-					
-					// 複数のURLパターンを試行
-					urls := []string{
-						"https://learning.oreilly.com/home/",
-						"https://learning.oreilly.com/library/",
-						"https://learning.oreilly.com/playlists/",
-					}
-					
-					for _, url := range urls {
-						log.Printf("URL試行: %s", url)
-						if err := chromedp.Run(ctx,
-							chromedp.Navigate(url),
-							chromedp.WaitVisible(`body`, chromedp.ByQuery),
-							chromedp.Sleep(3*time.Second),
-						); err == nil {
-							var newURL string
-							if err := chromedp.Location(&newURL).Do(ctx); err == nil {
-								log.Printf("新しいURL: %s", newURL)
-								if !strings.Contains(newURL, "/login") {
-									log.Printf("学習プラットフォームへのアクセスに成功しました")
-									return nil
-								}
-							}
+				log.Printf("警告: 学習プラットフォームへの直接アクセスに失敗しました")
+				return err
+			}
+			log.Printf("学習プラットフォームアクセス後のURL: %s", currentURL)
+
+			// ログインページにリダイレクトされている場合の処理
+			if strings.Contains(currentURL, "/member/login") || strings.Contains(currentURL, "/login") {
+				log.Printf("ログインページにリダイレクトされました。直接学習プラットフォームにアクセスを試行します")
+
+				// 複数のURLパターンを試行
+				url := "https://learning.oreilly.com/home/"
+
+				log.Printf("URL試行: %s", url)
+				if err := chromedp.Run(ctx,
+					chromedp.Navigate(url),
+					chromedp.WaitVisible(`body`, chromedp.ByQuery),
+					chromedp.Sleep(3*time.Second),
+				); err == nil {
+					var newURL string
+					if err := chromedp.Location(&newURL).Do(ctx); err == nil {
+						log.Printf("新しいURL: %s", newURL)
+						if !strings.Contains(newURL, "/login") {
+							log.Printf("学習プラットフォームへのアクセスに成功しました")
+							return nil
 						}
 					}
-					
-					log.Printf("警告: 学習プラットフォームへの直接アクセスに失敗しました")
-				} else {
-					log.Printf("学習プラットフォームへのアクセスに成功しました")
 				}
+
+				log.Printf("学習プラットフォームへのアクセスに成功しました")
 			}
 			return nil
 		}),
-		
-		// プレイリストページへの事前アクセスを試行
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Printf("プレイリストページへの事前アクセスを試行します")
-			
-			if err := chromedp.Run(ctx,
-				chromedp.Navigate("https://learning.oreilly.com/playlists/"),
-				chromedp.WaitVisible(`body`, chromedp.ByQuery),
-				chromedp.Sleep(3*time.Second),
-			); err == nil {
-				var playlistURL string
-				if err := chromedp.Location(&playlistURL).Do(ctx); err == nil {
-					log.Printf("プレイリストページアクセス結果: %s", playlistURL)
-					if !strings.Contains(playlistURL, "/login") {
-						log.Printf("プレイリストページへのアクセスに成功しました")
-					} else {
-						log.Printf("プレイリストページでログインが必要です")
-					}
-				}
-			}
-			return nil
-		}),
-		
+
 		// Cookieを取得
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			cookiesResp, err := network.GetCookies().Do(ctx)
 			if err != nil {
 				return err
 			}
-			
+
 			// cdproto.Cookieから標準のhttp.Cookieに変換
 			cookies = make([]*http.Cookie, len(cookiesResp))
 			for i, c := range cookiesResp {
@@ -323,12 +295,12 @@ func (bc *BrowserClient) login(userID, password string) error {
 	// Cookieを保存
 	bc.cookies = cookies
 	log.Printf("ログインが完了し、%d個のCookieを取得しました", len(cookies))
-	
+
 	// 重要なCookieをログ出力（デバッグ用）
 	for _, cookie := range cookies {
-		if strings.Contains(cookie.Name, "jwt") || 
-		   strings.Contains(cookie.Name, "session") || 
-		   strings.Contains(cookie.Name, "auth") {
+		if strings.Contains(cookie.Name, "jwt") ||
+			strings.Contains(cookie.Name, "session") ||
+			strings.Contains(cookie.Name, "auth") {
 			log.Printf("重要なCookie取得: %s", cookie.Name)
 		}
 	}
@@ -378,21 +350,21 @@ func (bc *BrowserClient) GetRefreshToken() string {
 // RefreshSession はセッションを更新します
 func (bc *BrowserClient) RefreshSession() error {
 	log.Printf("セッションの更新を開始します")
-	
+
 	var cookies []*http.Cookie
-	
+
 	err := chromedp.Run(bc.ctx,
 		// 学習プラットフォームのホームページにアクセス
 		chromedp.Navigate("https://learning.oreilly.com/home/"),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		
+
 		// 更新されたCookieを取得
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			cookiesResp, err := network.GetCookies().Do(ctx)
 			if err != nil {
 				return err
 			}
-			
+
 			// cdproto.Cookieから標準のhttp.Cookieに変換
 			cookies = make([]*http.Cookie, len(cookiesResp))
 			for i, c := range cookiesResp {
