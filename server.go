@@ -21,7 +21,7 @@ type Server struct {
 func NewServer(oreillyClient *OreillyClient) *Server {
 	// MCPサーバーの設定とデバッグログの追加
 	mcpServer := server.NewMCPServer(
-		" Search O'Reilly Learning Platform",
+		"Search O'Reilly Learning Platform",
 		"1.0.0",
 		server.WithResourceCapabilities(true, true),
 		server.WithToolCapabilities(true),
@@ -118,7 +118,6 @@ func (s *Server) registerHandlers() {
 	)
 	s.mcpServer.AddTool(summarizeBooksTool, s.SummarizeBooksHandler)
 
-
 	// プレイリスト管理ツールの追加
 	listPlaylistsTool := mcp.NewTool("list_playlists",
 		mcp.WithDescription("List playlists from O'Reilly Learning Platform"),
@@ -198,7 +197,6 @@ func (s *Server) registerHandlers() {
 	)
 	s.mcpServer.AddTool(getBookDetailsTool, s.GetBookDetailsHandler)
 
-
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
 }
 
@@ -208,14 +206,14 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 
 	// リクエストパラメータの取得
 	var requestParams struct {
-		Query        string      `json:"query"`
-		Rows         int         `json:"rows,omitempty"`
-		Languages    []string    `json:"languages,omitempty"`
-		TzOffset     int         `json:"tzOffset,omitempty"`
-		AiaOnly      bool        `json:"aia_only,omitempty"`
-		FeatureFlags string      `json:"feature_flags,omitempty"`
-		Report       bool        `json:"report,omitempty"`
-		IsTopics     bool        `json:"isTopics,omitempty"`
+		Query        string   `json:"query"`
+		Rows         int      `json:"rows,omitempty"`
+		Languages    []string `json:"languages,omitempty"`
+		TzOffset     int      `json:"tzOffset,omitempty"`
+		AiaOnly      bool     `json:"aia_only,omitempty"`
+		FeatureFlags string   `json:"feature_flags,omitempty"`
+		Report       bool     `json:"report,omitempty"`
+		IsTopics     bool     `json:"isTopics,omitempty"`
 	}
 	argumentsBytes, err := json.Marshal(request.Params.Arguments)
 	if err != nil {
@@ -364,8 +362,8 @@ func (s *Server) CreatePlaylistHandler(ctx context.Context, request mcp.CallTool
 
 	// 結果をレスポンスに変換
 	response := map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("プレイリスト「%s」を正常に作成しました", requestParams.Name),
+		"success":  true,
+		"message":  fmt.Sprintf("プレイリスト「%s」を正常に作成しました", requestParams.Name),
 		"playlist": result,
 	}
 
@@ -471,7 +469,6 @@ func (s *Server) GetPlaylistDetailsHandler(ctx context.Context, request mcp.Call
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-
 // SummarizeBooksHandler は複数の書籍を検索して日本語でまとめます
 func (s *Server) SummarizeBooksHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Printf("書籍まとめリクエスト受信: %+v", request)
@@ -553,43 +550,43 @@ func (s *Server) createBooksSummary(query string, books []SearchResult) string {
 	summary += "## 📚 書籍一覧\n\n"
 	for i, book := range books {
 		summary += fmt.Sprintf("### %d. %s\n\n", i+1, book.Title)
-		
+
 		// 著者情報
 		if len(book.Authors) > 0 {
 			summary += fmt.Sprintf("**著者**: %s\n", joinStrings(book.Authors, ", "))
 		}
-		
+
 		// 出版社情報
 		if len(book.Publishers) > 0 {
 			summary += fmt.Sprintf("**出版社**: %s\n", joinStrings(book.Publishers, ", "))
 		}
-		
+
 		// 言語
 		if book.Language != "" {
 			summary += fmt.Sprintf("**言語**: %s\n", book.Language)
 		}
-		
+
 		// 説明
 		if book.Description != "" {
 			summary += fmt.Sprintf("**概要**: %s\n", book.Description)
 		}
-		
+
 		// トピック
 		if len(book.Topics) > 0 {
 			summary += fmt.Sprintf("**トピック**: %s\n", joinStrings(book.Topics, ", "))
 		}
-		
+
 		// URL
 		if book.WebURL != "" {
 			summary += fmt.Sprintf("**リンク**: [O'Reilly Learning Platformで読む](%s)\n", book.WebURL)
 		}
-		
+
 		summary += "\n---\n\n"
 	}
 
 	// 全体的な分析
 	summary += "## 📊 分析結果\n\n"
-	
+
 	// 著者の統計
 	authorCount := make(map[string]int)
 	for _, book := range books {
@@ -597,7 +594,7 @@ func (s *Server) createBooksSummary(query string, books []SearchResult) string {
 			authorCount[author]++
 		}
 	}
-	
+
 	if len(authorCount) > 0 {
 		summary += "**主要な著者**:\n"
 		for author, count := range authorCount {
@@ -607,7 +604,7 @@ func (s *Server) createBooksSummary(query string, books []SearchResult) string {
 		}
 		summary += "\n"
 	}
-	
+
 	// トピックの統計
 	topicCount := make(map[string]int)
 	for _, book := range books {
@@ -615,7 +612,7 @@ func (s *Server) createBooksSummary(query string, books []SearchResult) string {
 			topicCount[topic]++
 		}
 	}
-	
+
 	if len(topicCount) > 0 {
 		summary += "**関連トピック**:\n"
 		for topic, count := range topicCount {
@@ -625,7 +622,7 @@ func (s *Server) createBooksSummary(query string, books []SearchResult) string {
 		}
 		summary += "\n"
 	}
-	
+
 	// 言語の統計
 	langCount := make(map[string]int)
 	for _, book := range books {
@@ -633,7 +630,7 @@ func (s *Server) createBooksSummary(query string, books []SearchResult) string {
 			langCount[book.Language]++
 		}
 	}
-	
+
 	if len(langCount) > 0 {
 		summary += "**言語別分布**:\n"
 		for lang, count := range langCount {
@@ -658,7 +655,7 @@ func joinStrings(strs []string, sep string) string {
 	if len(strs) == 1 {
 		return strs[0]
 	}
-	
+
 	result := strs[0]
 	for i := 1; i < len(strs); i++ {
 		result += sep + strs[i]
@@ -723,7 +720,7 @@ func (s *Server) ExtractTableOfContentsHandler(ctx context.Context, request mcp.
 		"authors":           []string{},        // Not available in new struct, use empty array
 		"publisher":         "",                // Not available in new struct
 		"table_of_contents": result.TableOfContents,
-		"extracted_at":      "",                // Not available in new struct
+		"extracted_at":      "", // Not available in new struct
 		"total_chapters":    result.TotalChapters,
 	}
 
@@ -773,12 +770,12 @@ func (s *Server) SearchInBookHandler(ctx context.Context, request mcp.CallToolRe
 
 	// 結果をレスポンスに変換
 	response := map[string]interface{}{
-		"success":     true,
-		"book_id":     requestParams.BookID,
-		"search_term": requestParams.SearchTerm,
-		"results":     results,
+		"success":       true,
+		"book_id":       requestParams.BookID,
+		"search_term":   requestParams.SearchTerm,
+		"results":       results,
 		"total_matches": len(results),
-		"message":     fmt.Sprintf("書籍「%s」で「%s」を検索し、%d件の結果が見つかりました", requestParams.BookID, requestParams.SearchTerm, len(results)),
+		"message":       fmt.Sprintf("書籍「%s」で「%s」を検索し、%d件の結果が見つかりました", requestParams.BookID, requestParams.SearchTerm, len(results)),
 	}
 
 	jsonBytes, err := json.Marshal(response)
@@ -817,11 +814,11 @@ func (s *Server) ListCollectionsHandler(ctx context.Context, request mcp.CallToo
 		Results: make([]interface{}, 0, len(homepageCollections)),
 		Source:  "homepage_only",
 	}
-	
+
 	for _, collection := range homepageCollections {
 		response.Results = append(response.Results, collection)
 	}
-	
+
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
@@ -885,4 +882,3 @@ func (s *Server) GetBookDetailsHandler(ctx context.Context, request mcp.CallTool
 
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
-
