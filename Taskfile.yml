@@ -1,0 +1,28 @@
+version: '3'
+
+vars:
+  OREILLY_DIR: browser
+  SPEC_FILE: openapi.yaml
+  OUTPUT_DIR: generated/api
+  CONFIG_FILE: oapi-codegen.yaml
+
+tasks:
+  generate:api:oreilly:
+    desc: OpenAPI仕様からO'Reilly Learning Platformのクライアントコードを生成
+    dir: '{{.OREILLY_DIR}}'
+    cmds:
+      - rm -rf {{.OUTPUT_DIR}}
+      - mkdir -p {{.OUTPUT_DIR}}
+      - oapi-codegen --config={{.CONFIG_FILE}} {{.SPEC_FILE}}
+    sources:
+      - '{{.OREILLY_SPEC_FILE}}'
+      - '{{.OREILLY_OUTPUT_DIR}}'
+    generates:
+      - "{{.OUTPUT_DIR}}/client.gen.go"
+    silent: false
+
+  clean:generated:
+    desc: 生成されたコードを削除
+    dir: '{{.OREILLY_DIR}}'
+    cmds:
+      - rm -rf {{.OUTPUT_DIR}}/*.gen.go
