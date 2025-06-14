@@ -1,72 +1,491 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
-  title: "O'Reilly Learning Platform"
+  title: O'Reilly Learning Platform API
+  description: Internal API for O'Reilly Learning Platform search functionality
   version: 1.0.0
-
+  contact:
+    name: Generated from browser package
+    
 servers:
   - url: https://learning.oreilly.com
-    description: "O'Reilly Learning Platform"
-
-security:
-  - bearerAuth: []
+    description: O'Reilly Learning Platform
 
 paths:
-  /api/v2/search:
+  /api/v2/search/:
     get:
-      summary: 書籍の検索
-      description: キーワードに基づいて書籍を検索します
-      operationId: SearchBooks
+      operationId: searchContentV2
+      summary: Search O'Reilly content using V2 API
+      description: Search for books, videos, and other content on O'Reilly Learning Platform
       tags:
         - search
       parameters:
         - name: query
           in: query
-          description: 検索キーワード
           required: true
+          description: Search query string
           schema:
             type: string
+            example: "Docker"
+        - name: rows
+          in: query
+          required: false
+          description: Number of results to return
+          schema:
+            type: integer
+            default: 100
             minimum: 1
-            default: 1
+            maximum: 1000
+        - name: tzOffset
+          in: query
+          required: false
+          description: Timezone offset in hours
+          schema:
+            type: integer
+            default: -9
+        - name: aia_only
+          in: query
+          required: false
+          description: Return only AI-assisted content
+          schema:
+            type: boolean
+            default: false
+        - name: feature_flags
+          in: query
+          required: false
+          description: Feature flags for search
+          schema:
+            type: string
+            default: "improveSearchFilters"
+        - name: report
+          in: query
+          required: false
+          description: Include report data in response
+          schema:
+            type: boolean
+            default: true
+        - name: isTopics
+          in: query
+          required: false
+          description: Search only in topics
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
-          description: 成功
+          description: Successful search response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchAPIResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/book/{bookId}/:
+    get:
+      operationId: getBookDetails
+      summary: Get detailed book information
+      description: Retrieve comprehensive metadata for a specific book
+      tags:
+        - books
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          description: Book ID or product ID
+          schema:
+            type: string
+            example: "9781492036739"
+      responses:
+        '200':
+          description: Book details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookDetailResponse'
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   schemas:
     SearchAPIResponse:
       type: object
-      required:
-        - data
+      description: Response from O'Reilly search API
       properties:
         data:
-          type: object
           $ref: '#/components/schemas/SearchDataContainer'
-
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawSearchResult'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawSearchResult'
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawSearchResult'
+    
     SearchDataContainer:
       type: object
-      required:
-        - products
+      description: Container for search data
       properties:
         products:
           type: array
-          $ref: '#/components/schemas/RawSearchResult'
-          description: 書籍リスト
-
+          items:
+            $ref: '#/components/schemas/RawSearchResult'
+    
     RawSearchResult:
       type: object
-      required:
-        - id
+      description: Raw search result from O'Reilly API
       properties:
         id:
           type: string
-          description: プロダクトID
+          description: Item ID
+        product_id:
+          type: string
+          description: Product ID
+        title:
+          type: string
+          description: Item title
+        name:
+          type: string
+          description: Item name
+        display_title:
+          type: string
+          description: Display title
+        product_name:
+          type: string
+          description: Product name
+        authors:
+          type: array
+          items:
+            type: string
+          description: List of author names
+        author:
+          $ref: '#/components/schemas/Author'
+        creators:
+          type: array
+          items:
+            $ref: '#/components/schemas/Creator'
+        author_names:
+          type: array
+          items:
+            type: string
+          description: Alternative author names field
+        content_type:
+          type: string
+          description: Type of content
+        type:
+          type: string
+          description: Alternative type field
+        format:
+          type: string
+          description: Content format
+        product_type:
+          type: string
+          description: Product type
+        description:
+          type: string
+          description: Item description
+        summary:
+          type: string
+          description: Item summary
+        excerpt:
+          type: string
+          description: Item excerpt
+        description_with_markups:
+          type: string
+          description: Description with markup
+        short_description:
+          type: string
+          description: Short description
+        web_url:
+          type: string
+          description: Web URL
+        url:
+          type: string
+          description: URL
+        learning_url:
+          type: string
+          description: Learning platform URL
+        link:
+          type: string
+          description: Link
+        ourn:
+          type: string
+          description: O'Reilly URN
+        isbn:
+          type: string
+          description: ISBN
+        publisher:
+          type: string
+          description: Publisher name
+        publishers:
+          type: array
+          items:
+            type: string
+          description: List of publishers
+        imprint:
+          type: string
+          description: Imprint
+        publisher_name:
+          type: string
+          description: Publisher name alternative
+        published_date:
+          type: string
+          description: Published date
+        publication_date:
+          type: string
+          description: Publication date alternative
+        date_published:
+          type: string
+          description: Date published alternative
+        pub_date:
+          type: string
+          description: Publication date alternative
+    
+    Author:
+      type: object
+      description: Author information
+      properties:
+        name:
+          type: string
+          description: Author name
+    
+    Creator:
+      type: object
+      description: Creator information
+      properties:
+        name:
+          type: string
+          description: Creator name
+    
+    Publisher:
+      type: object
+      description: Publisher information
+      properties:
+        id:
+          type: integer
+          description: Publisher ID
+        name:
+          type: string
+          description: Publisher name
+        slug:
+          type: string
+          description: Publisher slug
+    
+    Topics:
+      type: object
+      description: Topic information
+      properties:
+        name:
+          type: string
+          description: Topic name
+        slug:
+          type: string
+          description: Topic slug
+        score:
+          type: number
+          format: float
+          description: Topic relevance score
+        uuid:
+          type: string
+          description: Topic UUID
+        epub_identifier:
+          type: string
+          description: EPUB identifier
+    
+    BookDetailResponse:
+      type: object
+      description: Comprehensive book metadata
+      properties:
+        id:
+          type: string
+          description: Book ID
+        url:
+          type: string
+          description: Book URL
+        web_url:
+          type: string
+          description: Web URL
+        title:
+          type: string
+          description: Book title
+        description:
+          type: string
+          description: Book description
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Author'
+        publishers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Publisher'
+        isbn:
+          type: string
+          description: ISBN
+        virtual_pages:
+          type: integer
+          description: Number of virtual pages
+        average_rating:
+          type: number
+          format: float
+          description: Average rating
+        cover:
+          type: string
+          description: Cover image URL
+        issued:
+          type: string
+          description: Issue date
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Topics'
+        language:
+          type: string
+          description: Language code
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+    
+    BookSearchResult:
+      type: object
+      description: Book search result
+      properties:
+        product_id:
+          type: string
+          description: Product ID
+        title:
+          type: string
+          description: Book title
+        description:
+          type: string
+          description: Book description
+        url:
+          type: string
+          description: Book URL
+        authors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Author'
+        publisher:
+          type: string
+          description: Publisher name
+    
+    TableOfContentsItem:
+      type: object
+      description: Table of contents item
+      properties:
+        id:
+          type: string
+          description: Item ID
+        title:
+          type: string
+          description: Item title
+        href:
+          type: string
+          description: Item link
+        level:
+          type: integer
+          description: Nesting level
+        parent:
+          type: string
+          description: Parent item ID
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableOfContentsItem'
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+    
+    TableOfContentsResponse:
+      type: object
+      description: Table of contents response
+      properties:
+        book_id:
+          type: string
+          description: Book ID
+        book_title:
+          type: string
+          description: Book title
+        table_of_contents:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableOfContentsItem'
+        total_chapters:
+          type: integer
+          description: Total number of chapters
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+    
+    BookOverviewAndTOCResponse:
+      type: object
+      description: Combined book details and table of contents
+      properties:
+        book_detail:
+          $ref: '#/components/schemas/BookDetailResponse'
+        table_of_contents:
+          $ref: '#/components/schemas/TableOfContentsResponse'
+    
+    ErrorResponse:
+      type: object
+      description: Error response
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: integer
+          description: Error code
+        details:
+          type: string
+          description: Error details
 
-  securitySchemes: {}
+  securitySchemes:
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: orm-jwt
+      description: O'Reilly session authentication via JWT cookie
+
+security:
+  - CookieAuth: []
 
 tags:
   - name: search
-    description: 書籍の検索に関する操作
+    description: Search operations for O'Reilly content
+  - name: books
+    description: Book-related operations

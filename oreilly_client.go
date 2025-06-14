@@ -142,6 +142,14 @@ func (c *OreillyClient) Search(ctx context.Context, params SearchParams) (*Searc
 	return searchResp, nil
 }
 
+// SearchContent はブラウザクライアントのSearchContentメソッドを直接呼び出します
+func (c *OreillyClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, error) {
+	if c.browserClient == nil {
+		return nil, fmt.Errorf("browser client is not available")
+	}
+	return c.browserClient.SearchContent(query, options)
+}
+
 // getStringValue はmap[string]interface{}から文字列値を安全に取得するヘルパー関数
 func getStringValue(m map[string]interface{}, key string) string {
 	if value, ok := m[key].(string); ok {

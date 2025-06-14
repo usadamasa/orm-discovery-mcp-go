@@ -9,59 +9,8 @@ import (
 const (
 	APIEndpointBase = "https://learning.oreilly.com"
 
-	BookAPIV1   = "/api/v1/book/%s/"
-	SearchAPIV2 = "/api/v2/search/"
+	BookAPIV1 = "/api/v1/book/%s/"
 )
-
-// SearchAPIResponse represents O'Reilly search API response structure
-type SearchAPIResponse struct {
-	Data    *SearchDataContainer `json:"data,omitempty"`
-	Results []RawSearchResult    `json:"results,omitempty"`
-	Items   []RawSearchResult    `json:"items,omitempty"`
-	Hits    []RawSearchResult    `json:"hits,omitempty"`
-}
-
-type SearchDataContainer struct {
-	Products []RawSearchResult `json:"products,omitempty"`
-}
-
-type RawSearchResult struct {
-	ID           string   `json:"id,omitempty"`
-	ProductID    string   `json:"product_id,omitempty"`
-	Title        string   `json:"title,omitempty"`
-	Name         string   `json:"name,omitempty"`
-	DisplayTitle string   `json:"display_title,omitempty"`
-	ProductName  string   `json:"product_name,omitempty"`
-	Authors      []string `json:"authors,omitempty"`
-	Author       Author   `json:"author,omitempty"`
-	Creators     []struct {
-		Name string `json:"name,omitempty"`
-	} `json:"creators,omitempty"`
-	AuthorNames            []string `json:"author_names,omitempty"`
-	ContentType            string   `json:"content_type,omitempty"`
-	Type                   string   `json:"type,omitempty"`
-	Format                 string   `json:"format,omitempty"`
-	ProductType            string   `json:"product_type,omitempty"`
-	Description            string   `json:"description,omitempty"`
-	Summary                string   `json:"summary,omitempty"`
-	Excerpt                string   `json:"excerpt,omitempty"`
-	DescriptionWithMarkups string   `json:"description_with_markups,omitempty"`
-	ShortDescription       string   `json:"short_description,omitempty"`
-	WebURL                 string   `json:"web_url,omitempty"`
-	URL                    string   `json:"url,omitempty"`
-	LearningURL            string   `json:"learning_url,omitempty"`
-	Link                   string   `json:"link,omitempty"`
-	OURN                   string   `json:"ourn,omitempty"`
-	ISBN                   string   `json:"isbn,omitempty"`
-	Publisher              string   `json:"publisher,omitempty"`
-	Publishers             []string `json:"publishers,omitempty"`
-	Imprint                string   `json:"imprint,omitempty"`
-	PublisherName          string   `json:"publisher_name,omitempty"`
-	PublishedDate          string   `json:"published_date,omitempty"`
-	PublicationDate        string   `json:"publication_date,omitempty"`
-	DatePublished          string   `json:"date_published,omitempty"`
-	PubDate                string   `json:"pub_date,omitempty"`
-}
 
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
 type BrowserClient struct {
@@ -100,6 +49,7 @@ type ExtractTableOfContentsParams struct {
 	IncludeParent bool   `json:"include_parent,omitempty"`
 }
 
+// Author is used locally for normalization
 type Author struct {
 	Name string `json:"name"`
 }

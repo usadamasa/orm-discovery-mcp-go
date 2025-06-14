@@ -16,29 +16,265 @@ import (
 )
 
 const (
-	BearerAuthScopes = "bearerAuth.Scopes"
+	CookieAuthScopes = "CookieAuth.Scopes"
 )
 
-// RawSearchResult defines model for RawSearchResult.
+// Author Author information
+type Author struct {
+	// Name Author name
+	Name *string `json:"name,omitempty"`
+}
+
+// BookDetailResponse Comprehensive book metadata
+type BookDetailResponse struct {
+	Authors *[]Author `json:"authors,omitempty"`
+
+	// AverageRating Average rating
+	AverageRating *float32 `json:"average_rating,omitempty"`
+
+	// Cover Cover image URL
+	Cover *string `json:"cover,omitempty"`
+
+	// Description Book description
+	Description *string `json:"description,omitempty"`
+
+	// Id Book ID
+	Id *string `json:"id,omitempty"`
+
+	// Isbn ISBN
+	Isbn *string `json:"isbn,omitempty"`
+
+	// Issued Issue date
+	Issued *string `json:"issued,omitempty"`
+
+	// Language Language code
+	Language *string `json:"language,omitempty"`
+
+	// Metadata Additional metadata
+	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
+	Publishers *[]Publisher            `json:"publishers,omitempty"`
+
+	// Title Book title
+	Title  *string   `json:"title,omitempty"`
+	Topics *[]Topics `json:"topics,omitempty"`
+
+	// Url Book URL
+	Url *string `json:"url,omitempty"`
+
+	// VirtualPages Number of virtual pages
+	VirtualPages *int `json:"virtual_pages,omitempty"`
+
+	// WebUrl Web URL
+	WebUrl *string `json:"web_url,omitempty"`
+}
+
+// Creator Creator information
+type Creator struct {
+	// Name Creator name
+	Name *string `json:"name,omitempty"`
+}
+
+// ErrorResponse Error response
+type ErrorResponse struct {
+	// Code Error code
+	Code *int `json:"code,omitempty"`
+
+	// Details Error details
+	Details *string `json:"details,omitempty"`
+
+	// Error Error message
+	Error *string `json:"error,omitempty"`
+}
+
+// Publisher Publisher information
+type Publisher struct {
+	// Id Publisher ID
+	Id *int `json:"id,omitempty"`
+
+	// Name Publisher name
+	Name *string `json:"name,omitempty"`
+
+	// Slug Publisher slug
+	Slug *string `json:"slug,omitempty"`
+}
+
+// RawSearchResult Raw search result from O'Reilly API
 type RawSearchResult struct {
-	// Id プロダクトID
-	Id string `json:"id"`
+	// Author Author information
+	Author *Author `json:"author,omitempty"`
+
+	// AuthorNames Alternative author names field
+	AuthorNames *[]string `json:"author_names,omitempty"`
+
+	// Authors List of author names
+	Authors *[]string `json:"authors,omitempty"`
+
+	// ContentType Type of content
+	ContentType *string    `json:"content_type,omitempty"`
+	Creators    *[]Creator `json:"creators,omitempty"`
+
+	// DatePublished Date published alternative
+	DatePublished *string `json:"date_published,omitempty"`
+
+	// Description Item description
+	Description *string `json:"description,omitempty"`
+
+	// DescriptionWithMarkups Description with markup
+	DescriptionWithMarkups *string `json:"description_with_markups,omitempty"`
+
+	// DisplayTitle Display title
+	DisplayTitle *string `json:"display_title,omitempty"`
+
+	// Excerpt Item excerpt
+	Excerpt *string `json:"excerpt,omitempty"`
+
+	// Format Content format
+	Format *string `json:"format,omitempty"`
+
+	// Id Item ID
+	Id *string `json:"id,omitempty"`
+
+	// Imprint Imprint
+	Imprint *string `json:"imprint,omitempty"`
+
+	// Isbn ISBN
+	Isbn *string `json:"isbn,omitempty"`
+
+	// LearningUrl Learning platform URL
+	LearningUrl *string `json:"learning_url,omitempty"`
+
+	// Link Link
+	Link *string `json:"link,omitempty"`
+
+	// Name Item name
+	Name *string `json:"name,omitempty"`
+
+	// Ourn O'Reilly URN
+	Ourn *string `json:"ourn,omitempty"`
+
+	// ProductId Product ID
+	ProductId *string `json:"product_id,omitempty"`
+
+	// ProductName Product name
+	ProductName *string `json:"product_name,omitempty"`
+
+	// ProductType Product type
+	ProductType *string `json:"product_type,omitempty"`
+
+	// PubDate Publication date alternative
+	PubDate *string `json:"pub_date,omitempty"`
+
+	// PublicationDate Publication date alternative
+	PublicationDate *string `json:"publication_date,omitempty"`
+
+	// PublishedDate Published date
+	PublishedDate *string `json:"published_date,omitempty"`
+
+	// Publisher Publisher name
+	Publisher *string `json:"publisher,omitempty"`
+
+	// PublisherName Publisher name alternative
+	PublisherName *string `json:"publisher_name,omitempty"`
+
+	// Publishers List of publishers
+	Publishers *[]string `json:"publishers,omitempty"`
+
+	// ShortDescription Short description
+	ShortDescription *string `json:"short_description,omitempty"`
+
+	// Summary Item summary
+	Summary *string `json:"summary,omitempty"`
+
+	// Title Item title
+	Title *string `json:"title,omitempty"`
+
+	// Type Alternative type field
+	Type *string `json:"type,omitempty"`
+
+	// Url URL
+	Url *string `json:"url,omitempty"`
+
+	// WebUrl Web URL
+	WebUrl *string `json:"web_url,omitempty"`
 }
 
-// SearchAPIResponse defines model for SearchAPIResponse.
+// SearchAPIResponse Response from O'Reilly search API
 type SearchAPIResponse struct {
-	Data SearchDataContainer `json:"data"`
+	// Data Container for search data
+	Data    *SearchDataContainer `json:"data,omitempty"`
+	Hits    *[]RawSearchResult   `json:"hits,omitempty"`
+	Items   *[]RawSearchResult   `json:"items,omitempty"`
+	Results *[]RawSearchResult   `json:"results,omitempty"`
 }
 
-// SearchDataContainer defines model for SearchDataContainer.
+// SearchDataContainer Container for search data
 type SearchDataContainer struct {
-	Products RawSearchResult `json:"products"`
+	Products *[]RawSearchResult `json:"products,omitempty"`
 }
 
-// SearchBooksParams defines parameters for SearchBooks.
-type SearchBooksParams struct {
-	// Query 検索キーワード
+// TableOfContentsItem Table of contents item
+type TableOfContentsItem struct {
+	Children *[]TableOfContentsItem `json:"children,omitempty"`
+
+	// Href Item link
+	Href *string `json:"href,omitempty"`
+
+	// Id Item ID
+	Id *string `json:"id,omitempty"`
+
+	// Level Nesting level
+	Level *int `json:"level,omitempty"`
+
+	// Metadata Additional metadata
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// Parent Parent item ID
+	Parent *string `json:"parent,omitempty"`
+
+	// Title Item title
+	Title *string `json:"title,omitempty"`
+}
+
+// Topics Topic information
+type Topics struct {
+	// EpubIdentifier EPUB identifier
+	EpubIdentifier *string `json:"epub_identifier,omitempty"`
+
+	// Name Topic name
+	Name *string `json:"name,omitempty"`
+
+	// Score Topic relevance score
+	Score *float32 `json:"score,omitempty"`
+
+	// Slug Topic slug
+	Slug *string `json:"slug,omitempty"`
+
+	// Uuid Topic UUID
+	Uuid *string `json:"uuid,omitempty"`
+}
+
+// SearchContentV2Params defines parameters for SearchContentV2.
+type SearchContentV2Params struct {
+	// Query Search query string
 	Query string `form:"query" json:"query"`
+
+	// Rows Number of results to return
+	Rows *int `form:"rows,omitempty" json:"rows,omitempty"`
+
+	// TzOffset Timezone offset in hours
+	TzOffset *int `form:"tzOffset,omitempty" json:"tzOffset,omitempty"`
+
+	// AiaOnly Return only AI-assisted content
+	AiaOnly *bool `form:"aia_only,omitempty" json:"aia_only,omitempty"`
+
+	// FeatureFlags Feature flags for search
+	FeatureFlags *string `form:"feature_flags,omitempty" json:"feature_flags,omitempty"`
+
+	// Report Include report data in response
+	Report *bool `form:"report,omitempty" json:"report,omitempty"`
+
+	// IsTopics Search only in topics
+	IsTopics *bool `form:"isTopics,omitempty" json:"isTopics,omitempty"`
 }
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
@@ -114,12 +350,15 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// SearchBooks request
-	SearchBooks(ctx context.Context, params *SearchBooksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetBookDetails request
+	GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SearchContentV2 request
+	SearchContentV2(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) SearchBooks(ctx context.Context, params *SearchBooksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSearchBooksRequest(c.Server, params)
+func (c *Client) GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBookDetailsRequest(c.Server, bookId)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +369,54 @@ func (c *Client) SearchBooks(ctx context.Context, params *SearchBooksParams, req
 	return c.Client.Do(req)
 }
 
-// NewSearchBooksRequest generates requests for SearchBooks
-func NewSearchBooksRequest(server string, params *SearchBooksParams) (*http.Request, error) {
+func (c *Client) SearchContentV2(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSearchContentV2Request(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// NewGetBookDetailsRequest generates requests for GetBookDetails
+func NewGetBookDetailsRequest(server string, bookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "bookId", runtime.ParamLocationPath, bookId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/book/%s/", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSearchContentV2Request generates requests for SearchContentV2
+func NewSearchContentV2Request(server string, params *SearchContentV2Params) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -139,7 +424,7 @@ func NewSearchBooksRequest(server string, params *SearchBooksParams) (*http.Requ
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v2/search")
+	operationPath := fmt.Sprintf("/api/v2/search/")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -162,6 +447,102 @@ func NewSearchBooksRequest(server string, params *SearchBooksParams) (*http.Requ
 					queryValues.Add(k, v2)
 				}
 			}
+		}
+
+		if params.Rows != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "rows", runtime.ParamLocationQuery, *params.Rows); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.TzOffset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "tzOffset", runtime.ParamLocationQuery, *params.TzOffset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AiaOnly != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "aia_only", runtime.ParamLocationQuery, *params.AiaOnly); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.FeatureFlags != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "feature_flags", runtime.ParamLocationQuery, *params.FeatureFlags); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Report != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "report", runtime.ParamLocationQuery, *params.Report); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IsTopics != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "isTopics", runtime.ParamLocationQuery, *params.IsTopics); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -218,18 +599,23 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// SearchBooksWithResponse request
-	SearchBooksWithResponse(ctx context.Context, params *SearchBooksParams, reqEditors ...RequestEditorFn) (*SearchBooksResponse, error)
+	// GetBookDetailsWithResponse request
+	GetBookDetailsWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookDetailsResponse, error)
+
+	// SearchContentV2WithResponse request
+	SearchContentV2WithResponse(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*SearchContentV2Response, error)
 }
 
-type SearchBooksResponse struct {
+type GetBookDetailsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *SearchAPIResponse
+	JSON200      *BookDetailResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r SearchBooksResponse) Status() string {
+func (r GetBookDetailsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -237,31 +623,105 @@ func (r SearchBooksResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r SearchBooksResponse) StatusCode() int {
+func (r GetBookDetailsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-// SearchBooksWithResponse request returning *SearchBooksResponse
-func (c *ClientWithResponses) SearchBooksWithResponse(ctx context.Context, params *SearchBooksParams, reqEditors ...RequestEditorFn) (*SearchBooksResponse, error) {
-	rsp, err := c.SearchBooks(ctx, params, reqEditors...)
+type SearchContentV2Response struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SearchAPIResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r SearchContentV2Response) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SearchContentV2Response) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// GetBookDetailsWithResponse request returning *GetBookDetailsResponse
+func (c *ClientWithResponses) GetBookDetailsWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookDetailsResponse, error) {
+	rsp, err := c.GetBookDetails(ctx, bookId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseSearchBooksResponse(rsp)
+	return ParseGetBookDetailsResponse(rsp)
 }
 
-// ParseSearchBooksResponse parses an HTTP response from a SearchBooksWithResponse call
-func ParseSearchBooksResponse(rsp *http.Response) (*SearchBooksResponse, error) {
+// SearchContentV2WithResponse request returning *SearchContentV2Response
+func (c *ClientWithResponses) SearchContentV2WithResponse(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*SearchContentV2Response, error) {
+	rsp, err := c.SearchContentV2(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSearchContentV2Response(rsp)
+}
+
+// ParseGetBookDetailsResponse parses an HTTP response from a GetBookDetailsWithResponse call
+func ParseGetBookDetailsResponse(rsp *http.Response) (*GetBookDetailsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &SearchBooksResponse{
+	response := &GetBookDetailsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BookDetailResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSearchContentV2Response parses an HTTP response from a SearchContentV2WithResponse call
+func ParseSearchContentV2Response(rsp *http.Response) (*SearchContentV2Response, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SearchContentV2Response{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -273,6 +733,27 @@ func ParseSearchBooksResponse(rsp *http.Response) (*SearchBooksResponse, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

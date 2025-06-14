@@ -6,6 +6,10 @@ import (
 )
 
 func main() {
+	runMCPServer()
+}
+
+func runMCPServer() {
 	// 設定の読み込み
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -25,6 +29,9 @@ func main() {
 	log.Printf("O'Reillyクライアントの初期化が完了しました")
 	s := NewServer(oreillyClient)
 
+	log.Printf("サーバーを初期化しました")
+	log.Printf("ハンドラーを登録しました")
+
 	if cfg.Transport == "http" {
 		log.Printf("HTTPサーバーを起動します :%s/mcp", cfg.Port)
 		if err := s.StartStreamableHTTPServer(fmt.Sprintf(":%s", cfg.Port)); err != nil {
@@ -32,6 +39,7 @@ func main() {
 		}
 	} else {
 		log.Printf("サーバーを起動します")
+		log.Printf("MCPサーバーを標準入出力で起動します")
 		if err := s.StartStdioServer(); err != nil {
 			fmt.Printf("Server error: %v\n", err)
 		}

@@ -1,32 +1,33 @@
 package browser
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"log"
-	"strconv"
+	"net/http"
 	"strings"
 
-	"encoding/json"
-	"net/http"
-	"net/url"
+	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
 )
 
-// normalizeSearchResult converts RawSearchResult to a map suitable for consumption
-func normalizeSearchResult(raw RawSearchResult, index int) map[string]interface{} {
+// normalizeSearchResult converts api.RawSearchResult to a map suitable for consumption
+func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interface{} {
 	// URL normalization
-	itemURL := raw.WebURL
-	if itemURL == "" {
-		itemURL = raw.URL
+	itemURL := ""
+	if raw.WebUrl != nil {
+		itemURL = *raw.WebUrl
 	}
-	if itemURL == "" {
-		itemURL = raw.LearningURL
+	if itemURL == "" && raw.Url != nil {
+		itemURL = *raw.Url
 	}
-	if itemURL == "" {
-		itemURL = raw.Link
+	if itemURL == "" && raw.LearningUrl != nil {
+		itemURL = *raw.LearningUrl
 	}
-	if itemURL == "" && raw.ProductID != "" {
-		itemURL = "https://learning.oreilly.com/library/view/-/" + raw.ProductID + "/"
+	if itemURL == "" && raw.Link != nil {
+		itemURL = *raw.Link
+	}
+	if itemURL == "" && raw.ProductId != nil && *raw.ProductId != "" {
+		itemURL = "https://learning.oreilly.com/library/view/-/" + *raw.ProductId + "/"
 	}
 	if itemURL != "" && !strings.HasPrefix(itemURL, "http") {
 		if strings.HasPrefix(itemURL, "/") {
@@ -36,31 +37,40 @@ func normalizeSearchResult(raw RawSearchResult, index int) map[string]interface{
 
 	// Authors normalization
 	var authors []Author
-	for _, author := range raw.Authors {
-		authors = append(authors, Author{Name: author})
-	}
-	if raw.Author.Name != "" {
-		authors = append(authors, raw.Author)
-	}
-	for _, creator := range raw.Creators {
-		if creator.Name != "" {
-			authors = append(authors, Author{Name: creator.Name})
+	if raw.Authors != nil {
+		for _, author := range *raw.Authors {
+			authors = append(authors, Author{Name: author})
 		}
 	}
-	for _, name := range raw.AuthorNames {
-		authors = append(authors, Author{Name: name})
+	if raw.Author != nil && raw.Author.Name != nil {
+		authors = append(authors, Author{Name: *raw.Author.Name})
+	}
+	if raw.Creators != nil {
+		for _, creator := range *raw.Creators {
+			if creator.Name != nil {
+				authors = append(authors, Author{Name: *creator.Name})
+			}
+		}
+	}
+	if raw.AuthorNames != nil {
+		for _, name := range *raw.AuthorNames {
+			authors = append(authors, Author{Name: name})
+		}
 	}
 
 	// Content type determination
-	contentType := raw.ContentType
-	if contentType == "" {
-		contentType = raw.Type
+	contentType := ""
+	if raw.ContentType != nil {
+		contentType = *raw.ContentType
 	}
-	if contentType == "" {
-		contentType = raw.Format
+	if contentType == "" && raw.Type != nil {
+		contentType = *raw.Type
 	}
-	if contentType == "" {
-		contentType = raw.ProductType
+	if contentType == "" && raw.Format != nil {
+		contentType = *raw.Format
+	}
+	if contentType == "" && raw.ProductType != nil {
+		contentType = *raw.ProductType
 	}
 	if contentType == "" {
 		if strings.Contains(itemURL, "/video") {
@@ -73,137 +83,159 @@ func normalizeSearchResult(raw RawSearchResult, index int) map[string]interface{
 	}
 
 	// Title extraction
-	title := raw.Title
-	if title == "" {
-		title = raw.Name
+	title := ""
+	if raw.Title != nil {
+		title = *raw.Title
 	}
-	if title == "" {
-		title = raw.DisplayTitle
+	if title == "" && raw.Name != nil {
+		title = *raw.Name
 	}
-	if title == "" {
-		title = raw.ProductName
+	if title == "" && raw.DisplayTitle != nil {
+		title = *raw.DisplayTitle
+	}
+	if title == "" && raw.ProductName != nil {
+		title = *raw.ProductName
 	}
 
 	// Description extraction
-	description := raw.Description
-	if description == "" {
-		description = raw.Summary
+	description := ""
+	if raw.Description != nil {
+		description = *raw.Description
 	}
-	if description == "" {
-		description = raw.Excerpt
+	if description == "" && raw.Summary != nil {
+		description = *raw.Summary
 	}
-	if description == "" {
-		description = raw.DescriptionWithMarkups
+	if description == "" && raw.Excerpt != nil {
+		description = *raw.Excerpt
 	}
-	if description == "" {
-		description = raw.ShortDescription
+	if description == "" && raw.DescriptionWithMarkups != nil {
+		description = *raw.DescriptionWithMarkups
+	}
+	if description == "" && raw.ShortDescription != nil {
+		description = *raw.ShortDescription
 	}
 
 	// Publisher extraction
-	publisher := raw.Publisher
-	if publisher == "" && len(raw.Publishers) > 0 {
-		publisher = raw.Publishers[0]
+	publisher := ""
+	if raw.Publisher != nil {
+		publisher = *raw.Publisher
 	}
-	if publisher == "" {
-		publisher = raw.Imprint
+	if publisher == "" && raw.Publishers != nil && len(*raw.Publishers) > 0 {
+		publisher = (*raw.Publishers)[0]
 	}
-	if publisher == "" {
-		publisher = raw.PublisherName
+	if publisher == "" && raw.Imprint != nil {
+		publisher = *raw.Imprint
+	}
+	if publisher == "" && raw.PublisherName != nil {
+		publisher = *raw.PublisherName
 	}
 
 	// Published date extraction
-	publishedDate := raw.PublishedDate
-	if publishedDate == "" {
-		publishedDate = raw.PublicationDate
+	publishedDate := ""
+	if raw.PublishedDate != nil {
+		publishedDate = *raw.PublishedDate
 	}
-	if publishedDate == "" {
-		publishedDate = raw.DatePublished
+	if publishedDate == "" && raw.PublicationDate != nil {
+		publishedDate = *raw.PublicationDate
 	}
-	if publishedDate == "" {
-		publishedDate = raw.PubDate
+	if publishedDate == "" && raw.DatePublished != nil {
+		publishedDate = *raw.DatePublished
+	}
+	if publishedDate == "" && raw.PubDate != nil {
+		publishedDate = *raw.PubDate
 	}
 
 	// ID generation
-	id := raw.ProductID
-	if id == "" {
-		id = raw.ID
+	id := ""
+	if raw.ProductId != nil {
+		id = *raw.ProductId
 	}
-	if id == "" {
-		id = raw.OURN
+	if id == "" && raw.Id != nil {
+		id = *raw.Id
 	}
-	if id == "" {
-		id = raw.ISBN
+	if id == "" && raw.Ourn != nil {
+		id = *raw.Ourn
+	}
+	if id == "" && raw.Isbn != nil {
+		id = *raw.Isbn
 	}
 	if id == "" {
 		id = fmt.Sprintf("api_result_%d", index)
 	}
 
 	return map[string]interface{}{
-		"id":             id,
-		"title":          title,
-		"authors":        authors,
-		"content_type":   contentType,
-		"description":    description,
-		"url":            itemURL,
-		"ourn":           raw.OURN,
+		"id":           id,
+		"title":        title,
+		"authors":      authors,
+		"content_type": contentType,
+		"description":  description,
+		"url":          itemURL,
+		"ourn": func() string {
+			if raw.Ourn != nil {
+				return *raw.Ourn
+			}
+			return ""
+		}(),
 		"publisher":      publisher,
 		"published_date": publishedDate,
 		"source":         "api_search_oreilly",
 	}
 }
 
-// makeHTTPSearchRequest performs the O'Reilly search API call using HTTP client
-func (bc *BrowserClient) makeHTTPSearchRequest(baseURL, query string, rows, tzOffset int, aiaOnly bool, featureFlags string, report, isTopics bool) (*SearchAPIResponse, error) {
-	params := url.Values{}
-	params.Set("query", query)
-	params.Set("rows", strconv.Itoa(rows))
-	params.Set("tzOffset", strconv.Itoa(tzOffset))
-	params.Set("aia_only", strconv.FormatBool(aiaOnly))
-	params.Set("feature_flags", featureFlags)
-	params.Set("report", strconv.FormatBool(report))
-	params.Set("isTopics", strconv.FormatBool(isTopics))
+// makeHTTPSearchRequest performs the O'Reilly search API call using generated OpenAPI client
+func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int, aiaOnly bool, featureFlags string, report, isTopics bool) (*api.SearchAPIResponse, error) {
+	// Create OpenAPI client
+	client := &api.ClientWithResponses{
+		ClientInterface: &api.Client{
+			Server: APIEndpointBase,
+			Client: bc.httpClient,
+			RequestEditors: []api.RequestEditorFn{
+				func(ctx context.Context, req *http.Request) error {
+					// Set headers
+					req.Header.Set("Accept", "application/json")
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("X-Requested-With", "XMLHttpRequest")
+					req.Header.Set("User-Agent", bc.userAgent)
 
-	fullURL := baseURL + "?" + params.Encode()
-	log.Printf("Making HTTP API request to: %s", fullURL)
+					// Add cookies if available
+					for _, cookie := range bc.cookies {
+						req.AddCookie(cookie)
+					}
+					return nil
+				},
+			},
+		},
+	}
 
-	req, err := http.NewRequest("GET", fullURL, nil)
+	// Create search parameters
+	params := &api.SearchContentV2Params{
+		Query:        query,
+		Rows:         &rows,
+		TzOffset:     &tzOffset,
+		AiaOnly:      &aiaOnly,
+		FeatureFlags: &featureFlags,
+		Report:       &report,
+		IsTopics:     &isTopics,
+	}
+
+	log.Printf("Making OpenAPI search request: query=%s, rows=%d", query, rows)
+
+	// Make the API call
+	resp, err := client.SearchContentV2WithResponse(context.Background(), params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("OpenAPI request failed: %w", err)
 	}
 
-	// Set headers
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	req.Header.Set("User-Agent", bc.userAgent)
-
-	// Add cookies if available
-	for _, cookie := range bc.cookies {
-		req.AddCookie(cookie)
+	// Check response status
+	if resp.HTTPResponse.StatusCode != 200 {
+		return nil, fmt.Errorf("API request failed with status %d", resp.HTTPResponse.StatusCode)
 	}
 
-	resp, err := bc.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	if resp.JSON200 == nil {
+		return nil, fmt.Errorf("no valid JSON response received")
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var apiResponse SearchAPIResponse
-	if err := json.Unmarshal(body, &apiResponse); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
-	}
-
-	return &apiResponse, nil
+	return resp.JSON200, nil
 }
 
 // SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します
@@ -244,30 +276,28 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 		isTopics = topics
 	}
 
-	// Try different API endpoints using the Go HTTP client
-	endpoint := APIEndpointBase + SearchAPIV2
-
+	// Use OpenAPI generated client for search
 	var results []map[string]interface{}
 
-	apiResponse, err := bc.makeHTTPSearchRequest(endpoint, query, rows, tzOffset, aiaOnly, featureFlags, report, isTopics)
+	apiResponse, err := bc.makeHTTPSearchRequest(query, rows, tzOffset, aiaOnly, featureFlags, report, isTopics)
 	if err != nil {
-		log.Printf("Endpoint %s failed: %v", endpoint, err)
-		return nil, fmt.Errorf("endpoint %s failed: %w", endpoint, err)
+		log.Printf("API search failed: %v", err)
+		return nil, fmt.Errorf("API search failed: %w", err)
 	}
 
 	// Extract results from API response
-	var rawResults []RawSearchResult
-	if apiResponse.Data != nil && len(apiResponse.Data.Products) > 0 {
-		rawResults = apiResponse.Data.Products
-	} else if len(apiResponse.Results) > 0 {
-		rawResults = apiResponse.Results
-	} else if len(apiResponse.Items) > 0 {
-		rawResults = apiResponse.Items
-	} else if len(apiResponse.Hits) > 0 {
-		rawResults = apiResponse.Hits
+	var rawResults []api.RawSearchResult
+	if apiResponse.Data != nil && apiResponse.Data.Products != nil && len(*apiResponse.Data.Products) > 0 {
+		rawResults = *apiResponse.Data.Products
+	} else if apiResponse.Results != nil && len(*apiResponse.Results) > 0 {
+		rawResults = *apiResponse.Results
+	} else if apiResponse.Items != nil && len(*apiResponse.Items) > 0 {
+		rawResults = *apiResponse.Items
+	} else if apiResponse.Hits != nil && len(*apiResponse.Hits) > 0 {
+		rawResults = *apiResponse.Hits
 	}
 
-	log.Printf("API endpoint %s returned %d results", endpoint, len(rawResults))
+	log.Printf("API returned %d results", len(rawResults))
 
 	// Normalize results using Go instead of JavaScript
 	for i, rawResult := range rawResults {
