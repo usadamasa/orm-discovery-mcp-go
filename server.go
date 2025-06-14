@@ -245,14 +245,14 @@ func (s *Server) GetBookDetailsHandler(ctx context.Context, request mcp.CallTool
 
 	var result interface{}
 
-	// URL指定の場合は書籍詳細と目次を両方取得
+	// 書籍詳細を取得
 	log.Printf("プロダクトIDから書籍詳細を取得: %s", requestParams.ProductID)
-	bookOverviewAndTOC, err := s.oreillyClient.browserClient.GetBookDetailsAndTOC(requestParams.ProductID)
+	bookOverview, err := s.oreillyClient.browserClient.GetBookDetails(requestParams.ProductID)
 	if err != nil {
 		log.Printf("プロダクトID指定書籍詳細取得失敗: %v", err)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get book details by ProductID: %v", err)), nil
 	}
-	result = bookOverviewAndTOC
+	result = bookOverview
 
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
@@ -262,7 +262,7 @@ func (s *Server) GetBookDetailsHandler(ctx context.Context, request mcp.CallTool
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
-// GetBookTOCHandler handles book table of contents requests
+// GetBookTOCHandler handles the book table of contents requests
 func (s *Server) GetBookTOCHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Printf("書籍目次取得リクエスト受信: %+v", request)
 

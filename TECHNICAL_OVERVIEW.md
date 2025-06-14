@@ -21,7 +21,8 @@
 
 - **言語**: Go 1.21+
 - **プロトコル**: Model Context Protocol (MCP)
-- **ライブラリ**: mcp-go, chromedp
+- **ライブラリ**: mcp-go, chromedp, oapi-codegen
+- **API仕様**: OpenAPI 3.0.3 (コード生成)
 - **認証**: ブラウザベース認証（自動ログイン）
 - **通信**: JSON-RPC 2.0, WebDriver Protocol
 
@@ -35,21 +36,19 @@
 | `server.go` | MCPサーバー実装、ツール登録 |
 | `oreilly_client.go` | O'Reillyクライアント（ブラウザベース） |
 | `browser_client.go` | ヘッドレスブラウザクライアント |
+| `browser/book.go` | 書籍詳細・目次取得（OpenAPI v3使用） |
+| `browser/types.go` | 型定義とAPIエンドポイント設定 |
+| `browser/openapi.yaml` | OpenAPI 3.0.3 仕様書 |
+| `browser/generated/api/` | OpenAPI生成クライアントコード |
 | `config.go` | 環境変数設定管理 |
 
 ### MCPツール
 
 | ツール名 | 機能 | 実装状況 |
 |---------|------|----------|
-| `search_content` | コンテンツ検索（ブラウザベース） | ✅ 実装済み |
-| `list_collections` | コレクション一覧（ホームページ） | ✅ 実装済み |
-| `list_playlists` | プレイリスト一覧 | ✅ 実装済み |
-| `create_playlist` | プレイリスト作成 | ✅ 実装済み |
-| `add_to_playlist` | プレイリストへのコンテンツ追加 | ✅ 実装済み |
-| `get_playlist_details` | プレイリスト詳細取得 | ✅ 実装済み |
-| `summarize_books` | 書籍要約生成 | ✅ 実装済み |
-| `extract_table_of_contents` | 書籍目次抽出 | ✅ 実装済み |
-| `search_in_book` | 書籍内検索 | ✅ 実装済み |
+| `search_content` | コンテンツ検索（API v2使用） | ✅ 実装済み |
+| `get_book_details` | 書籍詳細取得（OpenAPI v3使用） | ✅ 実装済み |
+| `get_book_toc` | 書籍目次取得（Flat TOC API使用） | ✅ 実装済み |
 
 ## 認証システム
 
@@ -77,6 +76,50 @@ type BrowserClient struct {
 
 ## データ構造
 
+### 書籍詳細レスポンス
+
+```go
+type BookDetailResponse struct {
+    ID            string                 `json:"id"`
+    URL           string                 `json:"url"`
+    WebURL        string                 `json:"web_url"`
+    Title         string                 `json:"title"`
+    Description   string                 `json:"description"`
+    Authors       []Author               `json:"authors"`
+    Publishers    []Publisher            `json:"publishers"`
+    ISBN          string                 `json:"isbn"`
+    VirtualPages  int                    `json:"virtual_pages"`
+    AverageRating float64                `json:"average_rating"`
+    Cover         string                 `json:"cover"`
+    Issued        string                 `json:"issued"`
+    Topics        []Topics               `json:"topics"`
+    Language      string                 `json:"language"`
+    Metadata      map[string]interface{} `json:"metadata"`
+}
+```
+
+### 目次レスポンス
+
+```go
+type TableOfContentsResponse struct {
+    BookID          string                 `json:"book_id"`
+    BookTitle       string                 `json:"book_title"`
+    TableOfContents []TableOfContentsItem  `json:"table_of_contents"`
+    TotalChapters   int                    `json:"total_chapters"`
+    Metadata        map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type TableOfContentsItem struct {
+    ID       string                 `json:"id"`
+    Title    string                 `json:"title"`
+    Href     string                 `json:"href"`
+    Level    int                    `json:"level"`
+    Parent   string                 `json:"parent,omitempty"`
+    Children []TableOfContentsItem  `json:"children,omitempty"`
+    Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+```
+
 ### 検索結果
 
 ```go
@@ -93,26 +136,15 @@ type SearchResult struct {
 }
 ```
 
-### コレクション
-
-```go
-type Collection struct {
-    ID          string           `json:"id"`
-    Name        string           `json:"name"`
-    Description string           `json:"description"`
-    WebURL      string           `json:"web_url"`
-    Content     []CollectionItem `json:"content"`
-}
-```
-
 ## API エンドポイント
 
-### O'Reilly API
+### O'Reilly API (OpenAPI 3.0.3対応)
 
 | エンドポイント | メソッド | 用途 |
 |---------------|---------|------|
-| `/search/api/search/` | GET | コンテンツ検索 |
-| `/v3/collections/` | GET | コレクション取得 |
+| `/api/v2/search/` | GET | コンテンツ検索（主要エンドポイント） |
+| `/api/v1/book/{bookId}` | GET | 書籍詳細取得 |
+| `/api/v1/book/{bookId}/flat-toc/` | GET | 書籍目次取得（フラット形式） |
 
 ### MCPサーバー
 
@@ -181,24 +213,29 @@ DEBUG=false
 
 ## パフォーマンス
 
-### HTTPクライアント最適化
+### OpenAPIクライアント実装
 
 ```go
-client := &http.Client{
-    Timeout: 30 * time.Second,
-    Transport: &http.Transport{
-        MaxIdleConns:        100,
-        MaxIdleConnsPerHost: 10,
-        IdleConnTimeout:     90 * time.Second,
-    },
-}
+// OpenAPI生成クライアントを使用
+client, err := api.NewClientWithResponses(APIEndpointBase,
+    api.WithHTTPClient(bc.httpClient),
+    api.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+        // 認証ヘッダーとCookieを設定
+        req.Header.Set("Accept", "application/json")
+        req.Header.Set("X-Requested-With", "XMLHttpRequest")
+        for _, cookie := range bc.cookies {
+            req.AddCookie(cookie)
+        }
+        return nil
+    }))
 ```
 
 ### レスポンス処理
 
-- ストリーミング読み取り
-- JSON パース最適化
-- メモリ効率的な処理
+- OpenAPI生成型による型安全性
+- 自動JSONパース処理
+- エラーハンドリングの統一化
+- 配列・オブジェクト両形式対応
 
 ## 運用
 
@@ -222,35 +259,55 @@ client := &http.Client{
 # 開発環境
 go run .
 
-# 本番ビルド
-go build -o orm-discovery-mcp-go
+# Task使用（推奨）
+task build
 
-# クロスコンパイル
-GOOS=linux GOARCH=amd64 go build -o orm-discovery-mcp-go-linux
-```
+# OpenAPIコード生成
+task generate:api:oreilly
 
-### テスト
-
-```bash
-# ユニットテスト
-go test ./...
-
-# 統合テスト
-go test -tags=integration ./...
+# コードフォーマット
+task format
 ```
 
 ## 今後の拡張
 
 ### 機能拡張
 
+- 書籍内検索機能
+- 書籍要約機能
+- プレイリスト管理機能
 - ブックマーク機能
-- 学習進捗追跡
-- レコメンデーション機能
-- キャッシュ機能
 
 ### 技術改善
 
-- 自動トークンリフレッシュ
-- OAuth2.0対応
-- 並列処理最適化
-- メトリクス収集
+- APIエンドポイントの拡張
+- より多くのOpenAPI仕様対応
+- パフォーマンス最適化
+- エラーハンドリングの改善
+
+## OpenAPI実装詳細
+
+### スキーマ管理
+
+- **仕様書**: `browser/openapi.yaml`
+- **生成コード**: `browser/generated/api/`
+- **設定ファイル**: `browser/oapi-codegen.yaml`
+
+### コード生成プロセス
+
+1. OpenAPI仕様書の更新
+2. `task generate:api:oreilly` でGoクライアント生成
+3. 型安全なAPIクライアント利用
+
+### APIレスポンス変換
+
+```go
+// OpenAPI生成型から内部型への変換
+func convertAPIBookDetailToLocal(apiBook *api.BookDetailResponse) *BookDetailResponse {
+    // ポインタ型からプリミティブ型への安全な変換
+    if apiBook.Title != nil {
+        bookDetail.Title = *apiBook.Title
+    }
+    // ...
+}
+```

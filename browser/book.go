@@ -12,9 +12,9 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
 )
 
-// GetBookDetailsAndTOC retrieves book details and table of contents from O'Reilly book URL
-func (bc *BrowserClient) GetBookDetailsAndTOC(productID string) (*BookOverviewAndTOCResponse, error) {
-	log.Printf("プロダクトIDから書籍詳細と目次を取得しています: %s", productID)
+// GetBookDetails retrieves book details and table of contents from O'Reilly book Product ID
+func (bc *BrowserClient) GetBookDetails(productID string) (*BookDetailResponse, error) {
+	log.Printf("プロダクトIDから書籍詳細を取得しています: %s", productID)
 
 	// Get book details from API
 	bookDetail, err := bc.getBookDetails(productID)
@@ -22,29 +22,10 @@ func (bc *BrowserClient) GetBookDetailsAndTOC(productID string) (*BookOverviewAn
 		return nil, fmt.Errorf("書籍詳細取得失敗: %w", err)
 	}
 
-	// Get table of contents from API
-	toc, err := bc.getBookTOC(productID)
-	if err != nil {
-		log.Printf("目次取得失敗、空の目次を返します: %v", err)
-		// Create simple TOC response without API call
-		toc = &TableOfContentsResponse{
-			BookID:          productID,
-			BookTitle:       bookDetail.Title,
-			TableOfContents: []TableOfContentsItem{},
-			TotalChapters:   0,
-			Metadata: map[string]interface{}{
-				"extraction_method": "fallback",
-			},
-		}
-	}
-
-	return &BookOverviewAndTOCResponse{
-		BookDetail:      *bookDetail,
-		TableOfContents: *toc,
-	}, nil
+	return bookDetail, nil
 }
 
-// GetBookTOC retrieves table of contents for a specific book
+// GetBookTOC retrieves a table of contents for a specific book
 func (bc *BrowserClient) GetBookTOC(productID string) (*TableOfContentsResponse, error) {
 	return bc.getBookTOC(productID)
 }
@@ -217,7 +198,7 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 
 	log.Printf("目次APIを試行しています: %s", productID)
 
-	// Make raw HTTP request to see the actual response structure
+	// Make a raw HTTP request to see the actual response structure
 	httpResp, err := client.GetBookFlatTOC(context.Background(), productID)
 	if err != nil {
 		return nil, fmt.Errorf("目次APIエンドポイントが失敗しました: %v", err)

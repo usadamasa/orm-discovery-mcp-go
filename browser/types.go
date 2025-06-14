@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-// O'Reilly API endpoints
+// APIEndpointBase O'Reilly API endpoints
 const (
 	APIEndpointBase = "https://learning.oreilly.com"
 )
@@ -76,10 +76,4 @@ type BookDetailResponse struct {
 	Topics        []Topics               `json:"topics"`
 	Language      string                 `json:"language"`
 	Metadata      map[string]interface{} `json:"metadata"`
-}
-
-// BookOverviewAndTOCResponse combines book details and table of contents
-type BookOverviewAndTOCResponse struct {
-	BookDetail      BookDetailResponse      `json:"book_detail"`
-	TableOfContents TableOfContentsResponse `json:"table_of_contents"`
 }
