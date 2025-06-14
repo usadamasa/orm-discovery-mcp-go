@@ -7,6 +7,12 @@ vars:
   CONFIG_FILE: oapi-codegen.yaml
 
 tasks:
+  build-go:
+    desc: Goのビルドを実行
+    cmds:
+      - mkdir -p ./bin
+      - go build -o ./bin/orm-discovery-mcp-go .
+
   generate:api:oreilly:
     desc: OpenAPI仕様からO'Reilly Learning Platformのクライアントコードを生成
     dir: '{{.OREILLY_DIR}}'
