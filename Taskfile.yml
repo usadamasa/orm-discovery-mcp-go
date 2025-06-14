@@ -16,6 +16,7 @@ tasks:
   format:
     desc: Goコードのフォーマットを実行
     cmds:
+      - go mod tidy
       - goimports -l -w .
       - go fmt ./...
 

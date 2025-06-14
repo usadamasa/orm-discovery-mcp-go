@@ -131,6 +131,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/book/{bookId}/flat-toc/:
+    get:
+      operationId: getBookFlatTOC
+      summary: Get flat table of contents for a book
+      description: Retrieve a flattened table of contents structure for a specific book
+      tags:
+        - books
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          description: Book ID or product ID
+          schema:
+            type: string
+            example: "9781098131814"
+      responses:
+        '200':
+          description: Flat table of contents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlatTOCResponse'
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 
 components:
   schemas:
@@ -428,6 +463,70 @@ components:
           type: object
           additionalProperties: true
           description: Additional metadata
+
+    FlatTOCResponse:
+      type: object
+      description: Flat table of contents response with all items in a single array
+      properties:
+        book_id:
+          type: string
+          description: Book ID
+          example: "9781098131814"
+        book_title:
+          type: string
+          description: Book title
+          example: "Learning Go: An Idiomatic Approach to Real-World Go Programming"
+        toc_items:
+          type: array
+          description: Flat list of all table of contents items
+          items:
+            $ref: '#/components/schemas/FlatTOCItem'
+        total_items:
+          type: integer
+          description: Total number of TOC items
+          example: 42
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata about the flat TOC structure
+          example:
+            format: "flat"
+            api_version: "v1"
+            generated_at: "2024-01-01T00:00:00Z"
+
+    FlatTOCItem:
+      type: object
+      description: Individual item in flat table of contents
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the TOC item
+          example: "toc-item-1"
+        title:
+          type: string
+          description: Display title of the section/chapter
+          example: "Chapter 1: Setting Up Your Go Environment"
+        href:
+          type: string
+          description: Link or reference to the content
+          example: "/library/view/learning-go/9781098131814/ch01.html"
+        level:
+          type: integer
+          description: Hierarchical level (0=root, 1=chapter, 2=section, etc.)
+          example: 0
+          minimum: 0
+        parent:
+          type: string
+          description: Reference to parent item ID (if applicable)
+          example: "toc-item-parent"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional information about the item
+          example:
+            page_count: 15
+            item_type: "chapter"
+            duration_minutes: 30
     
     BookOverviewAndTOCResponse:
       type: object

@@ -86,6 +86,45 @@ type ErrorResponse struct {
 	Error *string `json:"error,omitempty"`
 }
 
+// FlatTOCItem Individual item in flat table of contents
+type FlatTOCItem struct {
+	// Href Link or reference to the content
+	Href *string `json:"href,omitempty"`
+
+	// Id Unique identifier for the TOC item
+	Id *string `json:"id,omitempty"`
+
+	// Level Hierarchical level (0=root, 1=chapter, 2=section, etc.)
+	Level *int `json:"level,omitempty"`
+
+	// Metadata Additional information about the item
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// Parent Reference to parent item ID (if applicable)
+	Parent *string `json:"parent,omitempty"`
+
+	// Title Display title of the section/chapter
+	Title *string `json:"title,omitempty"`
+}
+
+// FlatTOCResponse Flat table of contents response with all items in a single array
+type FlatTOCResponse struct {
+	// BookId Book ID
+	BookId *string `json:"book_id,omitempty"`
+
+	// BookTitle Book title
+	BookTitle *string `json:"book_title,omitempty"`
+
+	// Metadata Additional metadata about the flat TOC structure
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+
+	// TocItems Flat list of all table of contents items
+	TocItems *[]FlatTOCItem `json:"toc_items,omitempty"`
+
+	// TotalItems Total number of TOC items
+	TotalItems *int `json:"total_items,omitempty"`
+}
+
 // Publisher Publisher information
 type Publisher struct {
 	// Id Publisher ID
@@ -353,12 +392,27 @@ type ClientInterface interface {
 	// GetBookDetails request
 	GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetBookFlatTOC request
+	GetBookFlatTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SearchContentV2 request
 	SearchContentV2(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBookDetailsRequest(c.Server, bookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBookFlatTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBookFlatTOCRequest(c.Server, bookId)
 	if err != nil {
 		return nil, err
 	}
@@ -398,6 +452,40 @@ func NewGetBookDetailsRequest(server string, bookId string) (*http.Request, erro
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/book/%s/", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBookFlatTOCRequest generates requests for GetBookFlatTOC
+func NewGetBookFlatTOCRequest(server string, bookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "bookId", runtime.ParamLocationPath, bookId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/book/%s/flat-toc/", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -602,6 +690,9 @@ type ClientWithResponsesInterface interface {
 	// GetBookDetailsWithResponse request
 	GetBookDetailsWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookDetailsResponse, error)
 
+	// GetBookFlatTOCWithResponse request
+	GetBookFlatTOCWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookFlatTOCResponse, error)
+
 	// SearchContentV2WithResponse request
 	SearchContentV2WithResponse(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*SearchContentV2Response, error)
 }
@@ -624,6 +715,30 @@ func (r GetBookDetailsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetBookDetailsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetBookFlatTOCResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *FlatTOCResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBookFlatTOCResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBookFlatTOCResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -664,6 +779,15 @@ func (c *ClientWithResponses) GetBookDetailsWithResponse(ctx context.Context, bo
 	return ParseGetBookDetailsResponse(rsp)
 }
 
+// GetBookFlatTOCWithResponse request returning *GetBookFlatTOCResponse
+func (c *ClientWithResponses) GetBookFlatTOCWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookFlatTOCResponse, error) {
+	rsp, err := c.GetBookFlatTOC(ctx, bookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBookFlatTOCResponse(rsp)
+}
+
 // SearchContentV2WithResponse request returning *SearchContentV2Response
 func (c *ClientWithResponses) SearchContentV2WithResponse(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*SearchContentV2Response, error) {
 	rsp, err := c.SearchContentV2(ctx, params, reqEditors...)
@@ -689,6 +813,46 @@ func ParseGetBookDetailsResponse(rsp *http.Response) (*GetBookDetailsResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest BookDetailResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBookFlatTOCResponse parses an HTTP response from a GetBookFlatTOCWithResponse call
+func ParseGetBookFlatTOCResponse(rsp *http.Response) (*GetBookFlatTOCResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBookFlatTOCResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FlatTOCResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
