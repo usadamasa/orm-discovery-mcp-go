@@ -8,8 +8,6 @@ import (
 // O'Reilly API endpoints
 const (
 	APIEndpointBase = "https://learning.oreilly.com"
-
-	BookAPIV1 = "/api/v1/book/%s/"
 )
 
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
@@ -39,14 +37,6 @@ type TableOfContentsResponse struct {
 	TableOfContents []TableOfContentsItem  `json:"table_of_contents"`
 	TotalChapters   int                    `json:"total_chapters"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// ExtractTableOfContentsParams represents parameters for extracting table of contents
-type ExtractTableOfContentsParams struct {
-	URL           string `json:"url"`
-	IncludeHref   bool   `json:"include_href,omitempty"`
-	MaxDepth      int    `json:"max_depth,omitempty"`
-	IncludeParent bool   `json:"include_parent,omitempty"`
 }
 
 // Author is used locally for normalization
@@ -85,16 +75,6 @@ type BookDetailResponse struct {
 	Topics        []Topics               `json:"topics"`
 	Language      string                 `json:"language"`
 	Metadata      map[string]interface{} `json:"metadata"`
-}
-
-// BookSearchResult represents a book found through search
-type BookSearchResult struct {
-	ProductID   string   `json:"product_id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	URL         string   `json:"url"`
-	Authors     []Author `json:"authors"`
-	Publisher   string   `json:"publisher"`
 }
 
 // BookOverviewAndTOCResponse combines book details and table of contents

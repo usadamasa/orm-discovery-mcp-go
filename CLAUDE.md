@@ -147,7 +147,6 @@ Place a `.env` file in the same directory as the executable. The system will aut
 
 **Core Framework**: `github.com/mark3labs/mcp-go` - MCP protocol implementation
 **Browser Automation**: `github.com/chromedp/chromedp` - Chrome DevTools Protocol
-**Configuration**: `github.com/joho/godotenv` - Environment file loading
 
 ## Browser Requirements
 

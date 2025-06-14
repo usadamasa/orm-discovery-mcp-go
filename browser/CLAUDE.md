@@ -37,7 +37,7 @@ browser/
 
 **Login Flow**:
 1. Navigate to `https://www.oreilly.com/member/login/`
-2. Input email and handle Continue button
+2. Input email and handle the Continue button
 3. Detect ACM IdP redirect if applicable
 4. Establish session at `https://learning.oreilly.com/`
 5. Extract authentication cookies

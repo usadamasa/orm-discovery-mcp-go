@@ -110,7 +110,7 @@ paths:
           description: Book ID or product ID
           schema:
             type: string
-            example: "9781492036739"
+            example: "9781098131814"
       responses:
         '200':
           description: Book details retrieved successfully
@@ -130,6 +130,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
 
 components:
   schemas:
@@ -377,29 +378,6 @@ components:
           additionalProperties: true
           description: Additional metadata
     
-    BookSearchResult:
-      type: object
-      description: Book search result
-      properties:
-        product_id:
-          type: string
-          description: Product ID
-        title:
-          type: string
-          description: Book title
-        description:
-          type: string
-          description: Book description
-        url:
-          type: string
-          description: Book URL
-        authors:
-          type: array
-          items:
-            $ref: '#/components/schemas/Author'
-        publisher:
-          type: string
-          description: Publisher name
     
     TableOfContentsItem:
       type: object
