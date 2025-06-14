@@ -1,0 +1,72 @@
+openapi: 3.1.0
+info:
+  title: "O'Reilly Learning Platform"
+  version: 1.0.0
+
+servers:
+  - url: https://learning.oreilly.com
+    description: "O'Reilly Learning Platform"
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v2/search:
+    get:
+      summary: 書籍の検索
+      description: キーワードに基づいて書籍を検索します
+      operationId: SearchBooks
+      tags:
+        - search
+      parameters:
+        - name: query
+          in: query
+          description: 検索キーワード
+          required: true
+          schema:
+            type: string
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchAPIResponse'
+
+components:
+  schemas:
+    SearchAPIResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          $ref: '#/components/schemas/SearchDataContainer'
+
+    SearchDataContainer:
+      type: object
+      required:
+        - products
+      properties:
+        products:
+          type: array
+          $ref: '#/components/schemas/RawSearchResult'
+          description: 書籍リスト
+
+    RawSearchResult:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: プロダクトID
+
+  securitySchemes: {}
+
+tags:
+  - name: search
+    description: 書籍の検索に関する操作
