@@ -4,20 +4,42 @@ O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経�
 
 ## 概要
 
-このプロジェクトは[odewahn/orm-discovery-mcp](https://github.com/odewahn/orm-discovery-mcp)にインスパイアされ、mcp-goパッケージを使用してMCPサーバーを構築する例を提供します。
+このプロジェクトは[odewahn/orm-discovery-mcp](https://github.com/odewahn/orm-discovery-mcp)
+にインスパイアされ、mcp-goパッケージを使用してMCPサーバーを構築する例を提供します。
 
 ## 主な機能
 
-- **コンテンツ検索**: O'Reillyコンテンツの高度な検索（ブラウザベース）
-- **プレイリスト管理**: プレイリストの作成、一覧表示、コンテンツ追加、詳細取得
-- **マイコレクション表示**: ホームページからのコレクション一覧表示
-- **書籍要約生成**: 複数書籍の日本語要約とまとめ生成
+- **コンテンツ検索**: O'Reillyコンテンツの高度な検索
 - **目次抽出**: O'Reilly書籍の目次を自動抽出
-- **書籍内検索**: 特定の書籍内での用語検索
 
-## クイックスタート
+## 開発環境セットアップ
 
-### 1. 認証情報の設定
+### 1. 必要なツールのインストール
+
+#### aquaを使用したツール管理
+
+```bash
+# aquaのインストール（未インストールの場合）
+curl -sSfL https://raw.githubusercontent.com/aquaproj/aqua/main/install.sh | bash
+
+# パッケージのインストール
+aqua install
+```
+
+#### Task（タスクランナー）の使用
+
+```bash
+# 利用可能なタスクを確認
+task --list
+
+# OpenAPIクライアントコードの生成
+task generate:api:oreilly
+
+# 生成されたコードのクリーンアップ
+task clean:generated
+```
+
+### 2. 認証情報の設定
 
 #### 方法1: .envファイルを使用（推奨）
 
@@ -38,18 +60,19 @@ export OREILLY_USER_ID="your_email@acm.org"
 export OREILLY_PASSWORD="your_password"
 ```
 
-**注意**: 
+**注意**:
+
 - ACMメンバーの場合は`@acm.org`のメールアドレスを使用
 - ACM IDPリダイレクトは自動で処理されます
 - `.env`ファイルの設定が環境変数より優先されます
 
-### 2. サーバーの起動
+### 3. サーバーの起動
 
 ```bash
 go run .
 ```
 
-### 3. Cline（Claude Desktop）での設定
+### 4. Cline（Claude Desktop）での設定
 
 #### 方法1: .envファイルを使用（推奨）
 
@@ -86,49 +109,38 @@ go run .
 ## 利用可能なツール
 
 ### コンテンツ検索・要約
-| ツール名 | 説明 |
-|---------|------|
+
+| ツール名             | 説明                        |
+|------------------|---------------------------|
 | `search_content` | O'Reillyコンテンツの検索（ブラウザベース） |
-| `summarize_books` | 書籍の日本語要約生成 |
-
-### コレクション管理
-| ツール名 | 説明 |
-|---------|------|
-| `list_collections` | ホームページからのコレクション一覧表示 |
-
-### プレイリスト管理
-| ツール名 | 説明 |
-|---------|------|
-| `list_playlists` | プレイリストの一覧表示 |
-| `create_playlist` | 新しいプレイリストの作成 |
-| `add_to_playlist` | プレイリストへのコンテンツ追加 |
-| `get_playlist_details` | プレイリストの詳細情報取得 |
 
 ### 書籍機能
-| ツール名 | 説明 |
-|---------|------|
-| `extract_table_of_contents` | O'Reilly書籍の目次抽出 |
-| `search_in_book` | 特定の書籍内での用語検索 |
 
-## 使用例
+| ツール名               | 説明      |
+|--------------------|---------|
+| `get_book_details` | 書籍の詳細取得 |
 
-### Quarkusコレクションの作成
+## 開発ツール
 
-実装したコレクション管理機能を使用して、Quarkusに関する学習リソースを整理できます：
+### aqua（パッケージマネージャー）
 
-```bash
-# 1. Quarkusコンテンツを検索
-# 2. 専用コレクションを作成
-# 3. 関連コンテンツを追加
-# 4. コレクション内容を確認
+- **設定ファイル**: `aqua.yaml`
+- **管理ツール**: Task（go-task）
+- **用途**: 開発に必要なツールの統一管理
 
-# 詳細な手順は QUARKUS_COLLECTION_DEMO.md を参照
-```
+### Task（タスクランナー）
 
-## ドキュメント
+- **設定ファイル**: `Taskfile.yml`
+- **利用可能なタスク**:
+    - `generate:api:oreilly`: OpenAPIクライアントコード生成
+    - `clean:generated`: 生成コードのクリーンアップ
 
-- [技術概要](TECHNICAL_OVERVIEW.md) - アーキテクチャと実装詳細
-- [API仕様](API_REFERENCE.md) - 利用可能なAPIとパラメータ
+### OpenAPI/oapi-codegen
+
+- **仕様ファイル**: `browser/openapi.yaml`
+- **設定ファイル**: `browser/oapi-codegen.yaml`
+- **出力先**: `browser/generated/api/`
+- **用途**: O'Reilly Learning Platform APIクライアント生成
 
 ## 認証システム
 
