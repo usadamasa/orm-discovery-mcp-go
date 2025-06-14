@@ -13,6 +13,12 @@ tasks:
       - mkdir -p ./bin
       - go build -o ./bin/orm-discovery-mcp-go .
 
+  format:
+    desc: Goコードのフォーマットを実行
+    cmds:
+      - goimports -l -w .
+      - go fmt ./...
+
   generate:api:oreilly:
     desc: OpenAPI仕様からO'Reilly Learning Platformのクライアントコードを生成
     dir: '{{.OREILLY_DIR}}'

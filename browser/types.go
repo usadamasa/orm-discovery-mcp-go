@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+
 	"net/http"
 )
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+
 	"net/http"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
@@ -43,7 +44,7 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 	log.Printf("書籍詳細を取得しています: %s", productID)
 
 	// Create OpenAPI client
-	client, err := api.NewClientWithResponses(APIEndpointBase, 
+	client, err := api.NewClientWithResponses(APIEndpointBase,
 		api.WithHTTPClient(bc.httpClient),
 		api.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 			// Set headers
@@ -177,4 +178,3 @@ func convertAPIBookDetailToLocal(apiBook *api.BookDetailResponse) *BookDetailRes
 
 	return bookDetail
 }
-

@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 	"time"
+
+	"net/http"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"

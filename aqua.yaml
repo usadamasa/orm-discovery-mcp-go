@@ -12,3 +12,4 @@ registries:
   ref: v4.379.0 # renovate: depName=aquaproj/aqua-registry
 packages:
 - name: go-task/task@v3.44.0
+- name: golang/tools/goimports@v0.34.0
