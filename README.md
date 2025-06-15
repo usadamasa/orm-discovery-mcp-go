@@ -7,6 +7,12 @@ O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経�
 このプロジェクトは[odewahn/orm-discovery-mcp](https://github.com/odewahn/orm-discovery-mcp)
 にインスパイアされ、mcp-goパッケージを使用してMCPサーバーを構築する例を提供します。
 
+> [!WARNING]
+> This project is an unofficial implementation of an MCP server for interacting with the O'Reilly Learning Platform.
+> It is **not affiliated with or endorsed by O'Reilly Media, Inc.** in any way.
+> This tool is provided **for educational and personal use only**, and may break at any time if the internal APIs or authentication flows used by O'Reilly change.
+> Use at your own risk, and please refer to O'Reilly's [Terms of Service](https://www.oreilly.com/terms/) before using this tool.
+
 ## 主な機能
 
 - **コンテンツ検索**: O'Reillyコンテンツの高度な検索
