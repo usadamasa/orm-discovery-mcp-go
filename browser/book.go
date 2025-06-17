@@ -40,19 +40,14 @@ func (bc *BrowserClient) GetBookTOC(productID string) (*TableOfContentsResponse,
 func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*ChapterContentResponse, error) {
 	log.Printf("チャプター本文を取得しています: %s/%s", productID, chapterName)
 
-	// Step 1: Get chapter metadata first
-	metadata, _, err := bc.getChapterMetadata(productID, chapterName)
+	// Step 1: Get chapter title from TOC
+	chapterTitle, err := bc.getChapterTitleFromTOC(productID, chapterName)
 	if err != nil {
-		return nil, fmt.Errorf("チャプターメタデータ取得失敗: %w", err)
+		log.Printf("TOCからタイトル取得に失敗: %v (チャプター名をタイトルとして使用)", err)
+		chapterTitle = chapterName
 	}
 
-	// Extract chapter title from metadata
-	chapterTitle := chapterName
-	if title, ok := metadata["title"].(string); ok && title != "" {
-		chapterTitle = title
-	}
-
-	// Step 2: Get raw HTML content from API
+	// Step 2: Get raw HTML content from API via flat-toc
 	htmlContent, contentURL, err := bc.GetChapterHTMLContent(productID, chapterName)
 	if err != nil {
 		return nil, fmt.Errorf("チャプターHTML取得失敗: %w", err)
@@ -64,7 +59,7 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 		return nil, fmt.Errorf("HTML解析失敗: %w", err)
 	}
 
-	// Use parsed title if available, otherwise use metadata title
+	// Use parsed title if available, otherwise use TOC title
 	if parsedContent.Title != "" {
 		chapterTitle = parsedContent.Title
 	} else if len(parsedContent.Headings) > 0 && parsedContent.Headings[0].Text != "" {
@@ -78,12 +73,9 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 		Content:      *parsedContent,
 		SourceURL:    contentURL,
 		Metadata: map[string]interface{}{
-			"extraction_method": "html_parsing",
+			"extraction_method": "flat_toc_lookup",
 			"processed_at":     time.Now().UTC().Format(time.RFC3339),
 			"word_count":       countWords(parsedContent.Paragraphs),
-			"book_title":       metadata["book_title"],
-			"minutes_required": metadata["minutes_required"],
-			"virtual_pages":    metadata["virtual_pages"],
 		},
 	}
 
@@ -364,27 +356,112 @@ func convertAPIFlatTOCToLocal(apiTOC *api.FlatTOCResponse) *TableOfContentsRespo
 	return tocResponse
 }
 
-// GetChapterHTMLContent retrieves actual HTML content from O'Reilly API via 2-step process
+// GetChapterHTMLContent retrieves actual HTML content from O'Reilly API via flat-toc lookup
 func (bc *BrowserClient) GetChapterHTMLContent(productID, chapterName string) (string, string, error) {
-	// Step 1: Get chapter metadata 
-	metadata, _, err := bc.getChapterMetadata(productID, chapterName)
+	// Step 1: Get chapter href from flat-toc
+	chapterHref, err := bc.getChapterHrefFromTOC(productID, chapterName)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get chapter metadata: %w", err)
+		return "", "", fmt.Errorf("failed to get chapter href from TOC: %w", err)
 	}
 
-	// Step 2: Get actual HTML content from the content URL
-	contentURL, ok := metadata["content"].(string)
-	if !ok {
-		return "", "", fmt.Errorf("content URL not found in chapter metadata")
-	}
-
-	htmlContent, err := bc.getContentFromURL(contentURL)
+	// Step 2: Get actual HTML content from the href URL
+	htmlContent, err := bc.getContentFromURL(chapterHref)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get HTML content from %s: %w", contentURL, err)
+		return "", "", fmt.Errorf("failed to get HTML content from %s: %w", chapterHref, err)
 	}
 
-	log.Printf("チャプターHTML取得に成功しました: %s (%d bytes)", contentURL, len(htmlContent))
-	return htmlContent, contentURL, nil
+	log.Printf("チャプターHTML取得に成功しました: %s (%d bytes)", chapterHref, len(htmlContent))
+	return htmlContent, chapterHref, nil
+}
+
+// getChapterHrefFromTOC retrieves chapter href URL from flat-toc
+func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (string, error) {
+	log.Printf("flat-tocからチャプターhrefを取得しています: %s/%s", productID, chapterName)
+
+	// Get flat-toc for the book
+	toc, err := bc.getBookTOC(productID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get book TOC: %w", err)
+	}
+
+	// Search for chapter by name in TOC items
+	for _, item := range toc.TableOfContents {
+		// Match by exact ID or by href containing the chapter name
+		if item.ID == chapterName || 
+		   strings.Contains(item.Href, chapterName) ||
+		   strings.HasSuffix(item.Href, chapterName+".html") ||
+		   strings.HasSuffix(item.Href, chapterName+".xhtml") {
+			
+			// Convert relative href to full URL if needed
+			href := item.Href
+			if strings.HasPrefix(href, "/") {
+				// Absolute path - add base URL
+				href = APIEndpointBase + href
+			} else if !strings.HasPrefix(href, "http") {
+				// Relative path - construct full URL
+				href = APIEndpointBase + "/api/v2/epubs/urn:orm:book:" + productID + "/files/" + href
+			}
+			
+			log.Printf("チャプターhref取得に成功しました: %s -> %s", chapterName, href)
+			return href, nil
+		}
+	}
+
+	// If not found by exact match, try partial matching
+	var bestMatch *TableOfContentsItem
+	for _, item := range toc.TableOfContents {
+		// Check if the chapter name appears anywhere in the href or ID
+		if strings.Contains(strings.ToLower(item.Href), strings.ToLower(chapterName)) ||
+		   strings.Contains(strings.ToLower(item.ID), strings.ToLower(chapterName)) {
+			bestMatch = &item
+			break
+		}
+	}
+
+	if bestMatch != nil {
+		href := bestMatch.Href
+		if strings.HasPrefix(href, "/") {
+			href = APIEndpointBase + href
+		} else if !strings.HasPrefix(href, "http") {
+			href = APIEndpointBase + "/api/v2/epubs/urn:orm:book:" + productID + "/files/" + href
+		}
+		
+		log.Printf("部分マッチでチャプターhref取得: %s -> %s", chapterName, href)
+		return href, nil
+	}
+
+	return "", fmt.Errorf("chapter '%s' not found in TOC for book %s", chapterName, productID)
+}
+
+// getChapterTitleFromTOC retrieves chapter title from flat-toc
+func (bc *BrowserClient) getChapterTitleFromTOC(productID, chapterName string) (string, error) {
+	// Get flat-toc for the book
+	toc, err := bc.getBookTOC(productID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get book TOC: %w", err)
+	}
+
+	// Search for chapter by name in TOC items
+	for _, item := range toc.TableOfContents {
+		// Match by exact ID or by href containing the chapter name
+		if item.ID == chapterName || 
+		   strings.Contains(item.Href, chapterName) ||
+		   strings.HasSuffix(item.Href, chapterName+".html") ||
+		   strings.HasSuffix(item.Href, chapterName+".xhtml") {
+			return item.Title, nil
+		}
+	}
+
+	// If not found by exact match, try partial matching
+	for _, item := range toc.TableOfContents {
+		// Check if the chapter name appears anywhere in the href or ID
+		if strings.Contains(strings.ToLower(item.Href), strings.ToLower(chapterName)) ||
+		   strings.Contains(strings.ToLower(item.ID), strings.ToLower(chapterName)) {
+			return item.Title, nil
+		}
+	}
+
+	return "", fmt.Errorf("chapter '%s' not found in TOC for book %s", chapterName, productID)
 }
 
 // getChapterMetadata retrieves chapter metadata (JSON) from O'Reilly API
@@ -435,9 +512,17 @@ func (bc *BrowserClient) getChapterMetadata(productID, chapterName string) (map[
 	return metadata, fullURL, nil
 }
 
-// getContentFromURL retrieves HTML content from the specified URL with authentication
+// getContentFromURL retrieves HTML/XHTML content from the specified URL with authentication
 func (bc *BrowserClient) getContentFromURL(contentURL string) (string, error) {
-	log.Printf("HTMLコンテンツを取得しています: %s", contentURL)
+	// Determine content type from URL
+	contentType := "HTML"
+	if strings.HasSuffix(contentURL, ".xhtml") {
+		contentType = "XHTML"
+	} else if strings.Contains(contentURL, "/files/html/") {
+		contentType = "HTML (nested path)"
+	}
+	
+	log.Printf("%sコンテンツを取得しています: %s", contentType, contentURL)
 
 	req, err := http.NewRequest("GET", contentURL, nil)
 	if err != nil {
