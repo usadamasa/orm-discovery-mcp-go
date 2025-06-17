@@ -117,6 +117,20 @@ func (s *Server) registerHandlers() {
 	)
 	s.mcpServer.AddTool(getBookTOCTool, s.GetBookTOCHandler)
 
+	// チャプター本文取得ツールの追加
+	getBookChapterContentTool := mcp.NewTool("get_book_chapter_content",
+		mcp.WithDescription("Get structured chapter content from O'Reilly book. Accepts a book product ID and chapter name."),
+		mcp.WithString("product_id",
+			mcp.Description("Book product ID or ISBN (e.g., 9781098131814)"),
+			mcp.Required(),
+		),
+		mcp.WithString("chapter_name",
+			mcp.Description("Chapter name from flat-toc (e.g., preface01)"),
+			mcp.Required(),
+		),
+	)
+	s.mcpServer.AddTool(getBookChapterContentTool, s.GetBookChapterContentHandler)
+
 	s.mcpServer.AddNotificationHandler("ping", s.handlePing)
 }
 
@@ -297,6 +311,52 @@ func (s *Server) GetBookTOCHandler(ctx context.Context, request mcp.CallToolRequ
 	}
 
 	jsonBytes, err := json.Marshal(tocResponse)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// GetBookChapterContentHandler handles the book chapter content requests
+func (s *Server) GetBookChapterContentHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("書籍チャプター本文取得リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		ProductID   string `json:"product_id"`
+		ChapterName string `json:"chapter_name"`
+	}
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	// product_id and chapter_name must be provided
+	if requestParams.ProductID == "" {
+		return mcp.NewToolResultError("product_id parameter is required"), nil
+	}
+	if requestParams.ChapterName == "" {
+		return mcp.NewToolResultError("chapter_name parameter is required"), nil
+	}
+
+	// ブラウザクライアントの確認
+	if s.oreillyClient.browserClient == nil {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	// プロダクトIDとチャプター名から書籍チャプター本文を取得
+	log.Printf("プロダクトIDとチャプター名から書籍チャプター本文を取得: %s/%s", requestParams.ProductID, requestParams.ChapterName)
+	chapterResponse, err := s.oreillyClient.browserClient.GetBookChapterContent(requestParams.ProductID, requestParams.ChapterName)
+	if err != nil {
+		log.Printf("書籍チャプター本文取得失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get book chapter content: %v", err)), nil
+	}
+
+	jsonBytes, err := json.Marshal(chapterResponse)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
 	}

@@ -77,3 +77,58 @@ type BookDetailResponse struct {
 	Language      string                 `json:"language"`
 	Metadata      map[string]interface{} `json:"metadata"`
 }
+
+// ChapterContentResponse represents structured chapter content with parsed HTML
+type ChapterContentResponse struct {
+	BookID      string                 `json:"book_id"`
+	ChapterName string                 `json:"chapter_name"`
+	ChapterTitle string                `json:"chapter_title"`
+	Content     ParsedChapterContent   `json:"content"`
+	SourceURL   string                 `json:"source_url"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+// ParsedChapterContent represents structured content parsed from HTML
+type ParsedChapterContent struct {
+	Title      string           `json:"title"`
+	Sections   []ContentSection `json:"sections"`
+	Paragraphs []string         `json:"paragraphs"`
+	Headings   []ContentHeading `json:"headings"`
+	CodeBlocks []CodeBlock      `json:"code_blocks"`
+	Images     []ImageReference `json:"images"`
+	Links      []LinkReference  `json:"links"`
+}
+
+// ContentSection represents a section of content with heading and content
+type ContentSection struct {
+	Heading ContentHeading `json:"heading"`
+	Content []interface{}  `json:"content"` // Can contain strings, CodeBlocks, or ImageReferences
+}
+
+// ContentHeading represents a heading element
+type ContentHeading struct {
+	Level int    `json:"level"`
+	Text  string `json:"text"`
+	ID    string `json:"id,omitempty"`
+}
+
+// CodeBlock represents a code block
+type CodeBlock struct {
+	Language string `json:"language,omitempty"`
+	Code     string `json:"code"`
+	Caption  string `json:"caption,omitempty"`
+}
+
+// ImageReference represents an image reference
+type ImageReference struct {
+	Src     string `json:"src"`
+	Alt     string `json:"alt,omitempty"`
+	Caption string `json:"caption,omitempty"`
+}
+
+// LinkReference represents a link reference
+type LinkReference struct {
+	Href string `json:"href"`
+	Text string `json:"text"`
+	Type string `json:"type"` // "external", "internal", "anchor"
+}

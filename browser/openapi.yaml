@@ -166,6 +166,90 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/book/{bookId}/chapter/{chapterName}.html:
+    get:
+      operationId: getBookChapterInfo
+      summary: Get chapter information for a specific book chapter
+      description: Retrieve metadata for a specific chapter in a book
+      tags:
+        - books
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          description: Book ID or product ID
+          schema:
+            type: string
+            example: "9781098131814"
+        - name: chapterName
+          in: path
+          required: true
+          description: Chapter name from flat-toc
+          schema:
+            type: string
+            example: "preface01"
+      responses:
+        '200':
+          description: Chapter information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChapterInfoResponse'
+        '404':
+          description: Chapter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v2/epubs/urn:orm:book:{bookId}/files/{chapterName}.html:
+    get:
+      operationId: getBookChapterContent
+      summary: Get chapter HTML content for a specific book chapter
+      description: Retrieve the raw HTML content for a specific chapter in a book
+      tags:
+        - books
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          description: Book ID or product ID
+          schema:
+            type: string
+            example: "9781098131814"
+        - name: chapterName
+          in: path
+          required: true
+          description: Chapter name from flat-toc
+          schema:
+            type: string
+            example: "preface01"
+      responses:
+        '200':
+          description: Chapter content retrieved successfully
+          content:
+            text/html:
+              schema:
+                type: string
+                description: Raw HTML content of the chapter
+        '404':
+          description: Chapter not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   schemas:
@@ -523,10 +607,193 @@ components:
           type: object
           additionalProperties: true
           description: Additional information about the item
+
+    ChapterInfoResponse:
+      type: object
+      description: Chapter metadata information
+      properties:
+        book_id:
+          type: string
+          description: Book ID
+          example: "9781098131814"
+        chapter_name:
+          type: string
+          description: Chapter name identifier
+          example: "preface01"
+        chapter_title:
+          type: string
+          description: Human-readable chapter title
+          example: "Preface"
+        chapter_url:
+          type: string
+          description: URL to the chapter content
+          example: "/library/view/learning-go/9781098131814/preface01.html"
+        content_url:
+          type: string
+          description: URL to the raw chapter content
+          example: "/api/v2/epubs/urn:orm:book:9781098131814/files/preface01.html"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional chapter metadata
+
+    ChapterContentResponse:
+      type: object
+      description: Structured chapter content with parsed HTML
+      properties:
+        book_id:
+          type: string
+          description: Book ID
+          example: "9781098131814"
+        chapter_name:
+          type: string
+          description: Chapter name identifier
+          example: "preface01"
+        chapter_title:
+          type: string
+          description: Human-readable chapter title
+          example: "Preface"
+        content:
+          $ref: '#/components/schemas/ParsedChapterContent'
+        source_url:
+          type: string
+          description: Source URL of the content
+          example: "/api/v2/epubs/urn:orm:book:9781098131814/files/preface01.html"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Processing metadata
           example:
-            page_count: 15
-            item_type: "chapter"
-            duration_minutes: 30
+            extraction_method: "html_parsing"
+            processed_at: "2024-01-01T00:00:00Z"
+            word_count: 1250
+
+    ParsedChapterContent:
+      type: object
+      description: Structured content parsed from HTML
+      properties:
+        title:
+          type: string
+          description: Chapter title extracted from HTML
+          example: "Preface"
+        sections:
+          type: array
+          description: List of content sections
+          items:
+            $ref: '#/components/schemas/ContentSection'
+        paragraphs:
+          type: array
+          description: List of paragraphs in order
+          items:
+            type: string
+          example: ["This is the first paragraph.", "This is the second paragraph."]
+        headings:
+          type: array
+          description: List of headings with levels
+          items:
+            $ref: '#/components/schemas/ContentHeading'
+        code_blocks:
+          type: array
+          description: Code blocks found in the chapter
+          items:
+            $ref: '#/components/schemas/CodeBlock'
+        images:
+          type: array
+          description: Images found in the chapter
+          items:
+            $ref: '#/components/schemas/ImageReference'
+        links:
+          type: array
+          description: Links found in the chapter
+          items:
+            $ref: '#/components/schemas/LinkReference'
+
+    ContentSection:
+      type: object
+      description: A section of content with heading and content
+      properties:
+        heading:
+          $ref: '#/components/schemas/ContentHeading'
+        content:
+          type: array
+          description: Content items in this section
+          items:
+            oneOf:
+              - type: string
+                description: Text paragraph
+              - $ref: '#/components/schemas/CodeBlock'
+              - $ref: '#/components/schemas/ImageReference'
+        
+    ContentHeading:
+      type: object
+      description: A heading element
+      properties:
+        level:
+          type: integer
+          description: Heading level (1-6)
+          example: 2
+          minimum: 1
+          maximum: 6
+        text:
+          type: string
+          description: Heading text
+          example: "Getting Started"
+        id:
+          type: string
+          description: HTML id attribute if present
+          example: "getting-started"
+
+    CodeBlock:
+      type: object
+      description: A code block
+      properties:
+        language:
+          type: string
+          description: Programming language
+          example: "go"
+        code:
+          type: string
+          description: Code content
+          example: "package main\n\nfunc main() {\n    fmt.Println(\"Hello, World!\")\n}"
+        caption:
+          type: string
+          description: Code block caption if present
+          example: "Example 1-1. Hello World program"
+
+    ImageReference:
+      type: object
+      description: An image reference
+      properties:
+        src:
+          type: string
+          description: Image source URL
+          example: "/library/view/learning-go/9781098131814/assets/image1.png"
+        alt:
+          type: string
+          description: Alternative text
+          example: "Go logo"
+        caption:
+          type: string
+          description: Image caption if present
+          example: "Figure 1-1. The Go programming language logo"
+
+    LinkReference:
+      type: object
+      description: A link reference
+      properties:
+        href:
+          type: string
+          description: Link URL
+          example: "https://golang.org"
+        text:
+          type: string
+          description: Link text
+          example: "Go programming language website"
+        type:
+          type: string
+          description: Link type
+          enum: ["external", "internal", "anchor"]
+          example: "external"
     
     BookOverviewAndTOCResponse:
       type: object
