@@ -17,6 +17,7 @@ O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経�
 
 - **コンテンツ検索**: O'Reillyコンテンツの高度な検索
 - **目次抽出**: O'Reilly書籍の目次を自動抽出
+- **本文情報取得(チャプター単位)**: 書籍の各チャプターの詳細情報を取得
 
 ## 開発環境セットアップ
 
@@ -93,6 +94,17 @@ go run .
     }
   }
 }
+```
+
+### 5. claude codeでの設定
+
+```bash
+claude mcp add -s user orm-discovery-mcp-go \
+  -e OREILLY_USER_ID="your_email@acm.org" \
+  -e OREILLY_PASSWORD="your_password" \
+  -- /your/path/to/orm-discovery-mcp-go
+claude mcp list
+
 ```
 
 ## 利用可能なツール

@@ -42,6 +42,7 @@ func NewServer(oreillyClient *OreillyClient) *Server {
 
 // StartStreamableHTTPServer はMCPサーバを返します
 func (s *Server) StartStreamableHTTPServer(port string) error {
+	log.Printf("HTTPサーバーを起動します :%s/mcp", port)
 	// タイムアウト設定を調整したサーバーを作成
 	httpServer := server.NewStreamableHTTPServer(
 		s.mcpServer,
