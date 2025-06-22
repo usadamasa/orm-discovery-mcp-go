@@ -181,7 +181,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 		log.Printf("O'Reillyクライアント失敗: %v", err)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil
 	}
-	log.Printf("O'Reillyクライアント呼び出し後: %v", results)
+	log.Printf("O'Reillyクライアント呼び出し後 取得件数: %d件", results.Count)
 
 	// 結果をレスポンスに変換
 	response := struct {
