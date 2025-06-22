@@ -69,10 +69,18 @@ func (s *Server) StartStdioServer() error {
 func (s *Server) registerHandlers() {
 	// Add tool
 	searchTool := mcp.NewTool("search_content",
-		mcp.WithDescription("Search content on O'Reilly Learning Platform. Returns URLs that can be used with get_book_details_by_url tool."),
+		mcp.WithDescription(`
+			Search content on O'Reilly Learning Platform.
+			Returns a list of books, videos, and articles with their product IDs, titles, descriptions, authors, and topics.
+
+			Use this as the first step to discover relevant content for specific technologies, programming concepts, or technical challenges.
+			Each result includes a product_id that can be used with other tools for deeper analysis.
+
+			IMPORTANT: When referencing any content found through this search, always cite the source with title, author(s), and O'Reilly Media as the publisher.
+		`),
 		mcp.WithString("query",
 			mcp.Required(),
-			mcp.Description("The search query to find content on O'Reilly Learning Platform"),
+			mcp.Description("Search query for specific technologies, frameworks, concepts, or technical challenges (e.g., 'Docker containers', 'React hooks', 'machine learning algorithms', 'microservices architecture')"),
 		),
 		mcp.WithNumber("rows",
 			mcp.Description("Number of results to return (default: 100)"),
@@ -100,7 +108,13 @@ func (s *Server) registerHandlers() {
 
 	// 書籍詳細取得ツールの追加
 	getBookDetailsTool := mcp.NewTool("get_book_details",
-		mcp.WithDescription("Get detailed book information and table of contents from O'Reilly. Accepts a book product ID."),
+		mcp.WithDescription(`
+			Get comprehensive book information including title, authors, publication date, description, topics, and a complete table of contents with chapter structure.
+			Use this after search_content to evaluate whether a book contains the specific content you need.
+			The returned TOC helps identify relevant chapters before using get_book_chapter_content.
+
+			IMPORTANT: Always provide proper attribution when referencing this book information, including full title, author names, publication year, and O'Reilly Media.
+		`),
 		mcp.WithString("product_id",
 			mcp.Description("Book product ID or ISBN (e.g., 9781098166298)"),
 			mcp.Required(),
@@ -110,7 +124,13 @@ func (s *Server) registerHandlers() {
 
 	// 書籍目次取得ツールの追加
 	getBookTOCTool := mcp.NewTool("get_book_toc",
-		mcp.WithDescription("Get table of contents from O'Reilly book. Accepts a book product ID."),
+		mcp.WithDescription(`
+			Get a detailed table of contents with chapter names, sections, and navigation structure.
+			Use this when you need a focused view of the book's structure to identify specific chapters for content extraction.
+			Returns chapter identifiers needed for get_book_chapter_content.
+
+			IMPORTANT: When discussing book structure or chapters, always cite the book title, author(s), and O'Reilly Media as the source.
+		`),
 		mcp.WithString("product_id",
 			mcp.Description("Book product ID or ISBN (e.g., 9781098166298)"),
 			mcp.Required(),
@@ -120,13 +140,22 @@ func (s *Server) registerHandlers() {
 
 	// チャプター本文取得ツールの追加
 	getBookChapterContentTool := mcp.NewTool("get_book_chapter_content",
-		mcp.WithDescription("Get structured chapter content from O'Reilly book. Accepts a book product ID and chapter name."),
+		mcp.WithDescription(`
+			Extract the full text content of a specific book chapter including headings, paragraphs, code examples, and other structured elements.
+			Use this as the final step to access detailed technical information after identifying relevant chapters through get_book_details or get_book_toc.
+			Requires the exact chapter identifier from the table of contents.
+
+			CRITICAL: Any content extracted from chapters MUST be properly cited. Include book title, author(s), chapter title, and "O'Reilly Media" in all references. Do not reproduce large portions without explicit attribution.
+		`),
 		mcp.WithString("product_id",
 			mcp.Description("Book product ID or ISBN (e.g., 9781098131814)"),
 			mcp.Required(),
 		),
 		mcp.WithString("chapter_name",
-			mcp.Description("Chapter name from flat-toc (e.g., preface01)"),
+			mcp.Description(`
+				Exact chapter identifier from the table of contents (e.g., 'preface01', 'ch01', 'ch02').
+				Use get_book_toc to find valid chapter names.
+			`),
 			mcp.Required(),
 		),
 	)
