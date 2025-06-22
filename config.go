@@ -10,9 +10,11 @@ import (
 type Config struct {
 	Port            string
 	Debug           bool
+	MCPDebug        bool
 	Transport       string
 	OReillyUserID   string
 	OReillyPassword string
+	TmpDir          string
 }
 
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
@@ -25,11 +27,12 @@ func LoadConfig() (*Config, error) {
 
 	// デバッグモードの取得（デフォルト: false）
 	debug := false
-	if debugStr := getEnv("DEBUG"); debugStr != "" {
+	if debugStr := getEnv("ORM_MCP_GO_DEBUG"); debugStr != "" {
 		if d, err := strconv.ParseBool(debugStr); err == nil {
 			debug = d
 		}
 	}
+	log.Printf("Debug mode: %v", debug)
 
 	transport := "stdio"
 	if transportStr := getEnv("TRANSPORT"); transportStr != "" {
@@ -43,12 +46,20 @@ func LoadConfig() (*Config, error) {
 		log.Fatalf("OREILLY_USER_ID と OREILLY_PASSWORD が設定されていません")
 	}
 
+	// 一時ディレクトリの取得
+	tmpDir := getEnv("ORM_MCP_GO_TMP_DIR")
+	if tmpDir == "" {
+		// 環境変数が設定されていない場合は/var/tmpを使用
+		tmpDir = "/var/tmp/"
+	}
+
 	return &Config{
 		Port:            port,
 		Debug:           debug,
 		Transport:       transport,
 		OReillyUserID:   OReillyUserID,
 		OReillyPassword: OReillyPassword,
+		TmpDir:          tmpDir,
 	}, nil
 }
 

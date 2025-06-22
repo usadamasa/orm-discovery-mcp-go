@@ -65,6 +65,7 @@ TRANSPORT=stdio
 ```bash
 export OREILLY_USER_ID="your_email@acm.org"
 export OREILLY_PASSWORD="your_password"
+export ORM_MCP_GO_TMP_DIR="your/tmp/directory" # if missing, defaults to /var/tmp
 ```
 
 **注意**:
@@ -89,7 +90,8 @@ go run .
       "args": [],
       "env": {
         "OREILLY_USER_ID": "your_email@acm.org",
-        "OREILLY_PASSWORD": "your_password"
+        "OREILLY_PASSWORD": "your_password",
+        "ORM_MCP_GO_TMP_DIR": "your/tmp/directory"
       }
     }
   }
@@ -102,6 +104,7 @@ go run .
 claude mcp add -s user orm-discovery-mcp-go \
   -e OREILLY_USER_ID="your_email@acm.org" \
   -e OREILLY_PASSWORD="your_password" \
+  -e ORM_MCP_GO_TMP_DIR="your_tmp_directory" \
   -- /your/path/to/orm-discovery-mcp-go
 claude mcp list
 

@@ -20,7 +20,7 @@ func runMCPServer() {
 	// O'Reillyクライアントの初期化（ブラウザクライアントを使用）
 	log.Printf("ブラウザクライアントを使用してO'Reillyにログインします...")
 
-	oreillyClient, err := NewOreillyClient(cfg.OReillyUserID, cfg.OReillyPassword)
+	oreillyClient, err := NewOreillyClient(cfg.OReillyUserID, cfg.OReillyPassword, cfg.Debug, cfg.TmpDir)
 	if err != nil {
 		log.Fatalf("ブラウザクライアントの初期化に失敗しました: %v", err)
 	}

@@ -74,8 +74,8 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 		SourceURL:    contentURL,
 		Metadata: map[string]interface{}{
 			"extraction_method": "flat_toc_lookup",
-			"processed_at":     time.Now().UTC().Format(time.RFC3339),
-			"word_count":       countWords(parsedContent.Paragraphs),
+			"processed_at":      time.Now().UTC().Format(time.RFC3339),
+			"word_count":        countWords(parsedContent.Paragraphs),
 		},
 	}
 
@@ -387,11 +387,11 @@ func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (s
 	// Search for chapter by name in TOC items
 	for _, item := range toc.TableOfContents {
 		// Match by exact ID or by href containing the chapter name
-		if item.ID == chapterName || 
-		   strings.Contains(item.Href, chapterName) ||
-		   strings.HasSuffix(item.Href, chapterName+".html") ||
-		   strings.HasSuffix(item.Href, chapterName+".xhtml") {
-			
+		if item.ID == chapterName ||
+			strings.Contains(item.Href, chapterName) ||
+			strings.HasSuffix(item.Href, chapterName+".html") ||
+			strings.HasSuffix(item.Href, chapterName+".xhtml") {
+
 			// Convert relative href to full URL if needed
 			href := item.Href
 			if strings.HasPrefix(href, "/") {
@@ -401,7 +401,7 @@ func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (s
 				// Relative path - construct full URL
 				href = APIEndpointBase + "/api/v2/epubs/urn:orm:book:" + productID + "/files/" + href
 			}
-			
+
 			log.Printf("チャプターhref取得に成功しました: %s -> %s", chapterName, href)
 			return href, nil
 		}
@@ -412,7 +412,7 @@ func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (s
 	for _, item := range toc.TableOfContents {
 		// Check if the chapter name appears anywhere in the href or ID
 		if strings.Contains(strings.ToLower(item.Href), strings.ToLower(chapterName)) ||
-		   strings.Contains(strings.ToLower(item.ID), strings.ToLower(chapterName)) {
+			strings.Contains(strings.ToLower(item.ID), strings.ToLower(chapterName)) {
 			bestMatch = &item
 			break
 		}
@@ -425,7 +425,7 @@ func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (s
 		} else if !strings.HasPrefix(href, "http") {
 			href = APIEndpointBase + "/api/v2/epubs/urn:orm:book:" + productID + "/files/" + href
 		}
-		
+
 		log.Printf("部分マッチでチャプターhref取得: %s -> %s", chapterName, href)
 		return href, nil
 	}
@@ -444,10 +444,10 @@ func (bc *BrowserClient) getChapterTitleFromTOC(productID, chapterName string) (
 	// Search for chapter by name in TOC items
 	for _, item := range toc.TableOfContents {
 		// Match by exact ID or by href containing the chapter name
-		if item.ID == chapterName || 
-		   strings.Contains(item.Href, chapterName) ||
-		   strings.HasSuffix(item.Href, chapterName+".html") ||
-		   strings.HasSuffix(item.Href, chapterName+".xhtml") {
+		if item.ID == chapterName ||
+			strings.Contains(item.Href, chapterName) ||
+			strings.HasSuffix(item.Href, chapterName+".html") ||
+			strings.HasSuffix(item.Href, chapterName+".xhtml") {
 			return item.Title, nil
 		}
 	}
@@ -456,7 +456,7 @@ func (bc *BrowserClient) getChapterTitleFromTOC(productID, chapterName string) (
 	for _, item := range toc.TableOfContents {
 		// Check if the chapter name appears anywhere in the href or ID
 		if strings.Contains(strings.ToLower(item.Href), strings.ToLower(chapterName)) ||
-		   strings.Contains(strings.ToLower(item.ID), strings.ToLower(chapterName)) {
+			strings.Contains(strings.ToLower(item.ID), strings.ToLower(chapterName)) {
 			return item.Title, nil
 		}
 	}
@@ -469,7 +469,7 @@ func (bc *BrowserClient) getChapterMetadata(productID, chapterName string) (map[
 	// Only try the metadata endpoint that actually works
 	endpoint := fmt.Sprintf("/api/v1/book/%s/chapter/%s.html", productID, chapterName)
 	fullURL := APIEndpointBase + endpoint
-	
+
 	log.Printf("チャプターメタデータAPIを試行しています: %s", endpoint)
 
 	req, err := http.NewRequest("GET", fullURL, nil)
@@ -521,7 +521,7 @@ func (bc *BrowserClient) getContentFromURL(contentURL string) (string, error) {
 	} else if strings.Contains(contentURL, "/files/html/") {
 		contentType = "HTML (nested path)"
 	}
-	
+
 	log.Printf("%sコンテンツを取得しています: %s", contentType, contentURL)
 
 	req, err := http.NewRequest("GET", contentURL, nil)

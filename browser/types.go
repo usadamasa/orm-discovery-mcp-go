@@ -2,8 +2,9 @@ package browser
 
 import (
 	"context"
-
 	"net/http"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 )
 
 // APIEndpointBase O'Reilly API endpoints
@@ -13,11 +14,14 @@ const (
 
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
 type BrowserClient struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	httpClient *http.Client
-	cookies    []*http.Cookie
-	userAgent  string
+	ctx           context.Context
+	cancel        context.CancelFunc
+	httpClient    *http.Client
+	cookies       []*http.Cookie
+	userAgent     string
+	cookieManager cookie.Manager
+	debug         bool
+	tmpDir        string
 }
 
 // TableOfContentsItem represents a single item in the table of contents
@@ -80,12 +84,12 @@ type BookDetailResponse struct {
 
 // ChapterContentResponse represents structured chapter content with parsed HTML
 type ChapterContentResponse struct {
-	BookID      string                 `json:"book_id"`
-	ChapterName string                 `json:"chapter_name"`
-	ChapterTitle string                `json:"chapter_title"`
-	Content     ParsedChapterContent   `json:"content"`
-	SourceURL   string                 `json:"source_url"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	BookID       string                 `json:"book_id"`
+	ChapterName  string                 `json:"chapter_name"`
+	ChapterTitle string                 `json:"chapter_title"`
+	Content      ParsedChapterContent   `json:"content"`
+	SourceURL    string                 `json:"source_url"`
+	Metadata     map[string]interface{} `json:"metadata"`
 }
 
 // ParsedChapterContent represents structured content parsed from HTML
