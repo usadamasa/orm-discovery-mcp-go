@@ -241,35 +241,29 @@ func (bc *BrowserClient) login(userID, password string) error {
 	return nil
 }
 
-// GetCookieString はHTTPリクエスト用のCookie文字列を返します
-func (bc *BrowserClient) GetCookieString() string {
-	var cookieStrings []string
-	for _, c := range bc.cookies {
-		cookieStrings = append(cookieStrings, fmt.Sprintf("%s=%s", c.Name, c.Value))
-	}
-	return strings.Join(cookieStrings, "; ")
-}
-
 // validateAuthentication はCookieが有効かどうかを検証します
 func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
 	var pageTitle string
 
+	var currentURL string
 	err := chromedp.Run(bc.ctx,
 		// 認証が必要なページにアクセス
 		chromedp.Navigate(ormHome),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
 		chromedp.Title(&pageTitle),
+		chromedp.Location(&currentURL),
 	)
-	bc.debugScreenshot(ctx, "validate_authentication")
+	bc.debugScreenshot(ctx, "validate_saved_cookie_authentication")
 
 	if err != nil {
 		log.Printf("認証検証中にエラーが発生しました: %v", err)
 		return false
 	}
+	log.Printf("ログイン処理中のURL: %s", currentURL)
 
 	// ログインページにリダイレクトされていないかチェック
-	if strings.Contains(pageTitle, "Sign in") || strings.Contains(pageTitle, "Login") {
-		log.Printf("認証が無効です: ログインページにリダイレクトされました")
+	if currentURL != ormHome {
+		log.Printf("認証が無効です。現在のURL: %s", currentURL)
 		return false
 	}
 
