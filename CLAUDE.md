@@ -99,7 +99,7 @@ O'Reilly content through browser automation. The architecture consists of severa
     - Manages content extraction and normalization
 
 3. **MCPServer** (`server.go`) - MCP protocol implementation
-    - Exposes 12 MCP tools for content operations
+    - Exposes 1 MCP tool for content search and 3 MCP resources for content access
     - Handles JSON-RPC request/response mapping
     - Supports both stdio and HTTP transport modes
 
@@ -118,14 +118,34 @@ refresh tokens (`orm-rt`) from browser sessions to maintain authentication state
 **DOM Scraping with JavaScript**: Content extraction relies on JavaScript execution within the browser context to query
 DOM elements and extract structured data from the web interface.
 
-### Available MCP Tools
+### Available MCP Tools and Resources
 
-The server exposes the following MCP tools:
+The server exposes the following MCP capabilities:
 
+#### MCP Tools
 | Tool               | Description                                         |
 |--------------------|-----------------------------------------------------|
-| `search_content`   | Content discovery and search                        |
-| `get_book_details` | Get detailed book information and table of contents |
+| `search_content`   | Content discovery and search - returns book/video/article listings with product IDs for use with resources |
+
+#### MCP Resources  
+| Resource URI Pattern | Description | Example |
+|---------------------|-------------|---------|
+| `oreilly://book-details/{product_id}` | Get comprehensive book information including title, authors, publication date, description, topics, and complete table of contents | `oreilly://book-details/9781098166298` |
+| `oreilly://book-toc/{product_id}` | Get detailed table of contents with chapter names, sections, and navigation structure | `oreilly://book-toc/9781098166298` |
+| `oreilly://book-chapter/{product_id}/{chapter_name}` | Extract full text content of a specific book chapter including headings, paragraphs, code examples, and structured elements | `oreilly://book-chapter/9781098166298/ch01` |
+
+#### Usage Workflow
+1. Use `search_content` tool to discover relevant books/content for specific technologies or concepts
+2. Extract `product_id` from search results  
+3. Access book details and structure via `oreilly://book-details/{product_id}` resource
+4. Access specific chapter content via `oreilly://book-chapter/{product_id}/{chapter_name}` resource
+
+#### Citation Requirements
+**IMPORTANT**: All content accessed through these resources must be properly cited with:
+- Book title and author(s)
+- Chapter title (when applicable)  
+- Publisher: O'Reilly Media
+- Proper attribution as required by O'Reilly's terms of service
 
 ## Environment Setup
 
@@ -161,7 +181,7 @@ is used to:
 ## File Organization
 
 - `main.go` (225 lines) - Entry point with test modes
-- `server.go` (815 lines) - MCP server and tool handlers
+- `server.go` (~420 lines) - MCP server with tool and resource handlers
 - `browser_client.go` (2,728 lines) - Browser automation logic
 - `oreilly_client.go` (243 lines) - High-level client wrapper
 - `config.go` (72 lines) - Configuration management

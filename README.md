@@ -110,20 +110,38 @@ claude mcp list
 
 ```
 
-## 利用可能なツール
+## 利用可能な機能
 
-### コンテンツ検索・要約
+### MCPツール
 
 | ツール名             | 説明                        |
 |------------------|---------------------------|
-| `search_content` | O'Reillyコンテンツの検索（ブラウザベース） |
+| `search_content` | O'Reillyコンテンツの検索（ブラウザベース）<br>書籍、動画、記事を検索し、product_idを含む詳細情報を返します |
 
-### 書籍機能
+### MCPリソース
 
-| ツール名               | 説明      |
-|--------------------|---------|
-| `get_book_details` | 書籍の詳細取得 |
-| `get_book_toc`     | 書籍の目次取得 |
+書籍の詳細情報はMCPリソースとしてアクセスできます：
+
+| リソースURI | 説明 | 使用例 |
+|------------|------|--------|
+| `oreilly://book-details/{product_id}` | 書籍の詳細情報と目次を取得 | `oreilly://book-details/9781098166298` |
+| `oreilly://book-toc/{product_id}` | 書籍の目次のみを取得 | `oreilly://book-toc/9781098166298` |
+| `oreilly://book-chapter/{product_id}/{chapter_name}` | 特定チャプターの本文を取得 | `oreilly://book-chapter/9781098166298/ch01` |
+
+### 利用ワークフロー
+
+1. **`search_content`** で関心のある技術や概念を検索
+2. 検索結果から**product_id**を取得
+3. **`oreilly://book-details/{product_id}`** で書籍詳細と目次を確認
+4. **`oreilly://book-chapter/{product_id}/{chapter_name}`** で必要なチャプターの詳細を取得
+
+### 引用について
+
+**重要**: 取得したコンテンツを参照する際は、必ず以下の情報を含めて適切に引用してください：
+- 書籍タイトル
+- 著者名
+- チャプタータイトル（該当する場合）
+- 出版社：O'Reilly Media
 
 ## 開発ツール
 

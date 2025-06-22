@@ -42,13 +42,24 @@
 | `browser/generated/api/` | OpenAPI生成クライアントコード |
 | `config.go` | 環境変数設定管理 |
 
-### MCPツール
+### MCP機能
 
+#### MCPツール
 | ツール名 | 機能 | 実装状況 |
 |---------|------|----------|
 | `search_content` | コンテンツ検索（API v2使用） | ✅ 実装済み |
-| `get_book_details` | 書籍詳細取得（OpenAPI v3使用） | ✅ 実装済み |
-| `get_book_toc` | 書籍目次取得（Flat TOC API使用） | ✅ 実装済み |
+
+#### MCPリソース
+| リソースURI | 機能 | 実装状況 |
+|------------|------|----------|
+| `oreilly://book-details/{product_id}` | 書籍詳細取得（OpenAPI v3使用） | ✅ 実装済み |
+| `oreilly://book-toc/{product_id}` | 書籍目次取得（Flat TOC API使用） | ✅ 実装済み |
+| `oreilly://book-chapter/{product_id}/{chapter_name}` | チャプター本文取得 | ✅ 実装済み |
+
+#### アーキテクチャの変更点
+- 2024年12月: 書籍関連機能をMCPツールからMCPリソースに移行
+- リソースベースアプローチにより、よりRESTfulなアクセスパターンを実現
+- 引用要件をリソースレベルで組み込み、適切な帰属表示を促進
 
 ## 認証システム
 

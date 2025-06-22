@@ -1,16 +1,16 @@
 # API仕様書
 
-## MCPツール一覧
+## MCPツール
 
-### 1. search_content
+### search_content
 
-O'Reilly Learning Platformでコンテンツを検索します。
+O'Reilly Learning Platformでコンテンツを検索し、書籍、動画、記事の詳細情報を取得します。検索結果にはproduct_idが含まれ、これを使用してMCPリソース経由で詳細情報にアクセスできます。
 
 #### パラメータ
 
 | パラメータ | 型 | 必須 | デフォルト値 | 説明 |
 |-----------|---|------|-------------|------|
-| `query` | string | ✅ | - | 検索クエリ |
+| `query` | string | ✅ | - | 検索クエリ（技術、フレームワーク、概念、技術的課題など） |
 | `rows` | number | ❌ | 100 | 返す結果数 |
 | `languages` | array | ❌ | ["en", "ja"] | 検索言語 |
 | `tzOffset` | number | ❌ | -9 | タイムゾーンオフセット（JST） |
@@ -28,7 +28,7 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
   "params": {
     "name": "search_content",
     "arguments": {
-      "query": "GraphQL",
+      "query": "Docker containers",
       "rows": 50,
       "languages": ["en", "ja"]
     }
@@ -39,6 +39,8 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
 
 #### レスポンス例
 
+検索結果にはproduct_idが含まれ、これを使用してMCPリソース経由で詳細情報にアクセスできます：
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -47,231 +49,86 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
     "content": [
       {
         "type": "text",
-        "text": "検索結果のテキスト形式データ"
+        "text": "{\"count\": 10, \"total\": 100, \"results\": [{\"id\": \"9781098131814\", \"title\": \"Docker Deep Dive\", \"description\": \"...\", \"product_id\": \"9781098131814\", \"authors\": [\"Nigel Poulton\"], ...}]}"
       }
     ]
   }
 }
 ```
 
-### 2. list_collections
+## MCPリソース
 
-O'Reilly Learning Platformのマイコレクションを一覧表示します。
+MCPリソースを使用して書籍の詳細情報にアクセスします。リソースURIは`search_content`の結果から取得したproduct_idを使用して構築します。
 
-#### パラメータ
+### 1. oreilly://book-details/{product_id}
 
-パラメータはありません。
-
-#### 使用例
-
-```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "list_collections",
-    "arguments": {}
-  },
-  "id": 2
-}'
-```
-
-### 3. summarize_books
-
-検索結果から複数の書籍を取得し、日本語でまとめて表示します。
-
-#### パラメータ
-
-| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
-|-----------|---|------|-------------|------|
-| `query` | string | ✅ | - | 書籍検索クエリ |
-| `max_books` | number | ❌ | 5 | まとめる書籍の最大数 |
-| `languages` | array | ❌ | ["en", "ja"] | 検索言語 |
+書籍の包括的な情報（タイトル、著者、出版日、説明、トピック、完全な目次）を取得します。
 
 #### 使用例
 
 ```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "summarize_books",
-    "arguments": {
-      "query": "Go programming",
-      "max_books": 5,
-      "languages": ["en", "ja"]
-    }
-  },
-  "id": 3
-}'
+# MCPクライアント経由でリソースにアクセス
+# URI: oreilly://book-details/9781098131814
 ```
 
-#### 特徴
+#### レスポンス内容
 
-- 書籍のみをフィルタリング
-- 著者、出版社、トピック、言語などの詳細情報を表示
-- 統計情報と学習推奨事項を含む日本語のまとめを生成
-- Markdownフォーマットで読みやすく整理
+- 書籍メタデータ（タイトル、著者、出版社、出版日）
+- 書籍の説明
+- トピックとカテゴリ
+- 完全な目次（章の構造とチャプター識別子を含む）
 
-### 4. list_playlists
+### 2. oreilly://book-toc/{product_id}
 
-O'Reilly Learning Platformのプレイリストを一覧表示します。
-
-#### パラメータ
-
-パラメータはありません。
+書籍の目次のみを詳細に取得します。チャプター名、セクション、ナビゲーション構造を含みます。
 
 #### 使用例
 
 ```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "list_playlists",
-    "arguments": {}
-  },
-  "id": 4
-}'
+# MCPクライアント経由でリソースにアクセス
+# URI: oreilly://book-toc/9781098131814
 ```
 
-### 5. create_playlist
+#### レスポンス内容
 
-O'Reilly Learning Platformで新しいプレイリストを作成します。
+- 章とセクションの階層構造
+- チャプター識別子（get_book_chapter_contentで使用）
+- ナビゲーション情報
 
-#### パラメータ
+### 3. oreilly://book-chapter/{product_id}/{chapter_name}
 
-| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
-|-----------|---|------|-------------|------|
-| `name` | string | ✅ | - | プレイリスト名 |
-| `description` | string | ❌ | - | プレイリストの説明 |
-| `is_public` | boolean | ❌ | false | 公開設定 |
+特定の書籍チャプターの完全なテキストコンテンツを抽出します。
 
 #### 使用例
 
 ```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "create_playlist",
-    "arguments": {
-      "name": "Go言語学習プレイリスト",
-      "description": "Go言語を学習するための動画とリソース集",
-      "is_public": false
-    }
-  },
-  "id": 5
-}'
+# MCPクライアント経由でリソースにアクセス
+# URI: oreilly://book-chapter/9781098131814/ch01
 ```
 
-### 6. add_to_playlist
+#### レスポンス内容
 
-既存のプレイリストにコンテンツを追加します。
+- チャプターの見出しとサブ見出し
+- 段落とテキストコンテンツ
+- コード例とサンプル
+- 図表のキャプション
+- 構造化された要素
 
-#### パラメータ
+### 利用ワークフロー
 
-| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
-|-----------|---|------|-------------|------|
-| `playlist_id` | string | ✅ | - | プレイリストID |
-| `content_id` | string | ✅ | - | 追加するコンテンツのIDまたはOURN |
+1. `search_content`ツールで関心のある技術や概念を検索
+2. 検索結果から`product_id`を取得
+3. `oreilly://book-details/{product_id}`リソースで書籍詳細と目次を確認
+4. `oreilly://book-chapter/{product_id}/{chapter_name}`リソースで必要なチャプターの詳細を取得
 
-#### 使用例
+### 引用要件
 
-```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "add_to_playlist",
-    "arguments": {
-      "playlist_id": "12345",
-      "content_id": "urn:orm:video:9781492077992"
-    }
-  },
-  "id": 6
-}'
-```
+**重要**: リソースから取得したコンテンツを参照する際は、必ず適切に引用してください：
 
-### 7. get_playlist_details
-
-特定のプレイリストの詳細情報を取得します。
-
-#### パラメータ
-
-| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
-|-----------|---|------|-------------|------|
-| `playlist_id` | string | ✅ | - | プレイリストID |
-
-#### 使用例
-
-```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "get_playlist_details",
-    "arguments": {
-      "playlist_id": "12345"
-    }
-  },
-  "id": 7
-}'
-```
-
-### 8. extract_table_of_contents
-
-O'Reilly書籍の目次を抽出します。
-
-#### パラメータ
-
-| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
-|-----------|---|------|-------------|------|
-| `url` | string | ✅ | - | O'Reilly書籍のURL |
-
-#### 使用例
-
-```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "extract_table_of_contents",
-    "arguments": {
-      "url": "https://learning.oreilly.com/library/view/docker-deep-dive/9781806024032/chap04.xhtml"
-    }
-  },
-  "id": 8
-}'
-```
-
-### 9. search_in_book
-
-特定のO'Reilly書籍内で用語を検索します。
-
-#### パラメータ
-
-| パラメータ | 型 | 必須 | デフォルト値 | 説明 |
-|-----------|---|------|-------------|------|
-| `book_id` | string | ✅ | - | 書籍IDまたはISBN |
-| `search_term` | string | ✅ | - | 検索する用語またはフレーズ |
-
-#### 使用例
-
-```bash
-curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d '{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "search_in_book",
-    "arguments": {
-      "book_id": "9784814400607",
-      "search_term": "アーキテクチャ"
-    }
-  },
-  "id": 9
-}'
-```
+- 書籍タイトルと著者名
+- チャプタータイトル（該当する場合）
+- 出版社：O'Reilly Media
+- O'Reillyの利用規約に従った適切な帰属表示
 
 ## 認証
 
