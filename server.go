@@ -143,6 +143,31 @@ func (s *Server) registerResources() {
 		mcp.WithMIMEType("application/json"),
 	)
 	s.mcpServer.AddResource(bookChapterResource, s.GetBookChapterContentResource)
+
+	// Resource Templates for dynamic discovery
+	bookDetailsTemplate := mcp.NewResourceTemplate(
+		"oreilly://book-details/{product_id}",
+		"O'Reilly Book Details Template",
+		mcp.WithTemplateDescription("Template for accessing O'Reilly book details. Use product_id from search_content results to get comprehensive book information including title, authors, publication date, description, topics, and table of contents."),
+		mcp.WithTemplateMIMEType("application/json"),
+	)
+	s.mcpServer.AddResourceTemplate(bookDetailsTemplate, s.GetBookDetailsResourceTemplate)
+
+	bookTOCTemplate := mcp.NewResourceTemplate(
+		"oreilly://book-toc/{product_id}",
+		"O'Reilly Book TOC Template",
+		mcp.WithTemplateDescription("Template for accessing O'Reilly book table of contents. Use product_id from search_content results to get detailed chapter structure and navigation information."),
+		mcp.WithTemplateMIMEType("application/json"),
+	)
+	s.mcpServer.AddResourceTemplate(bookTOCTemplate, s.GetBookTOCResourceTemplate)
+
+	bookChapterTemplate := mcp.NewResourceTemplate(
+		"oreilly://book-chapter/{product_id}/{chapter_name}",
+		"O'Reilly Book Chapter Template",
+		mcp.WithTemplateDescription("Template for accessing O'Reilly book chapter content. Use product_id from search_content and chapter_name from table of contents to get full chapter text including headings, paragraphs, and code examples."),
+		mcp.WithTemplateMIMEType("application/json"),
+	)
+	s.mcpServer.AddResourceTemplate(bookChapterTemplate, s.GetBookChapterContentResourceTemplate)
 }
 
 // SearchContentHandler は検索リクエストを処理します
@@ -403,6 +428,28 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, request mcp.
 			Text:     string(jsonBytes),
 		},
 	}, nil
+}
+
+// Resource Template Handlers
+// GetBookDetailsResourceTemplate handles resource template requests for book details
+func (s *Server) GetBookDetailsResourceTemplate(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	// Template handlers should return the actual resource content when given a valid URI
+	// For templates, we delegate to the actual resource handler
+	return s.GetBookDetailsResource(ctx, request)
+}
+
+// GetBookTOCResourceTemplate handles resource template requests for book TOC
+func (s *Server) GetBookTOCResourceTemplate(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	// Template handlers should return the actual resource content when given a valid URI
+	// For templates, we delegate to the actual resource handler
+	return s.GetBookTOCResource(ctx, request)
+}
+
+// GetBookChapterContentResourceTemplate handles resource template requests for book chapter content
+func (s *Server) GetBookChapterContentResourceTemplate(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	// Template handlers should return the actual resource content when given a valid URI
+	// For templates, we delegate to the actual resource handler
+	return s.GetBookChapterContentResource(ctx, request)
 }
 
 // Helper functions to extract parameters from URIs

@@ -134,6 +134,12 @@ The server exposes the following MCP capabilities:
 | `oreilly://book-toc/{product_id}` | Get detailed table of contents with chapter names, sections, and navigation structure | `oreilly://book-toc/9781098166298` |
 | `oreilly://book-chapter/{product_id}/{chapter_name}` | Extract full text content of a specific book chapter including headings, paragraphs, code examples, and structured elements | `oreilly://book-chapter/9781098166298/ch01` |
 
+#### MCP Resource Templates
+The server provides resource templates for dynamic discovery, allowing MCP clients to understand available resource patterns:
+- `oreilly://book-details/{product_id}` - Template for book details access
+- `oreilly://book-toc/{product_id}` - Template for table of contents access  
+- `oreilly://book-chapter/{product_id}/{chapter_name}` - Template for chapter content access
+
 #### Usage Workflow
 1. Use `search_content` tool to discover relevant books/content for specific technologies or concepts
 2. Extract `product_id` from search results  
