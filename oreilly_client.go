@@ -16,12 +16,12 @@ type OreillyClient struct {
 }
 
 // NewOreillyClient はブラウザクライアントを使用してO'Reillyクライアントを作成します
-func NewOreillyClient(userID, password, tmpDir string) (*OreillyClient, error) {
+func NewOreillyClient(userID string, password string, debug bool, tmpDir string) (*OreillyClient, error) {
 	// Cookieマネージャーを作成
 	cookieManager := cookie.NewCookieManager(tmpDir)
 
 	// ブラウザクライアントを作成してログイン
-	browserClient, err := browser.NewBrowserClient(userID, password, cookieManager)
+	browserClient, err := browser.NewBrowserClient(userID, password, cookieManager, debug, tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create browser client: %w", err)
 	}

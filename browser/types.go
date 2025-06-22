@@ -20,6 +20,8 @@ type BrowserClient struct {
 	cookies       []*http.Cookie
 	userAgent     string
 	cookieManager cookie.Manager
+	debug         bool
+	tmpDir        string
 }
 
 // TableOfContentsItem represents a single item in the table of contents

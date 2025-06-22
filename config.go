@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Port            string
 	Debug           bool
+	MCPDebug        bool
 	Transport       string
 	OReillyUserID   string
 	OReillyPassword string
@@ -26,11 +27,12 @@ func LoadConfig() (*Config, error) {
 
 	// デバッグモードの取得（デフォルト: false）
 	debug := false
-	if debugStr := getEnv("DEBUG"); debugStr != "" {
+	if debugStr := getEnv("ORM_MCP_GO_DEBUG"); debugStr != "" {
 		if d, err := strconv.ParseBool(debugStr); err == nil {
 			debug = d
 		}
 	}
+	log.Printf("Debug mode: %v", debug)
 
 	transport := "stdio"
 	if transportStr := getEnv("TRANSPORT"); transportStr != "" {

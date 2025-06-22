@@ -18,7 +18,7 @@ import (
 const ormHome = "https://learning.oreilly.com/home/"
 
 // NewBrowserClient は新しいブラウザクライアントを作成し、ログインを実行します
-func NewBrowserClient(userID, password string, cookieManager cookie.Manager) (*BrowserClient, error) {
+func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, tmpDir string) (*BrowserClient, error) {
 	if userID == "" || password == "" {
 		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required")
 	}
@@ -44,6 +44,8 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager) (*B
 			Timeout: 30 * time.Second,
 		},
 		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		tmpDir:    tmpDir,
+		debug:     debug,
 	}
 
 	// Cookieの復元を試行
@@ -53,7 +55,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager) (*B
 			log.Printf("Cookie復元に失敗しました: %v", err)
 		} else {
 			// Cookieが有効かどうか検証
-			if client.validateAuthentication() {
+			if client.validateAuthentication(ctx) {
 				log.Printf("Cookieを使用してログインが完了しました")
 				client.cookieManager = cookieManager
 				return client, nil
@@ -249,7 +251,7 @@ func (bc *BrowserClient) GetCookieString() string {
 }
 
 // validateAuthentication はCookieが有効かどうかを検証します
-func (bc *BrowserClient) validateAuthentication() bool {
+func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
 	var pageTitle string
 
 	err := chromedp.Run(bc.ctx,
@@ -258,6 +260,7 @@ func (bc *BrowserClient) validateAuthentication() bool {
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
 		chromedp.Title(&pageTitle),
 	)
+	bc.debugScreenshot(ctx, "validate_authentication")
 
 	if err != nil {
 		log.Printf("認証検証中にエラーが発生しました: %v", err)
