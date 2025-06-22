@@ -79,7 +79,7 @@ func main() {
 			t.Errorf("Missing heading %d", i)
 			continue
 		}
-		
+
 		heading := result.Headings[i]
 		if heading.Level != expected.level {
 			t.Errorf("Heading %d: expected level %d, got %d", i, expected.level, heading.Level)
@@ -239,7 +239,7 @@ func TestParseHTMLContent_EmptyInput(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := client.parseHTMLContent(tc.html)
-			
+
 			if tc.valid {
 				if err != nil {
 					t.Errorf("Expected no error, got: %v", err)
@@ -274,21 +274,21 @@ func TestCountWords(t *testing.T) {
 			expected:   8,
 		},
 		{
-			name:       "Multiple paragraphs",
+			name: "Multiple paragraphs",
 			paragraphs: []string{
 				"First paragraph has four words.",
 				"Second paragraph also has four words.",
 				"Third.",
 			},
-			expected:   9,
+			expected: 9,
 		},
 		{
-			name:       "Paragraphs with extra whitespace",
+			name: "Paragraphs with extra whitespace",
 			paragraphs: []string{
 				"  Paragraph   with   extra   spaces  ",
 				"\t\nAnother\tparagraph\nwith\ttabs\n",
 			},
-			expected:   9,
+			expected: 9,
 		},
 	}
 

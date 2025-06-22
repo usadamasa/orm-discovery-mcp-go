@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
@@ -14,9 +16,12 @@ type OreillyClient struct {
 }
 
 // NewOreillyClient はブラウザクライアントを使用してO'Reillyクライアントを作成します
-func NewOreillyClient(userID, password string) (*OreillyClient, error) {
+func NewOreillyClient(userID, password, tmpDir string) (*OreillyClient, error) {
+	// Cookieマネージャーを作成
+	cookieManager := cookie.NewCookieManager(tmpDir)
+
 	// ブラウザクライアントを作成してログイン
-	browserClient, err := browser.NewBrowserClient(userID, password)
+	browserClient, err := browser.NewBrowserClient(userID, password, cookieManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create browser client: %w", err)
 	}

@@ -2,9 +2,10 @@ package browser
 
 import (
 	"context"
-	"github.com/chromedp/chromedp"
 	"log"
 	"os"
+
+	"github.com/chromedp/chromedp"
 )
 
 func (bc *BrowserClient) debugScreenshot(ctx context.Context, name string) {

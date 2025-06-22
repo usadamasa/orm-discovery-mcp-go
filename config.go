@@ -13,6 +13,7 @@ type Config struct {
 	Transport       string
 	OReillyUserID   string
 	OReillyPassword string
+	TmpDir          string
 }
 
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
@@ -43,12 +44,20 @@ func LoadConfig() (*Config, error) {
 		log.Fatalf("OREILLY_USER_ID と OREILLY_PASSWORD が設定されていません")
 	}
 
+	// 一時ディレクトリの取得
+	tmpDir := getEnv("ORM_MCP_GO_TMP_DIR")
+	if tmpDir == "" {
+		// 環境変数が設定されていない場合は/var/tmpを使用
+		tmpDir = "/var/tmp/"
+	}
+
 	return &Config{
 		Port:            port,
 		Debug:           debug,
 		Transport:       transport,
 		OReillyUserID:   OReillyUserID,
 		OReillyPassword: OReillyPassword,
+		TmpDir:          tmpDir,
 	}, nil
 }
 

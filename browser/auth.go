@@ -7,14 +7,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+
 	"net/http"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 )
 
+const ormHome = "https://learning.oreilly.com/home/"
+
 // NewBrowserClient は新しいブラウザクライアントを作成し、ログインを実行します
-func NewBrowserClient(userID, password string) (*BrowserClient, error) {
+func NewBrowserClient(userID, password string, cookieManager cookie.Manager) (*BrowserClient, error) {
 	if userID == "" || password == "" {
 		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required")
 	}
@@ -42,10 +46,32 @@ func NewBrowserClient(userID, password string) (*BrowserClient, error) {
 		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 	}
 
-	// ログインを実行
+	// Cookieの復元を試行
+	if cookieManager != nil && cookieManager.CookieFileExists() {
+		log.Printf("既存のCookieファイルが見つかりました。復元を試行します")
+		if err := cookieManager.LoadCookies(&ctx); err != nil {
+			log.Printf("Cookie復元に失敗しました: %v", err)
+		} else {
+			// Cookieが有効かどうか検証
+			if client.validateAuthentication() {
+				log.Printf("Cookieを使用してログインが完了しました")
+				client.cookieManager = cookieManager
+				return client, nil
+			}
+			log.Printf("Cookieが無効でした。通常のログインを実行します")
+		}
+	}
+
+	// 通常のログインを実行
 	if err := client.login(userID, password); err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to login: %w", err)
+	}
+
+	// ログイン成功後にCookieを保存
+	client.cookieManager = cookieManager
+	if err := cookieManager.SaveCookies(&ctx); err != nil {
+		log.Printf("Cookieの保存に失敗しました: %v", err)
 	}
 
 	log.Printf("ブラウザクライアントの初期化とログインが完了しました")
@@ -216,83 +242,34 @@ func (bc *BrowserClient) login(userID, password string) error {
 // GetCookieString はHTTPリクエスト用のCookie文字列を返します
 func (bc *BrowserClient) GetCookieString() string {
 	var cookieStrings []string
-	for _, cookie := range bc.cookies {
-		cookieStrings = append(cookieStrings, fmt.Sprintf("%s=%s", cookie.Name, cookie.Value))
+	for _, c := range bc.cookies {
+		cookieStrings = append(cookieStrings, fmt.Sprintf("%s=%s", c.Name, c.Value))
 	}
 	return strings.Join(cookieStrings, "; ")
 }
 
-// GetJWTToken はJWTトークンを取得します
-func (bc *BrowserClient) GetJWTToken() string {
-	for _, cookie := range bc.cookies {
-		if cookie.Name == "orm-jwt" {
-			return cookie.Value
-		}
-	}
-	return ""
-}
-
-// GetSessionID はセッションIDを取得します
-func (bc *BrowserClient) GetSessionID() string {
-	for _, cookie := range bc.cookies {
-		if cookie.Name == "groot_sessionid" {
-			return cookie.Value
-		}
-	}
-	return ""
-}
-
-// GetRefreshToken はリフレッシュトークンを取得します
-func (bc *BrowserClient) GetRefreshToken() string {
-	for _, cookie := range bc.cookies {
-		if cookie.Name == "orm-rt" {
-			return cookie.Value
-		}
-	}
-	return ""
-}
-
-// RefreshSession はセッションを更新します
-func (bc *BrowserClient) RefreshSession() error {
-	log.Printf("セッションの更新を開始します")
-
-	var cookies []*http.Cookie
+// validateAuthentication はCookieが有効かどうかを検証します
+func (bc *BrowserClient) validateAuthentication() bool {
+	var pageTitle string
 
 	err := chromedp.Run(bc.ctx,
-		// 学習プラットフォームのホームページにアクセス
-		chromedp.Navigate("https://learning.oreilly.com/home/"),
+		// 認証が必要なページにアクセス
+		chromedp.Navigate(ormHome),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-
-		// 更新されたCookieを取得
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			cookiesResp, err := network.GetCookies().Do(ctx)
-			if err != nil {
-				return err
-			}
-
-			// cdproto.Cookieから標準のhttp.Cookieに変換
-			cookies = make([]*http.Cookie, len(cookiesResp))
-			for i, c := range cookiesResp {
-				cookies[i] = &http.Cookie{
-					Name:     c.Name,
-					Value:    c.Value,
-					Domain:   c.Domain,
-					Path:     c.Path,
-					Secure:   c.Secure,
-					HttpOnly: c.HTTPOnly,
-				}
-			}
-			return nil
-		}),
+		chromedp.Title(&pageTitle),
 	)
 
 	if err != nil {
-		return fmt.Errorf("セッション更新でエラーが発生しました: %w", err)
+		log.Printf("認証検証中にエラーが発生しました: %v", err)
+		return false
 	}
 
-	// Cookieを更新
-	bc.cookies = cookies
-	log.Printf("セッションが更新され、%d個のCookieを取得しました", len(cookies))
+	// ログインページにリダイレクトされていないかチェック
+	if strings.Contains(pageTitle, "Sign in") || strings.Contains(pageTitle, "Login") {
+		log.Printf("認証が無効です: ログインページにリダイレクトされました")
+		return false
+	}
 
-	return nil
+	log.Printf("認証検証成功: %s", pageTitle)
+	return true
 }

@@ -36,7 +36,7 @@ func TestGetBookChapterContent_HappyPath(t *testing.T) {
 			expectTitle: true,
 		},
 		{
-			name:        "Docker Up and Running - Preface", 
+			name:        "Docker Up and Running - Preface",
 			productID:   "9781098131814", // Docker Up and Running
 			chapterName: "pr01",          // Preface chapter
 			expectTitle: true,
@@ -103,10 +103,10 @@ func TestGetBookChapterContent_HappyPath(t *testing.T) {
 			t.Logf("Word count: %v", result.Metadata["word_count"])
 
 			// Validate that we have some structured content
-			totalContent := len(result.Content.Paragraphs) + 
-						   len(result.Content.Headings) + 
-						   len(result.Content.CodeBlocks)
-			
+			totalContent := len(result.Content.Paragraphs) +
+				len(result.Content.Headings) +
+				len(result.Content.CodeBlocks)
+
 			if totalContent == 0 {
 				t.Error("Expected to extract some structured content (paragraphs, headings, or code blocks)")
 			}
@@ -202,7 +202,7 @@ func TestGetBookChapterContent_InvalidInputs(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := client.GetBookChapterContent(tc.productID, tc.chapterName)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
@@ -243,7 +243,7 @@ func BenchmarkGetBookChapterContent(b *testing.B) {
 	chapterName := "pr01"
 
 	b.ResetTimer()
-	
+
 	for i := 0; i < b.N; i++ {
 		_, err := client.GetBookChapterContent(productID, chapterName)
 		if err != nil {
