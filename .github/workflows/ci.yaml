@@ -1,19 +1,13 @@
 name: CI
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  push: {}
+  pull_request: {}
 
 jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        go-version: ['1.24.3']
 
     steps:
     - name: Checkout code
@@ -22,7 +16,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version: 1.24.3
 
     - name: Install Aqua
       uses: aquaproj/aqua-installer@v2.3.0
@@ -52,12 +46,7 @@ jobs:
 
     - name: Format code
       run: |
-        go mod tidy
-        goimports -l -w .
-        go fmt ./...
-
-    - name: Check for formatting changes
-      run: |
+        task format
         if [ -n "$(git status --porcelain)" ]; then
           echo "Code is not formatted properly"
           git diff
@@ -74,41 +63,6 @@ jobs:
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.3'
-
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: Build application
-      run: |
-        mkdir -p ./bin
-        go build -o ./bin/orm-discovery-mcp-go .
-
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: binary
-        path: ./bin/orm-discovery-mcp-go
 
   lint:
     name: Lint
@@ -128,41 +82,3 @@ jobs:
       with:
         version: latest
         args: --timeout=5m
-
-  generate-api:
-    name: Generate API Client
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.3'
-
-    - name: Install Aqua
-      uses: aquaproj/aqua-installer@v2.3.0
-      with:
-        aqua_version: v2.25.0
-
-    - name: Install tools with Aqua
-      run: aqua install
-
-    - name: Install oapi-codegen
-      run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-
-    - name: Generate API client
-      working-directory: ./browser
-      run: |
-        rm -rf generated/api
-        mkdir -p generated/api
-        oapi-codegen --config=oapi-codegen.yaml openapi.yaml
-
-    - name: Check for changes
-      run: |
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "API client needs to be regenerated"
-          git diff
-          exit 1
-        fi
