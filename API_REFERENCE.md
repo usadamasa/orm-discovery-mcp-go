@@ -200,7 +200,7 @@ export OREILLY_PASSWORD="your_password"
 |-------|-------------|------|
 | `PORT` | 8080 | HTTPサーバーのポート番号 |
 | `TRANSPORT` | stdio | 通信方式（stdio/http） |
-| `DEBUG` | false | デバッグモード |
+| `ORM_MCP_GO_DEBUG` | false | デバッグモード |
 
 ### 起動方法
 
