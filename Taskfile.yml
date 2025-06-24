@@ -20,6 +20,11 @@ tasks:
       - goimports -l -w .
       - go fmt ./...
 
+  test:
+    desc: Goのテストを実行
+    cmds:
+      - go test ./... -v
+
   generate:api:oreilly:
     desc: OpenAPI仕様からO'Reilly Learning Platformのクライアントコードを生成
     dir: '{{.OREILLY_DIR}}'
