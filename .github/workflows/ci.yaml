@@ -13,45 +13,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: 1.24.3
+    - name: Setup Aqua
+      uses: ./.github/actions/setup-aqua
 
-    - name: Install Aqua
-      uses: aquaproj/aqua-installer@v2.3.0
-      with:
-        aqua_version: v2.25.0
-
-    - name: Cache Aqua tools
-      uses: actions/cache@v4
-      with:
-        path: ~/.local/share/aquaproj-aqua
-        key: ${{ runner.os }}-aqua-${{ hashFiles('aqua.yaml') }}-${{ hashFiles('aqua-checksums.json') }}
-        restore-keys: |
-          ${{ runner.os }}-aqua-
-
-    - name: Install tools with Aqua
-      run: aqua install
-
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: Format code
-      run: |
-        task format
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "Code is not formatted properly"
-          git diff
-          exit 1
-        fi
+    - name: Setup Go
+      uses: ./.github/actions/setup-go
 
     - name: Run tests
       run: go test ./... -v -race -coverprofile=coverage.out
@@ -72,13 +38,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.3'
+    - name: Setup Aqua
+      uses: ./.github/actions/setup-aqua
 
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-        args: --timeout=5m
+    - name: Setup Go
+      uses: ./.github/actions/setup-go
+
+    - name: Format code
+      run: |
+        task format
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Code is not formatted properly"
+          git diff
+          exit 1
+        fi
+
+    - name: Run lint
+      run: task lint

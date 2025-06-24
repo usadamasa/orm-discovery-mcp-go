@@ -1,0 +1,26 @@
+name: 'Setup Go'
+description: 'Setup Go environment with modern caching strategy'
+
+inputs:
+  go-version:
+    description: 'Version of Go to install'
+    required: false
+    default: '1.24.3'
+  cache:
+    description: 'Enable Go modules and build caching'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: ${{ inputs.cache }}
+
+    - name: Download Go modules
+      if: ${{ inputs.cache == 'true' }}
+      run: go mod download
+      shell: bash

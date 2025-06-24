@@ -5,42 +5,137 @@ vars:
   SPEC_FILE: openapi.yaml
   OUTPUT_DIR: generated/api
   CONFIG_FILE: oapi-codegen.yaml
+  BINARY_NAME: orm-discovery-mcp-go
+  BIN_DIR: ./bin
 
 tasks:
-  build-go:
-    desc: Goのビルドを実行
+  # === Code Generation ===
+  generate:api:oreilly:
+    desc: OpenAPI仕様からO'Reilly Learning Platformのクライアントコードを生成
+    dir: '{{.OREILLY_DIR}}'
+    sources:
+      - '{{.SPEC_FILE}}'
+      - '{{.CONFIG_FILE}}'
+    generates:
+      - '{{.OUTPUT_DIR}}/client.gen.go'
     cmds:
-      - mkdir -p ./bin
-      - go build -o ./bin/orm-discovery-mcp-go .
+      - rm -rf {{.OUTPUT_DIR}}
+      - mkdir -p {{.OUTPUT_DIR}}
+      - oapi-codegen --config={{.CONFIG_FILE}} {{.SPEC_FILE}}
 
+  # === Code Quality ===
   format:
     desc: Goコードのフォーマットを実行
+    sources:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
     cmds:
       - go mod tidy
       - goimports -l -w .
       - go fmt ./...
 
+  lint:
+    desc: Goコードのリントを実行
+    deps: [format]
+    sources:
+      - '**/*.go'
+      - '.golangci.yml'
+    cmds:
+      - golangci-lint run --timeout=5m
+
+  # === Testing ===
   test:
     desc: Goのテストを実行
+    deps: [generate:api:oreilly]
+    sources:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
     cmds:
       - go test ./... -v
 
-  generate:api:oreilly:
-    desc: OpenAPI仕様からO'Reilly Learning Platformのクライアントコードを生成
-    dir: '{{.OREILLY_DIR}}'
-    cmds:
-      - rm -rf {{.OUTPUT_DIR}}
-      - mkdir -p {{.OUTPUT_DIR}}
-      - oapi-codegen --config={{.CONFIG_FILE}} {{.SPEC_FILE}}
+  test:coverage:
+    desc: カバレッジ付きでテストを実行
+    deps: [generate:api:oreilly]
     sources:
-      - '{{.OREILLY_SPEC_FILE}}'
-      - '{{.OREILLY_OUTPUT_DIR}}'
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
     generates:
-      - "{{.OUTPUT_DIR}}/client.gen.go"
-    silent: false
+      - 'coverage.out'
+    cmds:
+      - go test ./... -v -race -coverprofile=coverage.out
+      - go tool cover -html=coverage.out -o coverage.html
 
+  # === Building ===
+  build:
+    desc: Goのビルドを実行
+    deps: [generate:api:oreilly, lint]
+    sources:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+    generates:
+      - '{{.BIN_DIR}}/{{.BINARY_NAME}}'
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
+
+  build:release:
+    desc: リリース用ビルド（最適化あり）
+    deps: [generate:api:oreilly, lint, test]
+    sources:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+    generates:
+      - '{{.BIN_DIR}}/{{.BINARY_NAME}}'
+    cmds:
+      - mkdir -p {{.BIN_DIR}}
+      - go build -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
+
+  # === Cleaning ===
   clean:generated:
     desc: 生成されたコードを削除
     dir: '{{.OREILLY_DIR}}'
     cmds:
       - rm -rf {{.OUTPUT_DIR}}/*.gen.go
+
+  clean:build:
+    desc: ビルド成果物を削除
+    cmds:
+      - rm -rf {{.BIN_DIR}}
+
+  clean:test:
+    desc: テスト成果物を削除
+    cmds:
+      - rm -f coverage.out coverage.html
+
+  clean:all:
+    desc: すべての生成ファイルを削除
+    deps: [clean:generated, clean:build, clean:test]
+
+  # === Composite Tasks ===
+  dev:
+    desc: 開発用タスク（フォーマット + リント + テスト）
+    deps: [format, lint, test]
+
+  ci:
+    desc: CI用タスク（すべてのチェック + ビルド）
+    deps: [generate:api:oreilly, format, lint, test:coverage, build]
+
+  all:
+    desc: すべてのタスクを実行
+    deps: [generate:api:oreilly, format, lint, test:coverage, build:release]
+
+  # === Utilities ===
+  deps:
+    desc: Go依存関係の更新
+    cmds:
+      - go mod tidy
+      - go mod download
+
+  check:
+    desc: コードの基本チェック
+    deps: [format, lint]

@@ -1,0 +1,28 @@
+name: 'Setup Aqua'
+description: 'Install and cache Aqua package manager and its tools'
+
+inputs:
+  aqua_version:
+    description: 'Version of Aqua to install'
+    required: false
+    default: 'v2.25.0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Aqua
+      uses: aquaproj/aqua-installer@v2.3.0
+      with:
+        aqua_version: ${{ inputs.aqua_version }}
+
+    - name: Cache Aqua tools
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/aquaproj-aqua
+        key: ${{ runner.os }}-aqua-${{ hashFiles('aqua.yaml') }}-${{ hashFiles('aqua-checksums.json') }}
+        restore-keys: |
+          ${{ runner.os }}-aqua-
+
+    - name: Install tools with Aqua
+      run: aqua install
+      shell: bash

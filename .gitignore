@@ -26,3 +26,5 @@ go.work.sum
 .env
 
 /memory-bank
+/.task/checksum
+/coverage*
