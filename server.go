@@ -9,16 +9,17 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
 // Server はMCPサーバーの実装です
 type Server struct {
-	oreillyClient *OreillyClient
+	browserClient *browser.BrowserClient
 	mcpServer     *server.MCPServer
 }
 
 // NewServer は新しいサーバーインスタンスを作成します
-func NewServer(oreillyClient *OreillyClient) *Server {
+func NewServer(browserClient *browser.BrowserClient) *Server {
 	// MCPサーバーの設定とデバッグログの追加
 	mcpServer := server.NewMCPServer(
 		"Search O'Reilly Learning Platform",
@@ -29,7 +30,7 @@ func NewServer(oreillyClient *OreillyClient) *Server {
 	)
 
 	srv := &Server{
-		oreillyClient: oreillyClient,
+		browserClient: browserClient,
 		mcpServer:     mcpServer,
 	}
 	// 初期化処理の成功を確認するためのログ
@@ -197,26 +198,33 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 		return mcp.NewToolResultError("query parameter is required"), nil
 	}
 
-	// SearchParamsに変換
-	searchParams := SearchParams{
-		Query:        requestParams.Query,
-		Rows:         requestParams.Rows,
-		Languages:    requestParams.Languages,
-		TzOffset:     requestParams.TzOffset,
-		AiaOnly:      requestParams.AiaOnly,
-		FeatureFlags: requestParams.FeatureFlags,
-		Report:       requestParams.Report,
-		IsTopics:     requestParams.IsTopics,
+	// デフォルト値の設定
+	if requestParams.Rows <= 0 {
+		requestParams.Rows = 100
+	}
+	if len(requestParams.Languages) == 0 {
+		requestParams.Languages = []string{"en", "ja"}
 	}
 
-	// O'Reilly APIで検索を実行
-	log.Printf("O'Reillyクライアント呼び出し前")
-	results, err := s.oreillyClient.Search(ctx, searchParams)
+	// BrowserClient用のオプションを準備
+	options := map[string]interface{}{
+		"rows":          requestParams.Rows,
+		"languages":     requestParams.Languages,
+		"tzOffset":      requestParams.TzOffset,
+		"aia_only":      requestParams.AiaOnly,
+		"feature_flags": requestParams.FeatureFlags,
+		"report":        requestParams.Report,
+		"isTopics":      requestParams.IsTopics,
+	}
+
+	// BrowserClientで直接検索を実行
+	log.Printf("BrowserClient呼び出し前")
+	results, err := s.browserClient.SearchContent(requestParams.Query, options)
 	if err != nil {
-		log.Printf("O'Reillyクライアント失敗: %v", err)
+		log.Printf("BrowserClient失敗: %v", err)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil
 	}
-	log.Printf("O'Reillyクライアント呼び出し後 取得件数: %d件", results.Count)
+	log.Printf("BrowserClient呼び出し後 取得件数: %d件", len(results))
 
 	// 結果をレスポンスに変換
 	response := struct {
@@ -224,25 +232,14 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 		Total   int           `json:"total"`
 		Results []interface{} `json:"results"`
 	}{
-		Count:   len(results.Results),
-		Total:   results.Total,
-		Results: make([]interface{}, 0, len(results.Results)),
+		Count:   len(results),
+		Total:   len(results),
+		Results: make([]interface{}, len(results)),
 	}
 
-	for _, result := range results.Results {
-		response.Results = append(response.Results, map[string]interface{}{
-			"id":          result.ID,
-			"title":       result.Title,
-			"description": result.Description,
-			"url":         result.URL,
-			"web_url":     result.WebURL,
-			"type":        result.Type,
-			"authors":     result.Authors,
-			"publishers":  result.Publishers,
-			"topics":      result.Topics,
-			"language":    result.Language,
-			"metadata":    result.Metadata,
-		})
+	// resultsを[]interface{}に変換
+	for i, result := range results {
+		response.Results[i] = result
 	}
 
 	jsonBytes, err := json.Marshal(response)
@@ -270,7 +267,7 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, request mcp.ReadRes
 	}
 
 	// ブラウザクライアントで書籍詳細を取得
-	if s.oreillyClient.browserClient == nil {
+	if s.browserClient == nil {
 		return []mcp.ResourceContents{
 			&mcp.TextResourceContents{
 				URI:      request.Params.URI,
@@ -280,7 +277,7 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, request mcp.ReadRes
 		}, nil
 	}
 
-	bookOverview, err := s.oreillyClient.browserClient.GetBookDetails(productID)
+	bookOverview, err := s.browserClient.GetBookDetails(productID)
 	if err != nil {
 		log.Printf("書籍詳細取得失敗: %v", err)
 		return []mcp.ResourceContents{
@@ -329,7 +326,7 @@ func (s *Server) GetBookTOCResource(ctx context.Context, request mcp.ReadResourc
 	}
 
 	// ブラウザクライアントの確認
-	if s.oreillyClient.browserClient == nil {
+	if s.browserClient == nil {
 		return []mcp.ResourceContents{
 			&mcp.TextResourceContents{
 				URI:      request.Params.URI,
@@ -339,7 +336,7 @@ func (s *Server) GetBookTOCResource(ctx context.Context, request mcp.ReadResourc
 		}, nil
 	}
 
-	tocResponse, err := s.oreillyClient.browserClient.GetBookTOC(productID)
+	tocResponse, err := s.browserClient.GetBookTOC(productID)
 	if err != nil {
 		log.Printf("書籍目次取得失敗: %v", err)
 		return []mcp.ResourceContents{
@@ -388,7 +385,7 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, request mcp.
 	}
 
 	// ブラウザクライアントの確認
-	if s.oreillyClient.browserClient == nil {
+	if s.browserClient == nil {
 		return []mcp.ResourceContents{
 			&mcp.TextResourceContents{
 				URI:      request.Params.URI,
@@ -398,7 +395,7 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, request mcp.
 		}, nil
 	}
 
-	chapterResponse, err := s.oreillyClient.browserClient.GetBookChapterContent(productID, chapterName)
+	chapterResponse, err := s.browserClient.GetBookChapterContent(productID, chapterName)
 	if err != nil {
 		log.Printf("書籍チャプター本文取得失敗: %v", err)
 		return []mcp.ResourceContents{
