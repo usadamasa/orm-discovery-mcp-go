@@ -6,6 +6,10 @@ inputs:
     description: 'Version of Go to install'
     required: false
     default: '1.24.3'
+  cache-key-suffix:
+    description: 'Suffix to add to cache key for job isolation'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -21,6 +25,7 @@ runs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}${{ inputs.cache-key-suffix }}
         restore-keys: |
+          ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           ${{ runner.os }}-go-

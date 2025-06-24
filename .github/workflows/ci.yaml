@@ -18,6 +18,8 @@ jobs:
 
     - name: Setup Go
       uses: ./.github/actions/setup-go
+      with:
+        cache-key-suffix: '-test'
 
     - name: Run tests
       run: go test ./... -v -race -coverprofile=coverage.out
@@ -43,6 +45,8 @@ jobs:
 
     - name: Setup Go
       uses: ./.github/actions/setup-go
+      with:
+        cache-key-suffix: '-lint'
 
     - name: Format code
       run: |
