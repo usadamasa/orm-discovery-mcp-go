@@ -35,6 +35,8 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	)
 
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancel()
+
 	ctx, _ := chromedp.NewContext(allocCtx)
 
 	client := &BrowserClient{
