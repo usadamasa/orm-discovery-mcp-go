@@ -18,21 +18,8 @@ jobs:
       with:
         go-version: 1.24.3
 
-    - name: Install Aqua
-      uses: aquaproj/aqua-installer@v2.3.0
-      with:
-        aqua_version: v2.25.0
-
-    - name: Cache Aqua tools
-      uses: actions/cache@v4
-      with:
-        path: ~/.local/share/aquaproj-aqua
-        key: ${{ runner.os }}-aqua-${{ hashFiles('aqua.yaml') }}-${{ hashFiles('aqua-checksums.json') }}
-        restore-keys: |
-          ${{ runner.os }}-aqua-
-
-    - name: Install tools with Aqua
-      run: aqua install
+    - name: Setup Aqua
+      uses: ./.github/actions/setup-aqua
 
     - name: Cache Go modules
       uses: actions/cache@v4
