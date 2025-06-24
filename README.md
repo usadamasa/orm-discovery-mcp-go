@@ -1,11 +1,6 @@
 # O'Reilly Learning Platform MCP Server
 
-O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経由で検索・管理できるGoサーバーです。
-
-## 概要
-
-このプロジェクトは[odewahn/orm-discovery-mcp](https://github.com/odewahn/orm-discovery-mcp)
-にインスパイアされ、mcp-goパッケージを使用してMCPサーバーを構築する例を提供します。
+O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経由で検索・アクセスできるGoサーバーです。
 
 > [!WARNING]
 > This project is an unofficial implementation of an MCP server for interacting with the O'Reilly Learning Platform.
@@ -13,42 +8,19 @@ O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経�
 > This tool is provided **for educational and personal use only**, and may break at any time if the internal APIs or authentication flows used by O'Reilly change.
 > Use at your own risk, and please refer to O'Reilly's [Terms of Service](https://www.oreilly.com/terms/) before using this tool.
 
-## 主な機能
+## クイックスタート
 
-- **コンテンツ検索**: O'Reillyコンテンツの高度な検索
-- **目次抽出**: O'Reilly書籍の目次を自動抽出
-- **本文情報取得(チャプター単位)**: 書籍の各チャプターの詳細情報を取得
-
-## 開発環境セットアップ
-
-### 1. 必要なツールのインストール
-
-#### aquaを使用したツール管理
+### 1. ツールのインストール
 
 ```bash
-# aquaのインストール(未インストールの場合)
-curl -sSfL https://raw.githubusercontent.com/aquaproj/aqua/main/install.sh | bash
-
-# パッケージのインストール
+# aquaでツールをインストール
 aqua install
+
+# ビルド
+task build
 ```
 
-#### Task（タスクランナー）の使用
-
-```bash
-# 利用可能なタスクを確認
-task --list
-
-# OpenAPIクライアントコードの生成
-task generate:api:oreilly
-
-# 生成されたコードのクリーンアップ
-task clean:generated
-```
-
-### 2. 認証情報の設定
-
-#### 方法1: .envファイルを使用（推奨）
+### 2. 認証設定
 
 プロジェクトディレクトリに`.env`ファイルを作成：
 
@@ -56,135 +28,34 @@ task clean:generated
 # .env
 OREILLY_USER_ID=your_email@acm.org
 OREILLY_PASSWORD=your_password
-PORT=8080
-TRANSPORT=stdio
 ```
 
-#### 方法2: 環境変数で設定
+### 3. 起動
 
 ```bash
-export OREILLY_USER_ID="your_email@acm.org"
-export OREILLY_PASSWORD="your_password"
-export ORM_MCP_GO_TMP_DIR="your/tmp/directory" # if missing, defaults to /var/tmp
-```
-
-**注意**:
-
-- ACMメンバーの場合は`@acm.org`のメールアドレスを使用
-- ACM IDPリダイレクトは自動で処理されます
-- `.env`ファイルの設定が環境変数より優先されます
-
-### 3. サーバーの起動
-
-```bash
+# 開発用
 go run .
-```
 
-### 4. Cline（Claude Desktop）での設定
-
-```json
-{
-  "mcpServers": {
-    "orm-discovery-mcp-go": {
-      "command": "/your/path/to/orm-discovery-mcp-go",
-      "args": [],
-      "env": {
-        "OREILLY_USER_ID": "your_email@acm.org",
-        "OREILLY_PASSWORD": "your_password",
-        "ORM_MCP_GO_TMP_DIR": "your/tmp/directory"
-      }
-    }
-  }
-}
-```
-
-### 5. claude codeでの設定
-
-```bash
+# Claude Code MCP設定
 claude mcp add -s user orm-discovery-mcp-go \
   -e OREILLY_USER_ID="your_email@acm.org" \
   -e OREILLY_PASSWORD="your_password" \
-  -e ORM_MCP_GO_TMP_DIR="your_tmp_directory" \
   -- /your/path/to/orm-discovery-mcp-go
-claude mcp list
-
 ```
 
-## 利用可能な機能
+## 機能
 
 ### MCPツール
-
-| ツール名             | 説明                        |
-|------------------|---------------------------|
-| `search_content` | O'Reillyコンテンツの検索（ブラウザベース）<br>書籍、動画、記事を検索し、product_idを含む詳細情報を返します |
+- **`search_content`**: O'Reillyコンテンツの検索
 
 ### MCPリソース
+- **`oreilly://book-details/{product_id}`**: 書籍詳細情報
+- **`oreilly://book-toc/{product_id}`**: 書籍目次
+- **`oreilly://book-chapter/{product_id}/{chapter_name}`**: チャプター内容
 
-書籍の詳細情報はMCPリソースとしてアクセスできます：
+### 利用フロー
+1. `search_content`で検索 → `product_id`取得
+2. `book-details`で書籍情報確認
+3. `book-chapter`で必要な章を取得
 
-| リソースURI | 説明 | 使用例 |
-|------------|------|--------|
-| `oreilly://book-details/{product_id}` | 書籍の詳細情報と目次を取得 | `oreilly://book-details/9781098166298` |
-| `oreilly://book-toc/{product_id}` | 書籍の目次のみを取得 | `oreilly://book-toc/9781098166298` |
-| `oreilly://book-chapter/{product_id}/{chapter_name}` | 特定チャプターの本文を取得 | `oreilly://book-chapter/9781098166298/ch01` |
-
-### 利用ワークフロー
-
-1. **`search_content`** で関心のある技術や概念を検索
-2. 検索結果から**product_id**を取得
-3. **`oreilly://book-details/{product_id}`** で書籍詳細と目次を確認
-4. **`oreilly://book-chapter/{product_id}/{chapter_name}`** で必要なチャプターの詳細を取得
-
-### 引用について
-
-**重要**: 取得したコンテンツを参照する際は、必ず以下の情報を含めて適切に引用してください：
-- 書籍タイトル
-- 著者名
-- チャプタータイトル（該当する場合）
-- 出版社：O'Reilly Media
-
-## 開発ツール
-
-### aqua（パッケージマネージャー）
-
-- **設定ファイル**: `aqua.yaml`
-- **管理ツール**: Task（go-task）
-- **用途**: 開発に必要なツールの統一管理
-
-### Task（タスクランナー）
-
-- **設定ファイル**: `Taskfile.yml`
-- **利用可能なタスク**:
-    - `generate:api:oreilly`: OpenAPIクライアントコード生成
-    - `clean:generated`: 生成コードのクリーンアップ
-
-### OpenAPI/oapi-codegen
-
-- **仕様ファイル**: `browser/openapi.yaml`
-- **設定ファイル**: `browser/oapi-codegen.yaml`
-- **出力先**: `browser/generated/api/`
-- **用途**: O'Reilly Learning Platform APIクライアント生成
-
-## 認証システム
-
-### ヘッドレスブラウザ認証
-
-このサーバーはヘッドレスブラウザ（Chrome）を使用して自動的にO'Reillyにログインします：
-
-1. **自動ログイン**: 環境変数のID/パスワードでログイン
-2. **ACM対応**: ACM IDPリダイレクトを自動処理
-3. **セッション管理**: ログイン後のCookieを自動取得・管理
-4. **ホームページ取得**: ブラウザでホームページのコレクション情報も取得
-
-### 必要な環境変数
-
-- `OREILLY_USER_ID`: O'Reillyのメールアドレス
-- `OREILLY_PASSWORD`: O'Reillyのパスワード
-
-## 免責事項
-
-このツールの使用により生じるいかなる損害、損失、または不利益についても、開発者および貢献者は一切の責任を負いません。ユーザーは自己責任でこのツールを使用してください。
-
-## ライセンス
-
-[LICENSE](LICENSE)ファイルを参照してください。
+詳細は[API_REFERENCE.md](API_REFERENCE.md)を参照してください。

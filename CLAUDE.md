@@ -19,6 +19,9 @@ aqua list
 **Managed Tools:**
 
 - `go-task/task@v3.44.0` - Task runner
+- `golang/tools/goimports@v0.34.0` - Go imports formatter
+- `golangci/golangci-lint@v2.1.6` - Go linter
+- `deepmap/oapi-codegen@v2.4.1` - OpenAPI code generator
 
 ### Task (Task Runner)
 
@@ -115,40 +118,43 @@ go mod tidy
 ## High-Level Architecture
 
 This is an **O'Reilly Learning Platform MCP (Model Context Protocol) Server** that provides programmatic access to
-O'Reilly content through browser automation. The architecture consists of several key components:
+O'Reilly content through modern browser automation and API integration. The architecture consists of several key components:
 
 ### Core Components
 
-1. **BrowserClient** (`browser_client.go`, ~2,700 lines) - The heart of the system
-    - Uses ChromeDP for headless browser automation
-    - Handles O'Reilly login with ACM IdP support
-    - Scrapes web content using DOM selectors and JavaScript execution
-    - Manages authentication cookies and session state
+1. **Browser Package** (`browser/`) - Modular browser automation and API client
+    - `auth.go` - ChromeDP-based authentication with ACM IdP support and cookie caching
+    - `search.go` - Direct HTTP API calls to O'Reilly internal search endpoints
+    - `book.go` - Book metadata and chapter content retrieval via OpenAPI client
+    - `types.go` - Comprehensive type definitions for API responses
+    - `cookie/cookie.go` - Sophisticated cookie management and persistence
+    - `generated/api/` - Type-safe OpenAPI client generation
 
-2. **OreillyClient** (`oreilly_client.go`) - High-level API wrapper
-    - Abstracts browser operations into clean interfaces
-    - Provides structured search functionality
-    - Manages content extraction and normalization
-
-3. **MCPServer** (`server.go`) - MCP protocol implementation
+2. **MCPServer** (@server.go) - MCP protocol implementation
     - Exposes 1 MCP tool for content search and 3 MCP resources for content access
     - Handles JSON-RPC request/response mapping
     - Supports both stdio and HTTP transport modes
 
-4. **Config** (`config.go`) - Configuration management
+3. **Config** (@config.go) - Configuration management
     - Loads settings from `.env` files and environment variables
     - Handles executable-relative .env file discovery
 
 ### Key Design Patterns
 
-**Browser-First Approach**: This system doesn't use traditional REST APIs. Instead, it automates the actual O'Reilly
-Learning Platform web interface using a headless browser. This is because O'Reilly doesn't provide public APIs.
+**API-First Architecture**: Modern approach using O'Reilly's internal APIs rather than DOM scraping:
+- Generated OpenAPI clients for type safety and consistency
+- Direct HTTP API calls for content retrieval
+- Browser automation limited to authentication only
 
-**Cookie-Based Authentication**: The system extracts JWT tokens (`orm-jwt`), session IDs (`groot_sessionid`), and
-refresh tokens (`orm-rt`) from browser sessions to maintain authentication state.
+**Cookie-Based Session Management**: Sophisticated authentication state management:
+- JWT tokens (`orm-jwt`), session IDs (`groot_sessionid`), refresh tokens (`orm-rt`)
+- Local cookie caching with validation and expiration handling
+- Automatic fallback to password login when cookies expire
 
-**DOM Scraping with JavaScript**: Content extraction relies on JavaScript execution within the browser context to query
-DOM elements and extract structured data from the web interface.
+**Structured Content Processing**: Native Go processing instead of JavaScript execution:
+- HTML parsing with `golang.org/x/net/html` for chapter content
+- Comprehensive field normalization for API response variations
+- Rich content modeling with separate types for different elements
 
 ### Available MCP Tools and Resources
 
@@ -218,11 +224,25 @@ is used to:
 
 ## File Organization
 
-- `main.go` (225 lines) - Entry point with test modes
-- `server.go` (~420 lines) - MCP server with tool and resource handlers
-- `browser_client.go` (2,728 lines) - Browser automation logic
-- `oreilly_client.go` (243 lines) - High-level client wrapper
-- `config.go` (72 lines) - Configuration management
+**Root Level:**
+- `main.go` - Entry point with test modes and CLI interface
+- `server.go` - MCP server with tool and resource handlers
+- `config.go` - Configuration management and environment variable handling
+
+**Browser Package** (`browser/`):
+- `auth.go` - Authentication logic with cookie caching and ACM IdP support
+- `search.go` - Search API implementation using OpenAPI client
+- `book.go` - Book operations (details, TOC, chapter content)
+- `types.go` - Type definitions and response structures
+- `debug.go` - Debug utilities and screenshot capture
+- `cookie/cookie.go` - Cookie management interface and JSON persistence
+- `generated/api/` - OpenAPI-generated client code
+
+**Configuration Files:**
+- `browser/openapi.yaml` - OpenAPI specification for O'Reilly APIs
+- `browser/oapi-codegen.yaml` - Code generation configuration
+- `aqua.yaml` - Tool dependency management
+- `Taskfile.yml` - Build automation and workflow definitions
 
 ## Testing
 
@@ -234,11 +254,23 @@ The application includes built-in test modes accessible via command line:
 
 ## Important Notes
 
-- This system works by automating the web interface, making it sensitive to O'Reilly's frontend changes
-- Authentication requires valid O'Reilly Learning Platform credentials
-- The browser automation may be slower than direct API calls but provides access to content not available through public
-  APIs
-- ACM (Association for Computing Machinery) institutional login is automatically detected and handled
+**Modern Implementation Approach:**
+- Uses O'Reilly's internal APIs directly for content retrieval (faster and more reliable)
+- Browser automation limited to authentication only (not content scraping)
+- Generated OpenAPI clients provide type safety and consistency
+
+**Authentication Requirements:**
+- Valid O'Reilly Learning Platform credentials required
+- ACM (Association for Computing Machinery) institutional login automatically detected and handled
+- Cookie caching improves performance by avoiding repeated logins
+
+**System Dependencies:**
+- Chrome or Chromium installation required for authentication browser automation
+- Aqua package manager for tool dependency management
+- Task runner for standardized build and development workflows
+
+**Browser Package Memory Reference:**
+For detailed implementation patterns and module-specific guidance, see @browser/CLAUDE
 
 ## Task Completion Quality Assurance
 
@@ -328,3 +360,145 @@ The GitHub Actions CI pipeline enforces these same requirements:
 - [ ] Task is now complete
 
 **Remember: A task is only complete when `task ci` passes without errors.**
+
+## Architecture Overview
+
+This is an **O'Reilly Learning Platform MCP Server** providing programmatic access to O'Reilly content through modern browser automation and API integration.
+
+### Modular Browser Package Architecture
+
+The `browser/` package implements a clean, modular design:
+
+1. **Authentication Layer** (`browser/auth.go`)
+   - Cookie-first authentication strategy with validation
+   - ChromeDP-based browser automation for login flows
+   - ACM IdP automatic detection and handling
+
+2. **API Integration Layer** (`browser/search.go`, `browser/book.go`)
+   - Generated OpenAPI clients for type-safe API calls
+   - Direct HTTP communication with O'Reilly internal endpoints
+   - Comprehensive response normalization and error handling
+
+3. **Data Management Layer** (`browser/types.go`, `browser/cookie/`)
+   - Rich type definitions for all API responses
+   - Interface-based cookie management with JSON persistence
+   - Structured content modeling for chapters and TOC
+
+4. **Development Support** (`browser/debug.go`, `browser/generated/`)
+   - Environment-controlled debugging with screenshot capture
+   - Automated OpenAPI client generation for API consistency
+
+### MCP Protocol Implementation
+
+**Server Layer** (`server.go`):
+- 1 MCP tool: `search_content` for content discovery
+- 3 MCP resources: `book-details`, `book-toc`, `book-chapter` for content access
+- Resource templates for dynamic discovery
+- JSON-RPC request/response handling with error propagation
+
+### Key Design Patterns
+
+- **API-First Content Access**: Direct HTTP calls instead of DOM scraping
+- **Cookie-Based Session Management**: Persistent authentication with validation
+- **Type-Safe Processing**: OpenAPI-generated Go structs for consistency
+- **Modular Package Design**: Clear separation of concerns across modules
+- **Interface-Based Development**: Testable and flexible component design
+
+### Environment Configuration
+
+```bash
+# Core credentials
+OREILLY_USER_ID=your_email@acm.org    # O'Reilly account email
+OREILLY_PASSWORD=your_password         # O'Reilly password
+
+# Server configuration
+PORT=8080                              # HTTP server port (optional)
+TRANSPORT=stdio                        # Transport mode: stdio or http
+
+# Development and debugging
+ORM_MCP_GO_DEBUG=true                 # Enable debug logging and screenshots
+ORM_MCP_GO_TMP_DIR=/path/to/tmp       # Custom temporary directory for cookies
+```
+
+### System Dependencies
+
+**Runtime Requirements:**
+- Chrome or Chromium for authentication browser automation
+- Go 1.24.3+ for modern language features
+
+**Development Tools** (managed via Aqua):
+- Task runner for workflow automation
+- golangci-lint for code quality
+- oapi-codegen for OpenAPI client generation
+
+## Development Workflow
+
+### Standard Development Cycle
+```bash
+# Development workflow
+task dev              # Format + Lint + Test
+
+# Individual tasks
+task format           # Format code
+task lint             # Run linter
+task test             # Run tests
+task build            # Build binary
+
+# Complete CI workflow
+task ci               # All checks + build
+```
+
+### Code Quality Requirements
+- All code must pass `golangci-lint` with 0 issues
+- Code formatting with `goimports` and `go fmt`
+- All tests must pass before task completion
+
+## Cross-Package Integration
+
+### Memory Import Strategy
+
+This project uses a hierarchical memory system:
+
+1. **Main Memory** (`CLAUDE.md`) - High-level architecture and development workflows
+2. **Package Memory** (`browser/CLAUDE.md`) - Detailed implementation patterns and module-specific guidance
+3. **Cross-Reference Integration** - Main memory imports and references package-specific knowledge
+
+**When working on browser package issues:**
+1. Consult `browser/CLAUDE.md` for detailed implementation patterns
+2. Reference main `CLAUDE.md` for overall architecture context
+3. Follow established development workflows and quality requirements
+
+### Package Memory References
+
+- **Browser Implementation Details**: See `browser/CLAUDE.md` for:
+  - Authentication flow patterns and cookie management
+  - OpenAPI client integration examples
+  - HTML content parsing strategies
+  - Error handling and debugging approaches
+
+## Future Development Considerations
+
+### Implemented Features
+- **Cookie Caching**: ✅ Implemented in `browser/cookie/cookie.go`
+  - JSON format storage with configurable temp directory
+  - Cookie validation with automatic fallback to password login
+  - Secure file permissions (0600) and expiration handling
+
+### API Expansion Opportunities
+- Enhanced search filters and pagination
+- User-specific content access (playlists, bookmarks)
+- In-book search functionality
+- Content summarization features
+
+## Security Considerations
+
+**Authentication Security:**
+- Environment variable credential storage (never hardcoded)
+- Cookie file permissions (0600) for cached authentication
+- Session timeout and cookie expiration handling
+- Rate limiting compliance with O'Reilly platform
+
+**Development Security:**
+- Debug mode controls for sensitive screenshot capture
+- Secure temporary directory configuration
+- Proper error handling without credential leakage

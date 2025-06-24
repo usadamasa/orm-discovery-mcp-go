@@ -1,28 +1,18 @@
-# Browser Package - O'Reilly API Implementation Guide
+# Browser Package Implementation Guide
 
-This file provides guidance for working with the browser package, which implements O'Reilly Learning Platform integration using a hybrid approach.
-
-## Architecture Overview
-
-**Current Implementation (Post-Refactoring)**:
-```
-Browser(Auth Only) → Go HTTP Client → O'Reilly Internal API → Structured JSON → Auto-Normalization
-```
-
-**Key Improvements**:
-- JavaScript reduced from 340+ lines to 1 line (99.7% reduction)
-- Direct HTTP API calls instead of DOM manipulation
-- Type-safe Go struct processing
-- Multiple endpoint fallback strategy
+現在の実装パターンと詳細ガイダンス for the browser package modules.
 
 ## Package Structure
 
 ```
 browser/
-├── types.go      # Type definitions and constants
-├── auth.go       # Authentication and session management  
-├── search.go     # Search API implementation
-└── operations.go # Other operations (collections, playlists, TOC)
+├── types.go           # 型定義とレスポンス構造体
+├── auth.go            # 認証とセッション管理
+├── search.go          # 検索API実装
+├── book.go            # 書籍操作とコンテンツ取得
+├── debug.go           # デバッグユーティリティ
+├── cookie/cookie.go   # クッキー管理とキャッシング
+└── generated/api/     # OpenAPI生成クライアント
 ```
 
 ## Core Components
@@ -30,257 +20,299 @@ browser/
 ### 1. Authentication (auth.go)
 
 **Primary Functions**:
-- `NewBrowserClient()` - Creates and initializes browser client with login
-- `login()` - Handles O'Reilly login with ACM IdP support
-- `RefreshSession()` - Updates authentication cookies
-- Cookie/JWT management functions
+- `NewBrowserClient()` - クッキー復元ロジック付きブラウザクライアント作成
+- `login()` - ACM IdP対応のO'Reillyログインフロー処理
+- `validateAuthentication()` - 保存されたクッキーの有効性検証
+- `Close()` - ブラウザリソースのクリーンアップ
 
 **Login Flow**:
-1. Navigate to `https://www.oreilly.com/member/login/`
-2. Input email and handle the Continue button
-3. Detect ACM IdP redirect if applicable
-4. Establish session at `https://learning.oreilly.com/`
-5. Extract authentication cookies
+1. Cookie restoration attempt via `LoadCookies()`
+2. Authentication validation at `https://learning.oreilly.com/home/`
+3. Fallback to password login if validation fails
+4. Navigate to `https://www.oreilly.com/member/login/`
+5. Handle ACM IdP redirects automatically  
+6. Extract and save authentication cookies via `SaveCookies()`
+
+**Key Implementation Patterns**:
+- **Cookie-first authentication**: クッキー復元 → 検証 → パスワードログインフォールバック
+- **ChromeDP browser automation**: 安定性のための特定フラグ付きヘッドレスChrome
+- **Bilingual logging**: 開発チーム向け日英バイリンガルログ出力
+- **Timeout management**: 60秒ログインタイムアウト + 包括的エラーハンドリング
 
 ### 2. Search Implementation (search.go)
 
-**Internal API Endpoints** (with fallback):
+**Core Functions**:
+- `SearchContent()` - O'Reilly内部API使用のプライマリ検索インターフェース
+- `makeHTTPSearchRequest()` - 生成されたOpenAPIクライアント使用の低レベルHTTP API呼び出し
+- `normalizeSearchResult()` - APIレスポンスバリエーションの複雑な正規化
+
+**API Integration**:
 ```go
-const (
-    APIEndpointV2       = "/api/v2/search/"           // Primary
-    APIEndpointSearch   = "/search/api/search/"       // Fallback 1
-    APIEndpointLegacy   = "/api/search/"              // Fallback 2
-    APIEndpointLearning = "/learningapi/v1/search/"   // Fallback 3
-)
+// Generated OpenAPI client usage
+client := generated.NewClient(APIEndpointBase)
+resp, err := client.SearchWithResponse(ctx, &generated.SearchParams{
+    Q:           &query,
+    Rows:        &rows,
+    TzOffset:    &tzOffset,
+    // ... other parameters
+})
 ```
 
-**Key Functions**:
-- `SearchContent()` - Main search implementation
-- `makeHTTPSearchRequest()` - Direct HTTP API calls
-- `normalizeSearchResult()` - Go-based result processing
+**Key Implementation Patterns**:
+- **OpenAPI code generation**: `browser/generated/api/`からの生成クライアント使用
+- **Robust field normalization**: 複数のAPIレスポンス形式対応
+- **Native Go processing**: JavaScriptではなくGoでの結果処理
+- **Cookie-based authentication**: APIリクエストに保存クッキー注入
 
-**API Parameters**:
-- `q` (required): Search query
-- `rows` (optional): Result count (default: 100)
-- `tzOffset` (optional): Timezone offset (default: -9 for JST)
-- `aia_only` (optional): AI-assisted content only (default: false)
-- `feature_flags` (optional): Feature flags (default: "improveSearchFilters")
-- `report` (optional): Include report data (default: true)
-- `isTopics` (optional): Topics search only (default: false)
+**Result Normalization Strategy**:
+```go
+// Multiple field extraction attempts
+title := raw.Title
+if title == "" { title = raw.BookTitle }
+if title == "" { title = raw.Name }
 
-### 3. Type Definitions (types.go)
+// URL normalization
+itemURL := raw.WebURL
+if itemURL == "" && raw.ProductID != "" {
+    itemURL = APIEndpointBase + "/library/view/-/" + raw.ProductID + "/"
+}
+```
+
+### 3. Book Operations (book.go)
+
+**Core Functions**:
+- `GetBookDetails()` - 包括的書籍メタデータのAPI経由取得
+- `GetBookTOC()` - 目次構造の取得
+- `GetBookChapterContent()` - フル章コンテンツの抽出と解析
+- `parseHTMLContent()` - HTMLの構造化コンテンツへの解析
+
+**Content Extraction Flow**:
+```go
+// 3-step content extraction
+1. TOC lookup: GetBookTOC(productID)
+2. URL resolution: match chapter name to TOC entries
+3. HTML parsing: GetChapterHTMLContent() + parseHTMLContent()
+```
+
+**Key Implementation Patterns**:
+- **API-first approach**: メタデータ用生成OpenAPIクライアント使用
+- **HTML parsing with golang.org/x/net/html**: ブラウザDOMではなくネイティブGoHTMLパース
+- **Structured content representation**: HTMLの構造化セクション、見出し、コードブロックへの変換
+- **Comprehensive element handling**: `h1-h6`, `p`, `pre`, `code`, `img`, `a`タグ処理
+
+**HTML Content Structure**:
+```go
+type ParsedChapterContent struct {
+    Sections []ContentSection `json:"sections"`
+    Metadata map[string]interface{} `json:"metadata"`
+}
+
+type ContentSection struct {
+    Type     string                 `json:"type"` // "heading", "paragraph", "code", etc.
+    Content  string                 `json:"content"`
+    Level    int                    `json:"level,omitempty"` // for headings
+    Language string                 `json:"language,omitempty"` // for code blocks
+    Children []ContentSection       `json:"children,omitempty"`
+}
+```
+
+### 4. Type Definitions (types.go)
 
 **Core Structures**:
 ```go
-type SearchAPIResponse struct {
-    Data    *SearchDataContainer `json:"data,omitempty"`
-    Results []RawSearchResult   `json:"results,omitempty"`
-    Items   []RawSearchResult   `json:"items,omitempty"`
-    Hits    []RawSearchResult   `json:"hits,omitempty"`
+type BrowserClient struct {
+    ctx           context.Context
+    cancel        context.CancelFunc
+    httpClient    *http.Client
+    cookies       []*http.Cookie
+    cookieManager cookie.Manager
+    tmpDir        string
+    debug         bool
 }
 
-type RawSearchResult struct {
-    ID                     string   `json:"id,omitempty"`
-    ProductID              string   `json:"product_id,omitempty"`
-    Title                  string   `json:"title,omitempty"`
-    WebURL                 string   `json:"web_url,omitempty"`
-    Authors                []string `json:"authors,omitempty"`
-    ContentType            string   `json:"content_type,omitempty"`
-    Description            string   `json:"description,omitempty"`
-    Publisher              string   `json:"publisher,omitempty"`
-    PublishedDate          string   `json:"published_date,omitempty"`
-    // ... 15+ additional fields
+type BookDetailResponse struct {
+    ProductID          string            `json:"product_id"`
+    Title              string            `json:"title"`
+    Authors            []string          `json:"authors"`
+    Publisher          string            `json:"publisher"`
+    PublishedDate      string            `json:"published_date"`
+    Description        string            `json:"description"`
+    Topics             []string          `json:"topics"`
+    WebURL             string            `json:"web_url"`
+    TableOfContents    []TableOfContentsItem `json:"table_of_contents"`
+    Metadata           map[string]interface{} `json:"metadata"`
 }
 ```
 
-### 4. Operations (operations.go)
+**Key Implementation Patterns**:
+- **Comprehensive JSON tagging**: 全エクスポートフィールドの完全なJSONタグ付け
+- **Metadata maps**: 追加データストレージ用の柔軟なメタデータマップ
+- **Rich content modeling**: 異なるコンテンツ要素用の分離型定義
 
-**Implemented**:
-- `GetCollectionsFromHomePage()` - Extract homepage collections
+### 5. Cookie Management (cookie/cookie.go)
 
-**Placeholder (for future implementation)**:
-- `GetPlaylistsFromPlaylistsPage()` - List user playlists
-- `CreatePlaylist()` - Create new playlists
-- `AddContentToPlaylist()` - Add content to playlists
-- `GetPlaylistDetails()` - Get playlist details
-- `ExtractTableOfContents()` - Extract book TOC
-- `SearchInBook()` - In-book content search
+**Core Functions**:
+- `NewCookieManager()` - クッキーマネージャーファクトリー関数
+- `SaveCookies()` - ブラウザクッキーのJSONへの抽出と永続化
+- `LoadCookies()` - ファイルからブラウザコンテキストへのクッキー復元
+- `CookieFileExists()` / `DeleteCookieFile()` - ファイル管理ユーティリティ
+
+**Key Implementation Patterns**:
+- **Interface-based design**: 異なる実装を可能にする`Manager`インターフェース
+- **Selective cookie filtering**: 認証関連クッキーのみ保存
+- **Security-conscious permissions**: 0600権限でのクッキーファイル保存
+- **Robust expiration logic**: セッションクッキーと期限付きクッキー両方の処理
+
+**Authentication Cookies**:
+```go
+var authCookieNames = map[string]bool{
+    "orm-jwt":         true, // JWT authentication token
+    "groot_sessionid": true, // Session ID
+    "orm-rt":          true, // Refresh token
+    "userid":          true, // User ID
+    // ... other auth-related cookies
+}
+```
+
+### 6. Debug Utilities (debug.go)
+
+**Core Functions**:
+- `debugScreenshot()` - デバッグ用条件付きスクリーンショット撮影
+
+**Key Implementation Patterns**:
+- **Environment-controlled debugging**: `bc.debug`がtrueの時のみ実行
+- **Silent failure**: エラーがメインフローを中断せず、警告ログのみ
+- **Descriptive naming**: デバッグコンテキスト用の意味のある名前でスクリーンショット保存
 
 ## Implementation Patterns
 
-### HTTP API Client Pattern
+### Cookie-First Authentication Pattern
 ```go
-// 1. Get authentication cookies from browser
-err := chromedp.Run(bc.ctx,
-    chromedp.Navigate("https://learning.oreilly.com/search/"),
-    chromedp.ActionFunc(func(ctx context.Context) error {
-        // Update cookies from browser context
-        cookiesResp, _ := network.GetCookies().Do(ctx)
-        bc.cookies = convertCookies(cookiesResp)
-        return nil
-    }),
-)
-
-// 2. Make direct HTTP API calls with Go client
-for _, endpoint := range endpoints {
-    apiResponse, err := bc.makeHTTPSearchRequest(endpoint, query, ...)
-    if err == nil {
-        // Success - normalize and return results
-        break
+// 1. Attempt cookie restoration
+if bc.cookieManager.CookieFileExists() {
+    if err := bc.cookieManager.LoadCookies(bc.ctx); err == nil {
+        // 2. Validate restored cookies
+        if err := bc.validateAuthentication(); err == nil {
+            return nil // Success - cookies are valid
+        }
     }
+}
+
+// 3. Fallback to password login
+return bc.login()
+```
+
+### OpenAPI Client Integration Pattern
+```go
+// Generated client usage with cookie authentication
+client := generated.NewClient(APIEndpointBase)
+
+// Cookie injection for authentication
+req.Header.Set("Cookie", cookieHeader)
+
+// API call with parameters
+resp, err := client.SearchWithResponse(ctx, &generated.SearchParams{
+    Q:    &query,
+    Rows: &rows,
+})
+```
+
+### HTML Content Parsing Pattern
+```go
+func parseHTMLContent(htmlContent string) (*ParsedChapterContent, error) {
+    doc, err := html.Parse(strings.NewReader(htmlContent))
+    if err != nil {
+        return nil, err
+    }
+    
+    var sections []ContentSection
+    parseNode(doc, &sections, 0)
+    
+    return &ParsedChapterContent{
+        Sections: sections,
+        Metadata: map[string]interface{}{
+            "parsing_method": "golang_html_parser",
+            "parsed_at":      time.Now().Format(time.RFC3339),
+        },
+    }, nil
 }
 ```
 
-### Result Normalization Pattern
-```go
-func normalizeSearchResult(raw RawSearchResult, index int) map[string]interface{} {
-    // URL normalization
-    itemURL := raw.WebURL
-    if itemURL == "" && raw.ProductID != "" {
-        itemURL = "https://learning.oreilly.com/library/view/-/" + raw.ProductID + "/"
-    }
-    
-    // Author normalization
-    var authors []string
-    if len(raw.Authors) > 0 {
-        authors = raw.Authors
-    } else if raw.Author != "" {
-        authors = []string{raw.Author}
-    }
-    
-    return map[string]interface{}{
-        "id":             raw.ProductID,
-        "title":          raw.Title,
-        "authors":        authors,
-        "content_type":   raw.ContentType,
-        "url":            itemURL,
-        "source":         "api_search_oreilly",
-    }
-}
-```
+## Architecture Decisions
 
-### Minimal JavaScript Pattern
-```javascript
-// Only used for browser context - domain name extraction
-window.location.hostname
-```
+### 1. API-First Design
+- **Generated OpenAPI clients** for consistent API interaction
+- **Type safety** through generated structs and interfaces
+- **Automatic serialization/deserialization** of API responses
 
-## Error Handling & Fallbacks
+### 2. Browser Automation Strategy
+- **ChromeDP for authentication only** - not for content scraping
+- **HTTP APIs for content** - faster and more reliable than DOM scraping
+- **Cookie-based session management** - maintain authentication across API calls
 
-### 1. Multiple API Endpoint Strategy
-- Try primary endpoint first (`/api/v2/search/`)
-- Automatic fallback to secondary endpoints
-- Detailed logging for each attempt
-- Fail fast with appropriate error messages
+### 3. Structured Content Processing
+- **Native Go HTML parsing** instead of JavaScript execution
+- **Rich content modeling** with separate types for different elements
+- **Comprehensive normalization** to handle API response variations
 
-### 2. Authentication Resilience
-- Browser session re-establishment
-- Cookie validation and refresh
-- ACM IdP flow handling
-- Multiple URL access attempts
-
-### 3. HTTP Client Error Handling
-- Status code specific responses
-- Timeout configuration (30 seconds)
-- JSON parsing error recovery
-- Comprehensive error logging
-
-## Environment Requirements
-
-### Required Environment Variables
-```bash
-OREILLY_USER_ID=your_email@example.com
-OREILLY_PASSWORD=your_password
-PORT=8080
-TRANSPORT=stdio
-```
-
-### Browser Dependencies
-- Chrome or Chromium installation
-- Headless mode support
-- JavaScript execution environment
-
-## Performance Optimizations
-
-### 1. Go HTTP Client Benefits
-- **JavaScript execution reduction**: 340 lines → 1 line
-- **Direct API access**: No DOM parsing overhead
-- **Type-safe processing**: Native Go struct handling
-- **Parallel processing**: Multiple endpoint attempts
-
-### 2. Resource Optimization
-- **Minimal browser usage**: Authentication and cookie extraction only
-- **Context efficiency**: Reduced page navigation
-- **Memory reduction**: No large DOM element loading
-
-### 3. API Strategy Benefits
-- **Primary/fallback configuration**: High availability
-- **Response time improvement**: Direct internal API access
-- **Fast error recovery**: Quick fallback execution
-
-## Security Considerations
-
-### 1. Authentication Management
-- Environment variable credential storage
-- Session timeout handling
-- Cookie security validation
-
-### 2. Rate Limiting
-- Request interval management
-- Concurrent request limits
-- Platform compliance
-
-### 3. Data Privacy
-- Sensitive information masking in logs
-- Secure network communication
-- Temporary file cleanup
+### 4. Performance Optimization
+- **Cookie caching** to avoid repeated logins
+- **OpenAPI client reuse** for multiple API calls
+- **Structured error handling** with proper logging and debugging
 
 ## Development Guidelines
 
-### 1. Adding New Functionality
-- Follow the established pattern of minimal browser usage
-- Implement Go HTTP clients for new API endpoints
-- Use structured types for response handling
-- Add appropriate fallback mechanisms
+### Adding New API Endpoints
+1. Update `browser/openapi.yaml` with new endpoint specifications
+2. Run `task generate:api:oreilly` to regenerate client code
+3. Add wrapper functions in appropriate module (search.go, book.go, etc.)
+4. Implement response normalization for consistency
 
-### 2. Debugging
-- Use comprehensive logging throughout
-- Browser network monitoring for API discovery
-- HTTP response inspection
-- Cookie/session state validation
+### Error Handling Best Practices
+```go
+// Always log context for debugging
+if err != nil {
+    log.Printf("Error in %s: %v", functionName, err)
+    if bc.debug {
+        bc.debugScreenshot("error-context")
+    }
+    return nil, fmt.Errorf("operation failed: %w", err)
+}
+```
 
-### 3. Testing
-- Mock HTTP responses for unit tests
-- Browser automation integration tests
-- Error scenario validation
-- Performance benchmarking
+### Testing New Features
+```bash
+# Test individual functions
+go test ./browser -v -run TestSpecificFunction
 
-## Future Considerations
+# Integration testing with real API
+go run . test "search query"
 
-### 1. API Endpoint Evolution
-- Monitor O'Reilly internal API changes
-- Maintain multiple endpoint fallbacks
-- Update Go structs for new response formats
+# Debug mode testing
+ORM_MCP_GO_DEBUG=true go run . test "search query"
+```
 
-### 2. Authentication Flow Changes
-- ACM IdP integration updates
-- New institutional login support
-- OAuth/SSO integration possibilities
+### Cookie Management Guidelines
+- **Always validate cookies** before using for API calls
+- **Handle cookie expiration** gracefully with fallback to login
+- **Use interface-based design** for testability and flexibility
+- **Secure file permissions** for cookie storage (0600)
 
-### 3. Feature Extensions
-- Additional content type support
-- Advanced search filters
-- User-specific content access
-- Real-time content updates
+## Configuration
 
-## Key Benefits of Current Implementation
+### Environment Variables
+- `ORM_MCP_GO_DEBUG=true` - Enable debug logging and screenshots
+- `ORM_MCP_GO_TMP_DIR=/path/to/tmp` - Custom temporary directory for cookies and screenshots
 
-| Aspect | Improvement |
-|--------|-------------|
-| **JavaScript Dependency** | 99.7% reduction (340+ lines → 1 line) |
-| **Maintainability** | Single large file → 4 focused modules |
-| **Performance** | DOM parsing → Direct API calls |
-| **Reliability** | Single point of failure → Multi-endpoint fallback |
-| **Type Safety** | Dynamic extraction → Static Go structs |
+### Browser Configuration
+```go
+// ChromeDP options for stability
+opts := append(chromedp.DefaultExecAllocatorOptions[:],
+    chromedp.Flag("headless", true),
+    chromedp.Flag("disable-gpu", true),
+    chromedp.Flag("no-sandbox", true),
+    chromedp.Flag("disable-dev-shm-usage", true),
+)
+```
 
-This implementation represents a significant evolution from DOM-based scraping to API-first integration, providing better performance, reliability, and maintainability while minimizing JavaScript dependencies.
+This implementation guide reflects the current state of the browser package with its modern API-first approach, sophisticated cookie management, and robust error handling patterns.

@@ -142,27 +142,12 @@ MCPクライアントは以下のリソーステンプレートを使用して�
 
 ## 認証
 
-### 環境変数設定（ブラウザベース認証）
+ヘッドレスブラウザによる自動ログイン。環境変数で認証情報を設定：
 
 ```bash
-export OREILLY_USER_ID="your_email@acm.org"
-export OREILLY_PASSWORD="your_password"
+OREILLY_USER_ID=your_email@acm.org
+OREILLY_PASSWORD=your_password
 ```
-
-### 認証方式
-
-このサーバーはヘッドレスブラウザを使用して自動的にO'Reillyにログインします：
-
-1. **自動ログイン**: 環境変数のユーザーID/パスワードでログイン
-2. **ACM対応**: ACM IDPリダイレクトを自動処理
-3. **セッション管理**: ログイン後のCookieを自動取得・管理
-
-### 必要な認証情報
-
-| 変数名 | 説明 | 例 |
-|-------|------|---|
-| `OREILLY_USER_ID` | O'Reillyのメールアドレス | your_email@acm.org |
-| `OREILLY_PASSWORD` | O'Reillyのパスワード | your_password |
 
 ## エラーレスポンス
 
@@ -192,31 +177,9 @@ export OREILLY_PASSWORD="your_password"
 }
 ```
 
-## サーバー設定
-
-### 環境変数
-
-| 変数名 | デフォルト値 | 説明 |
-|-------|-------------|------|
-| `PORT` | 8080 | HTTPサーバーのポート番号 |
-| `TRANSPORT` | stdio | 通信方式（stdio/http） |
-| `ORM_MCP_GO_DEBUG` | false | デバッグモード |
-
-### 起動方法
-
-```bash
-# 開発環境
-go run .
-
-# 本番環境
-go build -o orm-discovery-mcp-go
-./orm-discovery-mcp-go
-```
-
 ## 制限事項
 
-- ブラウザ操作のため、通常のAPI呼び出しよりも処理時間が長くなる場合があります
-- ヘッドレスブラウザ（Chrome）が必要です
-- ログインセッションには有効期限があり、長時間使用しない場合は再ログインが必要です
-- 地域によってアクセス可能なコンテンツが異なる場合があります
-- O'Reillyのページ構造変更により、一部の機能が影響を受ける可能性があります
+- ヘッドレスブラウザが必要（Chrome/Chromium）
+- 処理時間は通常のAPI呼び出しより長い
+- セッション有効期限あり（長時間不使用時は再ログイン）
+- O'Reillyのページ構造変更の影響を受ける可能性
