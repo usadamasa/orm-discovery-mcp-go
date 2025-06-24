@@ -57,8 +57,5 @@ jobs:
           exit 1
         fi
 
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-        args: --timeout=5m
+    - name: Run lint
+      run: task lint

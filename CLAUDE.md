@@ -28,12 +28,44 @@ This project uses [Task](https://taskfile.dev/) for build automation:
 # List available tasks
 task --list
 
-# Generate OpenAPI client code
-task generate:api:oreilly
+# Development workflow
+task dev              # Format + Lint + Test
+task ci               # Complete CI workflow
+task check            # Quick code quality check
 
-# Clean generated code
-task clean:generated
+# Individual tasks
+task format           # Format code
+task lint             # Run linter
+task test             # Run tests
+task build            # Build binary
+task generate:api:oreilly  # Generate OpenAPI client code
+
+# Cleaning
+task clean:all        # Clean everything
+task clean:generated  # Clean generated code only
 ```
+
+#### Task Categories and Dependencies
+
+**Code Generation:**
+- `generate:api:oreilly` - Generates client from OpenAPI spec
+
+**Code Quality:**
+- `format` - Formats Go code with goimports and go fmt
+- `lint` - Runs golangci-lint (depends on format)
+
+**Testing:**
+- `test` - Runs Go tests (depends on generate:api:oreilly)
+- `test:coverage` - Runs tests with coverage report
+
+**Building:**
+- `build` - Standard build (depends on generate:api:oreilly, lint)
+- `build:release` - Optimized release build (depends on generate:api:oreilly, lint, test)
+
+**Composite Workflows:**
+- `dev` - Development workflow (format + lint + test)
+- `ci` - Complete CI workflow (generate + format + lint + test:coverage + build)
+- `check` - Quick quality check (format + lint)
 
 ### OpenAPI Code Generation
 
@@ -207,3 +239,92 @@ The application includes built-in test modes accessible via command line:
 - The browser automation may be slower than direct API calls but provides access to content not available through public
   APIs
 - ACM (Association for Computing Machinery) institutional login is automatically detected and handled
+
+## Task Completion Quality Assurance
+
+### CRITICAL REQUIREMENT: Test and Build Verification
+
+**MANDATORY**: Before completing any development task, you MUST ensure that both tests and builds succeed. This is a non-negotiable requirement for maintaining code quality and project stability.
+
+#### Required Verification Steps
+
+**For ANY code changes, you MUST run:**
+
+```bash
+task ci    # Complete CI workflow including tests and build
+```
+
+**If `task ci` fails, the task is NOT complete until all issues are resolved.**
+
+#### Alternative Verification Commands
+
+If you need to run individual steps:
+
+```bash
+# Step 1: Ensure code quality
+task check              # Format + Lint
+
+# Step 2: Ensure functionality  
+task test              # Run all tests
+
+# Step 3: Ensure buildability
+task build             # Build the project
+```
+
+#### What Must Pass
+
+1. **Code Quality Checks**:
+   - `task format` - Code formatting must be consistent
+   - `task lint` - All linting rules must pass (0 issues)
+
+2. **Functionality Tests**:
+   - `task test` - All tests must pass without errors
+   - No test failures or panics allowed
+
+3. **Build Verification**:
+   - `task build` - Project must compile successfully
+   - No compilation errors allowed
+
+#### When to Run Verification
+
+**ALWAYS run verification after:**
+- Adding new code or features
+- Modifying existing code
+- Refactoring
+- Updating dependencies
+- Making configuration changes
+- Before committing changes
+
+#### Failure Resolution
+
+**If any verification step fails:**
+
+1. **Fix the issue immediately** - Do not proceed with other tasks
+2. **Re-run the failed step** to confirm the fix
+3. **Run `task ci`** to ensure overall project health
+4. **Only then consider the task complete**
+
+#### Exception Policy
+
+**There are NO exceptions to this requirement.** Even for:
+- Documentation-only changes (may affect build/generate tasks)
+- Configuration updates (may affect functionality)  
+- "Minor" code changes (may have unexpected side effects)
+
+#### CI Integration
+
+The GitHub Actions CI pipeline enforces these same requirements:
+- All tasks in `task ci` must pass for PRs to be mergeable
+- Local verification prevents CI failures and speeds up development
+
+#### Summary
+
+**Task completion checklist:**
+- [ ] Code changes implemented
+- [ ] `task ci` executed successfully  
+- [ ] All tests pass
+- [ ] Build succeeds
+- [ ] No linting errors
+- [ ] Task is now complete
+
+**Remember: A task is only complete when `task ci` passes without errors.**

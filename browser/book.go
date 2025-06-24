@@ -258,7 +258,11 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 	if err != nil {
 		return nil, fmt.Errorf("目次APIエンドポイントが失敗しました: %v", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		if err := httpResp.Body.Close(); err != nil {
+			log.Printf("Warning: failed to close response body: %v", err)
+		}
+	}()
 
 	// Read the raw response body
 	bodyBytes, err := io.ReadAll(httpResp.Body)
@@ -464,54 +468,6 @@ func (bc *BrowserClient) getChapterTitleFromTOC(productID, chapterName string) (
 	return "", fmt.Errorf("chapter '%s' not found in TOC for book %s", chapterName, productID)
 }
 
-// getChapterMetadata retrieves chapter metadata (JSON) from O'Reilly API
-func (bc *BrowserClient) getChapterMetadata(productID, chapterName string) (map[string]interface{}, string, error) {
-	// Only try the metadata endpoint that actually works
-	endpoint := fmt.Sprintf("/api/v1/book/%s/chapter/%s.html", productID, chapterName)
-	fullURL := APIEndpointBase + endpoint
-
-	log.Printf("チャプターメタデータAPIを試行しています: %s", endpoint)
-
-	req, err := http.NewRequest("GET", fullURL, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers for JSON response
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	req.Header.Set("User-Agent", bc.userAgent)
-
-	// Add cookies
-	for _, cookie := range bc.cookies {
-		req.AddCookie(cookie)
-	}
-
-	resp, err := bc.httpClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, "", fmt.Errorf("API request failed with status %d", resp.StatusCode)
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var metadata map[string]interface{}
-	if err := json.Unmarshal(bodyBytes, &metadata); err != nil {
-		return nil, "", fmt.Errorf("failed to parse JSON metadata: %w", err)
-	}
-
-	log.Printf("チャプターメタデータ取得に成功しました: %s", endpoint)
-	return metadata, fullURL, nil
-}
-
 // getContentFromURL retrieves HTML/XHTML content from the specified URL with authentication
 func (bc *BrowserClient) getContentFromURL(contentURL string) (string, error) {
 	// Determine content type from URL
@@ -549,7 +505,11 @@ func (bc *BrowserClient) getContentFromURL(contentURL string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Warning: failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("content request failed with status %d", resp.StatusCode)
@@ -562,7 +522,11 @@ func (bc *BrowserClient) getContentFromURL(contentURL string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gzipReader.Close()
+		defer func() {
+			if err := gzipReader.Close(); err != nil {
+				log.Printf("Warning: failed to close gzip reader: %v", err)
+			}
+		}()
 		reader = gzipReader
 	}
 
