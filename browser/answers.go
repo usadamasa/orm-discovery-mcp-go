@@ -53,6 +53,7 @@ func createQuestionRequest(question string) QuestionRequest {
 }
 
 // SubmitQuestion submits a question to O'Reilly Answers and returns the question ID
+// NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, error) {
 	log.Printf("質問を送信します: %s", question)
 
@@ -112,6 +113,7 @@ func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, err
 }
 
 // GetAnswer retrieves the answer for a submitted question
+// NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*AnswerResponse, error) {
 	log.Printf("回答を取得中: %s", questionID)
 
@@ -218,6 +220,7 @@ func convertAnswerData(data *api.AnswerData) AnswerData {
 }
 
 // AskQuestion asks a question and polls for the answer until completion
+// NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) AskQuestion(question string, maxWaitTime time.Duration) (*AnswerResponse, error) {
 	log.Printf("質問を開始します: %s", question)
 
@@ -267,6 +270,7 @@ func (bc *BrowserClient) AskQuestion(question string, maxWaitTime time.Duration)
 }
 
 // GetQuestionByID retrieves a previously asked question and its answer
+// NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) GetQuestionByID(questionID string) (*AnswerResponse, error) {
 	log.Printf("質問IDで回答を取得: %s", questionID)
 	return bc.GetAnswer(questionID, true)

@@ -114,9 +114,12 @@ func (s *Server) registerHandlers() {
 	s.mcpServer.AddTool(searchTool, s.SearchContentHandler)
 
 	// Add ask question tool
+	// NOTE: This functionality has not been fully tested in production
 	askQuestionTool := mcp.NewTool("ask_question",
 		mcp.WithDescription(`
 			Ask a natural language question to O'Reilly Answers AI and receive a comprehensive answer with references.
+			
+			NOTE: This functionality has not been fully tested in production and may not work as expected.
 			
 			This tool uses O'Reilly's AI-powered question answering service to provide detailed responses based on 
 			O'Reilly's vast library of technical content. The response includes:
@@ -174,6 +177,7 @@ func (s *Server) registerResources() {
 	s.mcpServer.AddResource(bookChapterResource, s.GetBookChapterContentResource)
 
 	// 回答リソースの登録
+	// NOTE: This functionality has not been fully tested in production
 	answerResource := mcp.NewResource(
 		"oreilly://answer/{question_id}",
 		"O'Reilly Answers Response",
@@ -296,6 +300,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 }
 
 // AskQuestionHandler processes question requests for O'Reilly Answers
+// NOTE: This functionality has not been fully tested in production
 func (s *Server) AskQuestionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	log.Printf("質問リクエスト受信: %+v", request)
 
@@ -573,6 +578,7 @@ func (s *Server) GetBookChapterContentResourceTemplate(ctx context.Context, requ
 }
 
 // GetAnswerResource handles answer resource requests
+// NOTE: This functionality has not been fully tested in production
 func (s *Server) GetAnswerResource(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	log.Printf("回答リソース取得リクエスト受信: %+v", request)
 
