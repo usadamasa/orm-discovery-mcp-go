@@ -135,7 +135,7 @@ func (s *Server) registerHandlers() {
 		`),
 		mcp.WithString("question",
 			mcp.Required(),
-			mcp.Description("Natural language question about technical topics, programming, data science, cloud computing, etc. (e.g., 'How do I build a data lake on S3?', 'What are the best practices for React performance optimization?')"),
+			mcp.Description("Natural language question about technical topics, programming, data science, cloud computing, etc. IMPORTANT: Questions must be written in English for optimal AI processing. (e.g., 'How do I build a data lake on S3?', 'What are the best practices for React performance optimization?')"),
 		),
 		mcp.WithNumber("max_wait_time_seconds",
 			mcp.Description("Maximum time to wait for answer generation in seconds (default: 300, max: 600)"),
