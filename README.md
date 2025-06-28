@@ -46,16 +46,24 @@ claude mcp add -s user orm-discovery-mcp-go \
 ## 機能
 
 ### MCPツール
-- **`search_content`**: O'Reillyコンテンツの検索
+- **`search_content`**: O'Reillyコンテンツの検索（書籍、動画、記事の発見）
+- **`ask_question`**: O'Reilly Answers AIへの自然言語での質問
 
 ### MCPリソース
 - **`oreilly://book-details/{product_id}`**: 書籍詳細情報
 - **`oreilly://book-toc/{product_id}`**: 書籍目次
 - **`oreilly://book-chapter/{product_id}/{chapter_name}`**: チャプター内容
+- **`oreilly://answer/{question_id}`**: AI生成回答の取得
 
 ### 利用フロー
+
+#### コンテンツ検索・アクセス
 1. `search_content`で検索 → `product_id`取得
 2. `book-details`で書籍情報確認
 3. `book-chapter`で必要な章を取得
+
+#### AI質問応答
+1. `ask_question`で技術的な質問を投稿 → `question_id`取得
+2. `oreilly://answer/{question_id}`でAI生成回答を取得
 
 詳細は[API_REFERENCE.md](API_REFERENCE.md)を参照してください。

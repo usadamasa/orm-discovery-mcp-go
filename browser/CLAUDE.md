@@ -10,6 +10,7 @@ browser/
 ├── auth.go            # 認証とセッション管理
 ├── search.go          # 検索API実装
 ├── book.go            # 書籍操作とコンテンツ取得
+├── answers.go         # O'Reilly Answers AI質問応答実装
 ├── debug.go           # デバッグユーティリティ
 ├── cookie/cookie.go   # クッキー管理とキャッシング
 └── generated/api/     # OpenAPI生成クライアント
@@ -78,7 +79,51 @@ if itemURL == "" && raw.ProductID != "" {
 }
 ```
 
-### 3. Book Operations (book.go)
+### 3. O'Reilly Answers Implementation (answers.go)
+
+**Core Functions**:
+- `AskQuestion()` - O'Reilly Answers AI経由の質問送信とポーリングによる回答待機
+- `GetQuestionByID()` - 質問IDによる保存済み回答の取得
+- `createQuestionRequest()` - デフォルトパラメータ付き質問リクエスト作成
+- `submitQuestion()` - 生成されたOpenAPIクライアント使用の質問送信
+- `pollForAnswer()` - 回答生成完了まで定期的なステータス確認
+
+**Question Submission Flow**:
+```go
+// 3-step question processing
+1. Question submission: createQuestionRequest() + submitQuestion()
+2. Polling loop: pollForAnswer() with configurable timeout
+3. Response parsing: comprehensive answer with sources and metadata
+```
+
+**Key Implementation Patterns**:
+- **OpenAPI client integration**: 生成されたクライアント使用の質問API呼び出し
+- **Polling-based answer retrieval**: 回答生成完了まで定期的なステータス確認
+- **Comprehensive response structure**: 回答、ソース、関連リソース、フォローアップ質問を含む
+- **Timeout management**: 設定可能な最大待機時間と適切なエラーハンドリング
+
+**Answer Response Structure**:
+```go
+type AnswerResponse struct {
+    QuestionID     string        `json:"question_id"`
+    IsFinished     bool          `json:"is_finished"`
+    MisoResponse   MisoResponse  `json:"miso_response"`
+}
+
+type MisoResponse struct {
+    Data AnswerData `json:"data"`
+}
+
+type AnswerData struct {
+    Answer              string                `json:"answer"`
+    Sources             []AnswerSource        `json:"sources"`
+    RelatedResources    []RelatedResource     `json:"related_resources"`
+    AffiliationProducts []AffiliationProduct  `json:"affiliation_products"`
+    FollowupQuestions   []string             `json:"followup_questions"`
+}
+```
+
+### 4. Book Operations (book.go)
 
 **Core Functions**:
 - `GetBookDetails()` - 包括的書籍メタデータのAPI経由取得

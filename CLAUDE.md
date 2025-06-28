@@ -155,7 +155,7 @@ The server exposes the following MCP capabilities:
 | Tool               | Description                                         |
 |--------------------|-----------------------------------------------------|
 | `search_content`   | Content discovery and search - returns book/video/article listings with product IDs for use with resources |
-| `ask_question`     | Natural language Q&A using O'Reilly Answers - submit questions and get AI-generated answers with sources |
+| `ask_question`     | Natural language Q&A using O'Reilly Answers AI - submit technical questions and receive comprehensive AI-generated answers with citations, sources, related resources, and follow-up suggestions |
 
 #### MCP Resources  
 | Resource URI Pattern | Description | Example |
@@ -181,9 +181,14 @@ The server provides resource templates for dynamic discovery, allowing MCP clien
 4. Access specific chapter content via `oreilly://book-chapter/{product_id}/{chapter_name}` resource
 
 **Natural Language Q&A:**
-1. Use `ask_question` tool to submit questions to O'Reilly Answers AI service
-2. Receive `question_id` in response for tracking the answer generation process
-3. Access answers via `oreilly://answer/{question_id}` resource once generation is complete
+1. Use `ask_question` tool to submit technical questions to O'Reilly Answers AI service
+2. Receive comprehensive response including:
+   - AI-generated answer with markdown formatting
+   - Source citations and references
+   - Related resources for further reading
+   - Suggested follow-up questions
+   - `question_id` for future reference
+3. Optionally access stored answers via `oreilly://answer/{question_id}` resource
 
 #### Citation Requirements
 **IMPORTANT**: All content accessed through these resources must be properly cited with:
