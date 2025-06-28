@@ -111,7 +111,7 @@ func setupLogger(config *Config) {
 	}
 
 	// テキストハンドラーを作成
-	handler := slog.NewTextHandler(os.Stdout, opts)
+	handler := slog.NewTextHandler(os.Stderr, opts)
 
 	// デフォルトロガーを設定
 	slog.SetDefault(slog.New(handler))
