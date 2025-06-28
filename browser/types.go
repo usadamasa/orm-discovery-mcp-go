@@ -17,6 +17,7 @@ type BrowserClient struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	httpClient    *http.Client
+	cookieJar     http.CookieJar
 	cookies       []*http.Cookie
 	userAgent     string
 	cookieManager cookie.Manager
@@ -135,4 +136,75 @@ type LinkReference struct {
 	Href string `json:"href"`
 	Text string `json:"text"`
 	Type string `json:"type"` // "external", "internal", "anchor"
+}
+
+// Answer types for O'Reilly Answers API integration
+
+// QuestionRequest represents a request to submit a question to O'Reilly Answers
+type QuestionRequest struct {
+	Question              string         `json:"question"`
+	FilterQuery           string         `json:"fq"`
+	SourceFields          []string       `json:"source_fl"`
+	RelatedResourceFields []string       `json:"related_resource_fl"`
+	PipelineConfig        PipelineConfig `json:"_pipeline_config"`
+}
+
+// PipelineConfig represents configuration for the answer generation pipeline
+type PipelineConfig struct {
+	SnippetLength   int `json:"snippet_length"`
+	HighlightLength int `json:"highlight_length"`
+}
+
+// QuestionResponse represents the response from question submission
+type QuestionResponse struct {
+	QuestionID string `json:"question_id"`
+	Status     string `json:"status"`
+	Message    string `json:"message"`
+}
+
+// AnswerResponse represents the response containing the answer to a submitted question
+type AnswerResponse struct {
+	QuestionID   string       `json:"question_id"`
+	IsFinished   bool         `json:"is_finished"`
+	MisoResponse MisoResponse `json:"miso_response"`
+}
+
+// MisoResponse represents the AI-generated response data
+type MisoResponse struct {
+	Data AnswerData `json:"data"`
+}
+
+// AnswerData represents the core answer data with content and references
+type AnswerData struct {
+	Answer              string               `json:"answer"`
+	Sources             []AnswerSource       `json:"sources"`
+	RelatedResources    []RelatedResource    `json:"related_resources"`
+	AffiliationProducts []AffiliationProduct `json:"affiliation_products"`
+	FollowupQuestions   []string             `json:"followup_questions"`
+}
+
+// AnswerSource represents a source document used to generate the answer
+type AnswerSource struct {
+	Title      string   `json:"title"`
+	URL        string   `json:"url"`
+	Authors    []string `json:"authors"`
+	CoverImage string   `json:"cover_image"`
+	Excerpt    string   `json:"excerpt"`
+}
+
+// RelatedResource represents a related resource for additional reading
+type RelatedResource struct {
+	Title       string   `json:"title"`
+	URL         string   `json:"url"`
+	Authors     []string `json:"authors"`
+	ContentType string   `json:"content_type"`
+}
+
+// AffiliationProduct represents an O'Reilly product related to the answer
+type AffiliationProduct struct {
+	ProductID   string   `json:"product_id"`
+	Title       string   `json:"title"`
+	URL         string   `json:"url"`
+	Authors     []string `json:"authors"`
+	ContentType string   `json:"content_type"`
 }

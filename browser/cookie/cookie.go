@@ -177,20 +177,27 @@ func (cm *ManagerImpl) DeleteCookieFile() error {
 
 // isImportantCookie は保存すべき重要なCookieかどうかを判定する
 func (cm *ManagerImpl) isImportantCookie(name string) bool {
-	importantCookies := []string{
-		"orm-jwt",         // JWT authentication token
-		"groot_sessionid", // Session ID
-		"orm-rt",          // Refresh token
-		"orm-cookie",      // Auth cookie
-		"csrf_token",      // CSRF token
-		"JSESSIONID",      // Java session ID
-		"session",         // Generic session cookie
+	// 除外すべきCookieのリスト（一般的な分析・トラッキング系）
+	excludedCookies := []string{
+		"_ga",                                            // Google Analytics
+		"_gid",                                           // Google Analytics
+		"_gat",                                           // Google Analytics
+		"_gtm",                                           // Google Tag Manager
+		"_fbp",                                           // Facebook Pixel
+		"_hjid",                                          // Hotjar
+		"_hjIncludedInPageviewSample",                    // Hotjar
+		"optimizelyEndUserId",                            // Optimizely
+		"__utma", "__utmb", "__utmc", "__utmt", "__utmz", // Old Google Analytics
 	}
 
-	for _, important := range importantCookies {
-		if name == important {
-			return true
+	// 除外対象かチェック
+	for _, excluded := range excludedCookies {
+		if name == excluded {
+			return false
 		}
 	}
-	return false
+
+	// O'Reilly関連の全Cookieを保存する
+	// 認証、セッション、設定、機能関連のCookieを幅広く含める
+	return true
 }

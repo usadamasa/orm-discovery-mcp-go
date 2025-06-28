@@ -251,6 +251,87 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/miso-answers-relay-service/questions:
+    post:
+      operationId: submitQuestion
+      summary: Submit a question to O'Reilly Answers
+      description: Submit a natural language question to receive AI-generated answers with references
+      tags:
+        - answers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionRequest'
+      responses:
+        '200':
+          description: Question submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/miso-answers-relay-service/user-question-history/{questionId}/:
+    get:
+      operationId: getAnswer
+      summary: Get answer for a submitted question
+      description: Retrieve the answer for a previously submitted question, including completion status
+      tags:
+        - answers
+      parameters:
+        - name: questionId
+          in: path
+          required: true
+          description: Question ID returned from question submission
+          schema:
+            type: string
+            example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: include_unfinished
+          in: query
+          required: false
+          description: Include unfinished answers in response
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Answer retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerResponse'
+        '404':
+          description: Question not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   schemas:
     SearchAPIResponse:
@@ -804,6 +885,216 @@ components:
         table_of_contents:
           $ref: '#/components/schemas/TableOfContentsResponse'
     
+    QuestionRequest:
+      type: object
+      description: Request to submit a question to O'Reilly Answers
+      required:
+        - question
+        - fq
+        - source_fl
+        - related_resource_fl
+        - _pipeline_config
+      properties:
+        question:
+          type: string
+          description: The natural language question to ask
+          example: "How do I build a data lake on S3?"
+        fq:
+          type: string
+          description: Filter query for content types and permissions
+          example: "(type:book OR type:video OR type:article) AND language:(\"en\" OR \"EN\" OR \"en-au\" OR \"en-gb\" OR \"en-GB\" OR \"en-us\" OR \"en-US\") AND ( NOT custom_attributes.required_p_permissions:aia ) AND ( NOT custom_attributes.required_p_permissions:cldsc ) AND ( NOT custom_attributes.required_p_permissions:cprex ) AND ( NOT custom_attributes.required_p_permissions:lvtrg ) AND ( NOT custom_attributes.required_p_permissions:ntbks ) AND ( NOT custom_attributes.required_p_permissions:scnrio )"
+        source_fl:
+          type: array
+          description: Fields to include in source results
+          items:
+            type: string
+          example: [
+            "custom_attributes.ourn",
+            "custom_attributes.publishers",
+            "custom_attributes.marketing_type*",
+            "custom_attributes.required_p_permissions",
+            "url",
+            "cover_image",
+            "authors",
+            "html"
+          ]
+        related_resource_fl:
+          type: array
+          description: Fields to include in related resource results
+          items:
+            type: string
+          example: [
+            "custom_attributes.ourn",
+            "custom_attributes.publishers",
+            "custom_attributes.marketing_type*",
+            "custom_attributes.required_p_permissions",
+            "url",
+            "cover_image",
+            "authors",
+            "html"
+          ]
+        _pipeline_config:
+          $ref: '#/components/schemas/PipelineConfig'
+
+    PipelineConfig:
+      type: object
+      description: Configuration for the answer generation pipeline
+      properties:
+        snippet_length:
+          type: integer
+          description: Length of content snippets
+          example: 500
+        highlight_length:
+          type: integer
+          description: Length of highlighted content
+          example: 200
+
+    QuestionResponse:
+      type: object
+      description: Response from question submission
+      properties:
+        question_id:
+          type: string
+          description: Unique identifier for the submitted question
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        status:
+          type: string
+          description: Status of the question submission
+          example: "submitted"
+        message:
+          type: string
+          description: Response message
+          example: "Question submitted successfully"
+
+    AnswerResponse:
+      type: object
+      description: Response containing the answer to a submitted question
+      properties:
+        question_id:
+          type: string
+          description: Question identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        is_finished:
+          type: boolean
+          description: Whether the answer generation is complete
+          example: true
+        miso_response:
+          $ref: '#/components/schemas/MisoResponse'
+
+    MisoResponse:
+      type: object
+      description: The AI-generated response data
+      properties:
+        data:
+          $ref: '#/components/schemas/AnswerData'
+
+    AnswerData:
+      type: object
+      description: The core answer data with content and references
+      properties:
+        answer:
+          type: string
+          description: The AI-generated answer in markdown format
+          example: "To build a data lake on S3, you need to consider several key aspects..."
+        sources:
+          type: array
+          description: Source materials used to generate the answer
+          items:
+            $ref: '#/components/schemas/AnswerSource'
+        related_resources:
+          type: array
+          description: Additional related resources
+          items:
+            $ref: '#/components/schemas/RelatedResource'
+        affiliation_products:
+          type: array
+          description: O'Reilly products related to the question
+          items:
+            $ref: '#/components/schemas/AffiliationProduct'
+        followup_questions:
+          type: array
+          description: Suggested follow-up questions for deeper exploration
+          items:
+            type: string
+          example: [
+            "What are the best practices for data partitioning in S3?",
+            "How do I optimize costs when storing data in S3?",
+            "What security considerations should I keep in mind for S3 data lakes?"
+          ]
+
+    AnswerSource:
+      type: object
+      description: A source document used to generate the answer
+      properties:
+        title:
+          type: string
+          description: Title of the source
+          example: "Building Data-Intensive Applications"
+        url:
+          type: string
+          description: URL to the source
+          example: "https://learning.oreilly.com/library/view/designing-data-intensive/9781491903063/"
+        authors:
+          type: array
+          items:
+            type: string
+          description: Authors of the source
+          example: ["Martin Kleppmann"]
+        cover_image:
+          type: string
+          description: Cover image URL
+          example: "https://learning.oreilly.com/covers/9781491903063/250w/"
+        excerpt:
+          type: string
+          description: Relevant excerpt from the source
+          example: "Data lakes are repositories for storing raw data in its native format..."
+
+    RelatedResource:
+      type: object
+      description: A related resource for additional reading
+      properties:
+        title:
+          type: string
+          description: Title of the resource
+          example: "AWS Data Lake Implementation Guide"
+        url:
+          type: string
+          description: URL to the resource
+        authors:
+          type: array
+          items:
+            type: string
+          description: Authors of the resource
+        content_type:
+          type: string
+          description: Type of content (book, video, article)
+          example: "book"
+
+    AffiliationProduct:
+      type: object
+      description: An O'Reilly product related to the answer
+      properties:
+        product_id:
+          type: string
+          description: Product identifier
+          example: "9781491903063"
+        title:
+          type: string
+          description: Product title
+          example: "Designing Data-Intensive Applications"
+        url:
+          type: string
+          description: Product URL
+        authors:
+          type: array
+          items:
+            type: string
+          description: Product authors
+        content_type:
+          type: string
+          description: Product type
+          example: "book"
+
     ErrorResponse:
       type: object
       description: Error response
@@ -833,3 +1124,5 @@ tags:
     description: Search operations for O'Reilly content
   - name: books
     description: Book-related operations
+  - name: answers
+    description: AI-powered Q&A operations for O'Reilly content

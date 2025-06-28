@@ -84,35 +84,26 @@ This project includes OpenAPI specifications and code generation:
 ### Build the project
 
 ```bash
-go build .
+task build
 ```
 
 ### Run the MCP server (stdio mode)
 
 ```bash
-go run .
+bin/orm-discovery-mcp-go
 ```
 
 ### Run HTTP server mode
 
 ```bash
-export TRANSPORT=http
-export PORT=8080
-go run .
-```
-
-### Run search tests
-
-```bash
-go run . test
-go run . test "Docker"
-go run . test playlists
+source .env
+bin/orm-discovery-mcp-go
 ```
 
 ### Update dependencies
 
 ```bash
-go mod tidy
+task format
 ```
 
 ## High-Level Architecture
@@ -164,6 +155,7 @@ The server exposes the following MCP capabilities:
 | Tool               | Description                                         |
 |--------------------|-----------------------------------------------------|
 | `search_content`   | Content discovery and search - returns book/video/article listings with product IDs for use with resources |
+| `ask_question`     | Natural language Q&A using O'Reilly Answers - submit questions and get AI-generated answers with sources |
 
 #### MCP Resources  
 | Resource URI Pattern | Description | Example |
@@ -171,18 +163,27 @@ The server exposes the following MCP capabilities:
 | `oreilly://book-details/{product_id}` | Get comprehensive book information including title, authors, publication date, description, topics, and complete table of contents | `oreilly://book-details/9781098166298` |
 | `oreilly://book-toc/{product_id}` | Get detailed table of contents with chapter names, sections, and navigation structure | `oreilly://book-toc/9781098166298` |
 | `oreilly://book-chapter/{product_id}/{chapter_name}` | Extract full text content of a specific book chapter including headings, paragraphs, code examples, and structured elements | `oreilly://book-chapter/9781098166298/ch01` |
+| `oreilly://answer/{question_id}` | Retrieve answers from previously submitted questions to O'Reilly Answers service | `oreilly://answer/abc123-def456` |
 
 #### MCP Resource Templates
 The server provides resource templates for dynamic discovery, allowing MCP clients to understand available resource patterns:
 - `oreilly://book-details/{product_id}` - Template for book details access
 - `oreilly://book-toc/{product_id}` - Template for table of contents access  
 - `oreilly://book-chapter/{product_id}/{chapter_name}` - Template for chapter content access
+- `oreilly://answer/{question_id}` - Template for answer retrieval access
 
 #### Usage Workflow
+
+**Content Discovery and Access:**
 1. Use `search_content` tool to discover relevant books/content for specific technologies or concepts
 2. Extract `product_id` from search results  
 3. Access book details and structure via `oreilly://book-details/{product_id}` resource
 4. Access specific chapter content via `oreilly://book-chapter/{product_id}/{chapter_name}` resource
+
+**Natural Language Q&A:**
+1. Use `ask_question` tool to submit questions to O'Reilly Answers AI service
+2. Receive `question_id` in response for tracking the answer generation process
+3. Access answers via `oreilly://answer/{question_id}` resource once generation is complete
 
 #### Citation Requirements
 **IMPORTANT**: All content accessed through these resources must be properly cited with:
@@ -225,7 +226,7 @@ is used to:
 ## File Organization
 
 **Root Level:**
-- `main.go` - Entry point with test modes and CLI interface
+- `main.go` - Entry point with CLI interface
 - `server.go` - MCP server with tool and resource handlers
 - `config.go` - Configuration management and environment variable handling
 
@@ -243,14 +244,6 @@ is used to:
 - `browser/oapi-codegen.yaml` - Code generation configuration
 - `aqua.yaml` - Tool dependency management
 - `Taskfile.yml` - Build automation and workflow definitions
-
-## Testing
-
-The application includes built-in test modes accessible via command line:
-
-- General search testing: `go run . test`
-- Custom query testing: `go run . test "your query"`
-- Playlist functionality testing: `go run . test playlists`
 
 ## Important Notes
 
@@ -360,6 +353,107 @@ The GitHub Actions CI pipeline enforces these same requirements:
 - [ ] Task is now complete
 
 **Remember: A task is only complete when `task ci` passes without errors.**
+
+## Testing and Development
+
+### MCP Standard I/O Mode Testing
+
+**CRITICAL**: All functionality testing must be performed using MCP standard input/output mode, not standalone CLI commands.
+
+#### Starting the MCP Server
+
+```bash
+# Start MCP server in stdio mode (default)
+go run .
+
+# The server will output initialization logs and then wait for MCP JSON-RPC requests over stdin/stdout
+# Example output:
+# 2025/06/28 13:10:51 設定を読み込みました
+# 2025/06/28 13:10:53 ブラウザクライアントの初期化が完了しました
+# 2025/06/28 13:10:54 MCPサーバーを標準入出力で起動します
+```
+
+#### MCP Protocol Testing
+
+Use MCP-compatible clients to test functionality:
+
+**1. Search Content Testing:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "search_content",
+    "arguments": {
+      "query": "Docker containers"
+    }
+  }
+}
+```
+
+**2. Ask Question Testing:**
+```json
+{
+  "jsonrpc": "2.0", 
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "ask_question",
+    "arguments": {
+      "question": "What career paths are available for software engineers in their late 30s?",
+      "max_wait_minutes": 5
+    }
+  }
+}
+```
+
+**3. Resource Access Testing:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3, 
+  "method": "resources/read",
+  "params": {
+    "uri": "oreilly://book-details/9781098166298"
+  }
+}
+```
+
+#### Testing with Claude Code
+
+The easiest way to test is using Claude Code as an MCP client:
+
+1. Start the MCP server: `go run .`
+2. Use Claude Code to interact with the tools and resources
+3. Test various scenarios:
+   - Content search: "Search for books about machine learning"
+   - Natural language Q&A: "Ask about Python best practices for beginners"
+   - Resource access: Access book details and chapter content
+
+#### Header Verification Testing
+
+To verify 401 authentication issues are resolved:
+
+1. Enable debug mode: `ORM_MCP_GO_DEBUG=true go run .`
+2. Monitor debug logs for header transmission:
+   ```
+   API呼び出し先URL: https://learning.oreilly.com/api/v1/miso-answers-relay-service/questions/
+   送信予定Cookie数: 20
+   送信Cookie: groot_sessionid=... (Domain: .oreilly.com, Path: /)
+   ```
+3. Verify all required headers are sent:
+   - Accept: */*
+   - Referer: https://learning.oreilly.com/answers2/
+   - Origin: https://learning.oreilly.com
+   - Sec-Fetch-* security headers
+
+#### Important Testing Notes
+
+- **Do NOT implement standalone CLI commands** - All testing goes through MCP protocol
+- **Cookie authentication** is handled automatically through the browser client
+- **Debug mode** provides detailed logs for troubleshooting authentication issues
+- **All API calls** use the comprehensive header set matching real browser requests
 
 ## Architecture Overview
 

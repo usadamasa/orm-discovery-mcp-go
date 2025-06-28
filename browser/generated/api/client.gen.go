@@ -4,6 +4,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,72 @@ import (
 const (
 	CookieAuthScopes = "CookieAuth.Scopes"
 )
+
+// AffiliationProduct An O'Reilly product related to the answer
+type AffiliationProduct struct {
+	// Authors Product authors
+	Authors *[]string `json:"authors,omitempty"`
+
+	// ContentType Product type
+	ContentType *string `json:"content_type,omitempty"`
+
+	// ProductId Product identifier
+	ProductId *string `json:"product_id,omitempty"`
+
+	// Title Product title
+	Title *string `json:"title,omitempty"`
+
+	// Url Product URL
+	Url *string `json:"url,omitempty"`
+}
+
+// AnswerData The core answer data with content and references
+type AnswerData struct {
+	// AffiliationProducts O'Reilly products related to the question
+	AffiliationProducts *[]AffiliationProduct `json:"affiliation_products,omitempty"`
+
+	// Answer The AI-generated answer in markdown format
+	Answer *string `json:"answer,omitempty"`
+
+	// FollowupQuestions Suggested follow-up questions for deeper exploration
+	FollowupQuestions *[]string `json:"followup_questions,omitempty"`
+
+	// RelatedResources Additional related resources
+	RelatedResources *[]RelatedResource `json:"related_resources,omitempty"`
+
+	// Sources Source materials used to generate the answer
+	Sources *[]AnswerSource `json:"sources,omitempty"`
+}
+
+// AnswerResponse Response containing the answer to a submitted question
+type AnswerResponse struct {
+	// IsFinished Whether the answer generation is complete
+	IsFinished *bool `json:"is_finished,omitempty"`
+
+	// MisoResponse The AI-generated response data
+	MisoResponse *MisoResponse `json:"miso_response,omitempty"`
+
+	// QuestionId Question identifier
+	QuestionId *string `json:"question_id,omitempty"`
+}
+
+// AnswerSource A source document used to generate the answer
+type AnswerSource struct {
+	// Authors Authors of the source
+	Authors *[]string `json:"authors,omitempty"`
+
+	// CoverImage Cover image URL
+	CoverImage *string `json:"cover_image,omitempty"`
+
+	// Excerpt Relevant excerpt from the source
+	Excerpt *string `json:"excerpt,omitempty"`
+
+	// Title Title of the source
+	Title *string `json:"title,omitempty"`
+
+	// Url URL to the source
+	Url *string `json:"url,omitempty"`
+}
 
 // Author Author information
 type Author struct {
@@ -146,6 +213,21 @@ type FlatTOCResponse struct {
 	TotalItems *int `json:"total_items,omitempty"`
 }
 
+// MisoResponse The AI-generated response data
+type MisoResponse struct {
+	// Data The core answer data with content and references
+	Data *AnswerData `json:"data,omitempty"`
+}
+
+// PipelineConfig Configuration for the answer generation pipeline
+type PipelineConfig struct {
+	// HighlightLength Length of highlighted content
+	HighlightLength *int `json:"highlight_length,omitempty"`
+
+	// SnippetLength Length of content snippets
+	SnippetLength *int `json:"snippet_length,omitempty"`
+}
+
 // Publisher Publisher information
 type Publisher struct {
 	// Id Publisher ID
@@ -156,6 +238,36 @@ type Publisher struct {
 
 	// Slug Publisher slug
 	Slug *string `json:"slug,omitempty"`
+}
+
+// QuestionRequest Request to submit a question to O'Reilly Answers
+type QuestionRequest struct {
+	// PipelineConfig Configuration for the answer generation pipeline
+	PipelineConfig PipelineConfig `json:"_pipeline_config"`
+
+	// Fq Filter query for content types and permissions
+	Fq string `json:"fq"`
+
+	// Question The natural language question to ask
+	Question string `json:"question"`
+
+	// RelatedResourceFl Fields to include in related resource results
+	RelatedResourceFl []string `json:"related_resource_fl"`
+
+	// SourceFl Fields to include in source results
+	SourceFl []string `json:"source_fl"`
+}
+
+// QuestionResponse Response from question submission
+type QuestionResponse struct {
+	// Message Response message
+	Message *string `json:"message,omitempty"`
+
+	// QuestionId Unique identifier for the submitted question
+	QuestionId *string `json:"question_id,omitempty"`
+
+	// Status Status of the question submission
+	Status *string `json:"status,omitempty"`
 }
 
 // RawSearchResult Raw search result from O'Reilly API
@@ -258,6 +370,21 @@ type RawSearchResult struct {
 	WebUrl *string `json:"web_url,omitempty"`
 }
 
+// RelatedResource A related resource for additional reading
+type RelatedResource struct {
+	// Authors Authors of the resource
+	Authors *[]string `json:"authors,omitempty"`
+
+	// ContentType Type of content (book, video, article)
+	ContentType *string `json:"content_type,omitempty"`
+
+	// Title Title of the resource
+	Title *string `json:"title,omitempty"`
+
+	// Url URL to the resource
+	Url *string `json:"url,omitempty"`
+}
+
 // SearchAPIResponse Response from O'Reilly search API
 type SearchAPIResponse struct {
 	// Data Container for search data
@@ -313,6 +440,12 @@ type Topics struct {
 	Uuid *string `json:"uuid,omitempty"`
 }
 
+// GetAnswerParams defines parameters for GetAnswer.
+type GetAnswerParams struct {
+	// IncludeUnfinished Include unfinished answers in response
+	IncludeUnfinished *bool `form:"include_unfinished,omitempty" json:"include_unfinished,omitempty"`
+}
+
 // SearchContentV2Params defines parameters for SearchContentV2.
 type SearchContentV2Params struct {
 	// Query Search query string
@@ -336,6 +469,9 @@ type SearchContentV2Params struct {
 	// IsTopics Search only in topics
 	IsTopics *bool `form:"isTopics,omitempty" json:"isTopics,omitempty"`
 }
+
+// SubmitQuestionJSONRequestBody defines body for SubmitQuestion for application/json ContentType.
+type SubmitQuestionJSONRequestBody = QuestionRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -419,6 +555,14 @@ type ClientInterface interface {
 	// GetBookFlatTOC request
 	GetBookFlatTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SubmitQuestionWithBody request with any body
+	SubmitQuestionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SubmitQuestion(ctx context.Context, body SubmitQuestionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetAnswer request
+	GetAnswer(ctx context.Context, questionId string, params *GetAnswerParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetBookChapterContent request
 	GetBookChapterContent(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -452,6 +596,42 @@ func (c *Client) GetBookChapterInfo(ctx context.Context, bookId string, chapterN
 
 func (c *Client) GetBookFlatTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBookFlatTOCRequest(c.Server, bookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubmitQuestionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitQuestionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SubmitQuestion(ctx context.Context, body SubmitQuestionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubmitQuestionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAnswer(ctx context.Context, questionId string, params *GetAnswerParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAnswerRequest(c.Server, questionId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -585,6 +765,102 @@ func NewGetBookFlatTOCRequest(server string, bookId string) (*http.Request, erro
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSubmitQuestionRequest calls the generic SubmitQuestion builder with application/json body
+func NewSubmitQuestionRequest(server string, body SubmitQuestionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSubmitQuestionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSubmitQuestionRequestWithBody generates requests for SubmitQuestion with any type of body
+func NewSubmitQuestionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/miso-answers-relay-service/questions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetAnswerRequest generates requests for GetAnswer
+func NewGetAnswerRequest(server string, questionId string, params *GetAnswerParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "questionId", runtime.ParamLocationPath, questionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/miso-answers-relay-service/user-question-history/%s/", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.IncludeUnfinished != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_unfinished", runtime.ParamLocationQuery, *params.IncludeUnfinished); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -829,6 +1105,14 @@ type ClientWithResponsesInterface interface {
 	// GetBookFlatTOCWithResponse request
 	GetBookFlatTOCWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookFlatTOCResponse, error)
 
+	// SubmitQuestionWithBodyWithResponse request with any body
+	SubmitQuestionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitQuestionResponse, error)
+
+	SubmitQuestionWithResponse(ctx context.Context, body SubmitQuestionJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitQuestionResponse, error)
+
+	// GetAnswerWithResponse request
+	GetAnswerWithResponse(ctx context.Context, questionId string, params *GetAnswerParams, reqEditors ...RequestEditorFn) (*GetAnswerResponse, error)
+
 	// GetBookChapterContentWithResponse request
 	GetBookChapterContentWithResponse(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*GetBookChapterContentResponse, error)
 
@@ -908,6 +1192,55 @@ func (r GetBookFlatTOCResponse) StatusCode() int {
 	return 0
 }
 
+type SubmitQuestionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *QuestionResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r SubmitQuestionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SubmitQuestionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAnswerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AnswerResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAnswerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAnswerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetBookChapterContentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -981,6 +1314,32 @@ func (c *ClientWithResponses) GetBookFlatTOCWithResponse(ctx context.Context, bo
 		return nil, err
 	}
 	return ParseGetBookFlatTOCResponse(rsp)
+}
+
+// SubmitQuestionWithBodyWithResponse request with arbitrary body returning *SubmitQuestionResponse
+func (c *ClientWithResponses) SubmitQuestionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitQuestionResponse, error) {
+	rsp, err := c.SubmitQuestionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitQuestionResponse(rsp)
+}
+
+func (c *ClientWithResponses) SubmitQuestionWithResponse(ctx context.Context, body SubmitQuestionJSONRequestBody, reqEditors ...RequestEditorFn) (*SubmitQuestionResponse, error) {
+	rsp, err := c.SubmitQuestion(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSubmitQuestionResponse(rsp)
+}
+
+// GetAnswerWithResponse request returning *GetAnswerResponse
+func (c *ClientWithResponses) GetAnswerWithResponse(ctx context.Context, questionId string, params *GetAnswerParams, reqEditors ...RequestEditorFn) (*GetAnswerResponse, error) {
+	rsp, err := c.GetAnswer(ctx, questionId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAnswerResponse(rsp)
 }
 
 // GetBookChapterContentWithResponse request returning *GetBookChapterContentResponse
@@ -1097,6 +1456,93 @@ func ParseGetBookFlatTOCResponse(rsp *http.Response) (*GetBookFlatTOCResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest FlatTOCResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSubmitQuestionResponse parses an HTTP response from a SubmitQuestionWithResponse call
+func ParseSubmitQuestionResponse(rsp *http.Response) (*SubmitQuestionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SubmitQuestionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest QuestionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAnswerResponse parses an HTTP response from a GetAnswerWithResponse call
+func ParseGetAnswerResponse(rsp *http.Response) (*GetAnswerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAnswerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AnswerResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

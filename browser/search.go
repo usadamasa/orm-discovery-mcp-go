@@ -197,10 +197,21 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int,
 					req.Header.Set("X-Requested-With", "XMLHttpRequest")
 					req.Header.Set("User-Agent", bc.userAgent)
 
-					// Add cookies if available
-					for _, cookie := range bc.cookies {
-						req.AddCookie(cookie)
+					// デバッグ: Cookie送信状況をログ出力
+					if bc.debug {
+						cookies := bc.cookieJar.Cookies(req.URL)
+						log.Printf("検索API呼び出し先URL: %s", req.URL.String())
+						log.Printf("送信予定Cookie数: %d", len(cookies))
+						for _, cookie := range cookies {
+							value := cookie.Value
+							if len(value) > 20 {
+								value = value[:20] + "..."
+							}
+							log.Printf("送信Cookie: %s=%s (Domain: %s, Path: %s)", cookie.Name, value, cookie.Domain, cookie.Path)
+						}
 					}
+
+					// CookieJarが自動的にCookieを設定するため、手動で追加する必要なし
 					return nil
 				},
 			},

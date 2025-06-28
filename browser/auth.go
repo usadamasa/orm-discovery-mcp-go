@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
-
-	"net/http"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -39,11 +40,19 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 	ctx, _ := chromedp.NewContext(allocCtx)
 
+	// CookieJarを作成
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cookie jar: %w", err)
+	}
+
 	client := &BrowserClient{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:       ctx,
+		cancel:    cancel,
+		cookieJar: jar,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			Jar:     jar,
 		},
 		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 		tmpDir:    tmpDir,
@@ -56,6 +65,9 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 		if err := cookieManager.LoadCookies(&ctx); err != nil {
 			log.Printf("Cookie復元に失敗しました: %v", err)
 		} else {
+			// ブラウザのCookieをHTTPクライアントに同期
+			client.syncCookiesFromBrowser()
+
 			// Cookieが有効かどうか検証
 			if client.validateAuthentication(ctx) {
 				log.Printf("Cookieを使用してログインが完了しました")
@@ -77,6 +89,9 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	if err := cookieManager.SaveCookies(&ctx); err != nil {
 		log.Printf("Cookieの保存に失敗しました: %v", err)
 	}
+
+	// ブラウザのCookieをHTTPクライアントに同期
+	client.syncCookiesFromBrowser()
 
 	log.Printf("ブラウザクライアントの初期化とログインが完了しました")
 	return client, nil
@@ -271,4 +286,72 @@ func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
 
 	log.Printf("認証検証成功: %s", pageTitle)
 	return true
+}
+
+// syncCookiesFromBrowser はブラウザのCookieをHTTPクライアントのCookieJarに同期します
+func (bc *BrowserClient) syncCookiesFromBrowser() {
+	var cookies []*network.Cookie
+	err := chromedp.Run(bc.ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		var err error
+		cookies, err = network.GetCookies().Do(ctx)
+		return err
+	}))
+
+	if err != nil {
+		log.Printf("ブラウザからのCookie取得に失敗しました: %v", err)
+		return
+	}
+
+	// ブラウザのCookieをHTTPクライアントのCookieJarに追加
+	var httpCookies []*http.Cookie
+	for _, c := range cookies {
+		httpCookie := &http.Cookie{
+			Name:     c.Name,
+			Value:    c.Value,
+			Domain:   c.Domain,
+			Path:     c.Path,
+			Secure:   c.Secure,
+			HttpOnly: c.HTTPOnly,
+		}
+
+		if c.Expires != 0 {
+			httpCookie.Expires = time.Unix(int64(c.Expires), 0)
+		}
+
+		httpCookies = append(httpCookies, httpCookie)
+	}
+
+	// O'Reilly関連のURLでCookieを設定
+	urls := []*url.URL{
+		{Scheme: "https", Host: "learning.oreilly.com"},
+		{Scheme: "https", Host: "www.oreilly.com"},
+		{Scheme: "https", Host: "oreilly.com"},
+	}
+
+	for _, u := range urls {
+		bc.cookieJar.SetCookies(u, httpCookies)
+	}
+
+	// デバッグログ
+	if bc.debug {
+		log.Printf("HTTPクライアントに%d個のCookieを同期しました", len(httpCookies))
+		for _, c := range httpCookies {
+			value := c.Value
+			if len(value) > 20 {
+				value = value[:20] + "..."
+			}
+			log.Printf("Cookie同期: %s=%s (Domain: %s, Path: %s)", c.Name, value, c.Domain, c.Path)
+		}
+	}
+
+	// BrowserClientのcookiesフィールドも更新
+	bc.cookies = httpCookies
+}
+
+// UpdateCookiesFromBrowser はAPI呼び出し前にCookieを最新状態に更新します
+func (bc *BrowserClient) UpdateCookiesFromBrowser() {
+	if bc.debug {
+		log.Printf("API呼び出し前にCookieを更新中...")
+	}
+	bc.syncCookiesFromBrowser()
 }

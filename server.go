@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -69,7 +70,7 @@ func (s *Server) StartStdioServer() error {
 
 // registerHandlers はハンドラーを登録します
 func (s *Server) registerHandlers() {
-	// Add tool
+	// Add search tool
 	searchTool := mcp.NewTool("search_content",
 		mcp.WithDescription(`
 			Search content on O'Reilly Learning Platform.
@@ -112,6 +113,33 @@ func (s *Server) registerHandlers() {
 	)
 	s.mcpServer.AddTool(searchTool, s.SearchContentHandler)
 
+	// Add ask question tool
+	askQuestionTool := mcp.NewTool("ask_question",
+		mcp.WithDescription(`
+			Ask a natural language question to O'Reilly Answers AI and receive a comprehensive answer with references.
+			
+			This tool uses O'Reilly's AI-powered question answering service to provide detailed responses based on 
+			O'Reilly's vast library of technical content. The response includes:
+			- A markdown-formatted answer
+			- Source materials with citations
+			- Related resources for further reading
+			- Suggested follow-up questions
+			
+			The AI searches through books, videos, articles, and other O'Reilly content to provide accurate,
+			well-sourced answers to technical questions.
+
+			IMPORTANT: Always cite the sources provided in the response when referencing the information.
+		`),
+		mcp.WithString("question",
+			mcp.Required(),
+			mcp.Description("Natural language question about technical topics, programming, data science, cloud computing, etc. (e.g., 'How do I build a data lake on S3?', 'What are the best practices for React performance optimization?')"),
+		),
+		mcp.WithNumber("max_wait_time_seconds",
+			mcp.Description("Maximum time to wait for answer generation in seconds (default: 300, max: 600)"),
+		),
+	)
+	s.mcpServer.AddTool(askQuestionTool, s.AskQuestionHandler)
+
 	// Resources are now handled by the resource system instead of tools
 	s.registerResources()
 }
@@ -145,6 +173,15 @@ func (s *Server) registerResources() {
 	)
 	s.mcpServer.AddResource(bookChapterResource, s.GetBookChapterContentResource)
 
+	// 回答リソースの登録
+	answerResource := mcp.NewResource(
+		"oreilly://answer/{question_id}",
+		"O'Reilly Answers Response",
+		mcp.WithResourceDescription("Access a previously generated answer by question ID. This retrieves the full AI-generated response including answer content, sources, and related resources. IMPORTANT: Always cite the sources provided when referencing the answer content."),
+		mcp.WithMIMEType("application/json"),
+	)
+	s.mcpServer.AddResource(answerResource, s.GetAnswerResource)
+
 	// Resource Templates for dynamic discovery
 	bookDetailsTemplate := mcp.NewResourceTemplate(
 		"oreilly://book-details/{product_id}",
@@ -169,6 +206,14 @@ func (s *Server) registerResources() {
 		mcp.WithTemplateMIMEType("application/json"),
 	)
 	s.mcpServer.AddResourceTemplate(bookChapterTemplate, s.GetBookChapterContentResourceTemplate)
+
+	answerTemplate := mcp.NewResourceTemplate(
+		"oreilly://answer/{question_id}",
+		"O'Reilly Answers Template",
+		mcp.WithTemplateDescription("Template for accessing O'Reilly Answers responses. Use question_id returned from ask_question tool to retrieve the complete AI-generated answer with sources and related resources."),
+		mcp.WithTemplateMIMEType("application/json"),
+	)
+	s.mcpServer.AddResourceTemplate(answerTemplate, s.GetAnswerResourceTemplate)
 }
 
 // SearchContentHandler は検索リクエストを処理します
@@ -247,6 +292,84 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
 	}
 	// レスポンスを返す
+	return mcp.NewToolResultText(string(jsonBytes)), nil
+}
+
+// AskQuestionHandler processes question requests for O'Reilly Answers
+func (s *Server) AskQuestionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	log.Printf("質問リクエスト受信: %+v", request)
+
+	// リクエストパラメータの取得
+	var requestParams struct {
+		Question           string `json:"question"`
+		MaxWaitTimeSeconds int    `json:"max_wait_time_seconds,omitempty"`
+	}
+
+	argumentsBytes, err := json.Marshal(request.Params.Arguments)
+	if err != nil {
+		return mcp.NewToolResultError("failed to marshal arguments"), nil
+	}
+	if err := json.Unmarshal(argumentsBytes, &requestParams); err != nil {
+		return mcp.NewToolResultError("invalid parameters"), nil
+	}
+
+	if requestParams.Question == "" {
+		return mcp.NewToolResultError("question parameter is required"), nil
+	}
+
+	// デフォルトのタイムアウト設定（5分）
+	maxWaitTime := 300 * time.Second
+	if requestParams.MaxWaitTimeSeconds > 0 {
+		if requestParams.MaxWaitTimeSeconds > 600 { // 最大10分
+			requestParams.MaxWaitTimeSeconds = 600
+		}
+		maxWaitTime = time.Duration(requestParams.MaxWaitTimeSeconds) * time.Second
+	}
+
+	// ブラウザクライアントの確認
+	if s.browserClient == nil {
+		return mcp.NewToolResultError("browser client is not available"), nil
+	}
+
+	log.Printf("質問を開始: %s (最大待機時間: %v)", requestParams.Question, maxWaitTime)
+
+	// 質問を実行（ポーリング付き）
+	answer, err := s.browserClient.AskQuestion(requestParams.Question, maxWaitTime)
+	if err != nil {
+		log.Printf("質問処理失敗: %v", err)
+		return mcp.NewToolResultError(fmt.Sprintf("failed to ask question: %v", err)), nil
+	}
+
+	log.Printf("質問に対する回答を取得しました: %s", requestParams.Question)
+
+	// レスポンスの構築
+	response := struct {
+		QuestionID          string                       `json:"question_id"`
+		Question            string                       `json:"question"`
+		Answer              string                       `json:"answer"`
+		IsFinished          bool                         `json:"is_finished"`
+		Sources             []browser.AnswerSource       `json:"sources"`
+		RelatedResources    []browser.RelatedResource    `json:"related_resources"`
+		AffiliationProducts []browser.AffiliationProduct `json:"affiliation_products"`
+		FollowupQuestions   []string                     `json:"followup_questions"`
+		CitationNote        string                       `json:"citation_note"`
+	}{
+		QuestionID:          answer.QuestionID,
+		Question:            requestParams.Question,
+		Answer:              answer.MisoResponse.Data.Answer,
+		IsFinished:          answer.IsFinished,
+		Sources:             answer.MisoResponse.Data.Sources,
+		RelatedResources:    answer.MisoResponse.Data.RelatedResources,
+		AffiliationProducts: answer.MisoResponse.Data.AffiliationProducts,
+		FollowupQuestions:   answer.MisoResponse.Data.FollowupQuestions,
+		CitationNote:        "IMPORTANT: When referencing this information, always cite the sources listed above with proper attribution to O'Reilly Media.",
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal response: %v", err)), nil
+	}
+
 	return mcp.NewToolResultText(string(jsonBytes)), nil
 }
 
@@ -449,6 +572,94 @@ func (s *Server) GetBookChapterContentResourceTemplate(ctx context.Context, requ
 	return s.GetBookChapterContentResource(ctx, request)
 }
 
+// GetAnswerResource handles answer resource requests
+func (s *Server) GetAnswerResource(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	log.Printf("回答リソース取得リクエスト受信: %+v", request)
+
+	// URIからquestion_idを抽出
+	questionID := extractQuestionIDFromURI(request.Params.URI)
+	if questionID == "" {
+		return []mcp.ResourceContents{
+			&mcp.TextResourceContents{
+				URI:      request.Params.URI,
+				MIMEType: "application/json",
+				Text:     `{"error": "question_id not found in URI"}`,
+			},
+		}, nil
+	}
+
+	// ブラウザクライアントの確認
+	if s.browserClient == nil {
+		return []mcp.ResourceContents{
+			&mcp.TextResourceContents{
+				URI:      request.Params.URI,
+				MIMEType: "application/json",
+				Text:     `{"error": "browser client is not available"}`,
+			},
+		}, nil
+	}
+
+	// 回答を取得
+	answer, err := s.browserClient.GetQuestionByID(questionID)
+	if err != nil {
+		log.Printf("回答取得失敗: %v", err)
+		return []mcp.ResourceContents{
+			&mcp.TextResourceContents{
+				URI:      request.Params.URI,
+				MIMEType: "application/json",
+				Text:     fmt.Sprintf(`{"error": "failed to get answer: %v"}`, err),
+			},
+		}, nil
+	}
+
+	// レスポンスの構築
+	response := struct {
+		QuestionID          string                       `json:"question_id"`
+		Answer              string                       `json:"answer"`
+		IsFinished          bool                         `json:"is_finished"`
+		Sources             []browser.AnswerSource       `json:"sources"`
+		RelatedResources    []browser.RelatedResource    `json:"related_resources"`
+		AffiliationProducts []browser.AffiliationProduct `json:"affiliation_products"`
+		FollowupQuestions   []string                     `json:"followup_questions"`
+		CitationNote        string                       `json:"citation_note"`
+	}{
+		QuestionID:          answer.QuestionID,
+		Answer:              answer.MisoResponse.Data.Answer,
+		IsFinished:          answer.IsFinished,
+		Sources:             answer.MisoResponse.Data.Sources,
+		RelatedResources:    answer.MisoResponse.Data.RelatedResources,
+		AffiliationProducts: answer.MisoResponse.Data.AffiliationProducts,
+		FollowupQuestions:   answer.MisoResponse.Data.FollowupQuestions,
+		CitationNote:        "IMPORTANT: When referencing this information, always cite the sources listed above with proper attribution to O'Reilly Media.",
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return []mcp.ResourceContents{
+			&mcp.TextResourceContents{
+				URI:      request.Params.URI,
+				MIMEType: "application/json",
+				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
+			},
+		}, nil
+	}
+
+	return []mcp.ResourceContents{
+		&mcp.TextResourceContents{
+			URI:      request.Params.URI,
+			MIMEType: "application/json",
+			Text:     string(jsonBytes),
+		},
+	}, nil
+}
+
+// GetAnswerResourceTemplate handles resource template requests for answers
+func (s *Server) GetAnswerResourceTemplate(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	// Template handlers should return the actual resource content when given a valid URI
+	// For templates, we delegate to the actual resource handler
+	return s.GetAnswerResource(ctx, request)
+}
+
 // Helper functions to extract parameters from URIs
 func extractProductIDFromURI(uri string) string {
 	// Extract product_id from URIs like "oreilly://book-details/{product_id}" or "oreilly://book-toc/{product_id}"
@@ -466,4 +677,13 @@ func extractProductIDAndChapterFromURI(uri string) (string, string) {
 		return parts[len(parts)-2], parts[len(parts)-1]
 	}
 	return "", ""
+}
+
+func extractQuestionIDFromURI(uri string) string {
+	// Extract question_id from URIs like "oreilly://answer/{question_id}"
+	parts := strings.Split(uri, "/")
+	if len(parts) >= 3 {
+		return parts[len(parts)-1]
+	}
+	return ""
 }
