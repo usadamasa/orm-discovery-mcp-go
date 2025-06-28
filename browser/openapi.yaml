@@ -251,7 +251,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/miso-answers-relay-service/questions:
+  /api/v1/miso-answers-relay-service/questions/:
     post:
       operationId: submitQuestion
       summary: Submit a question to O'Reilly Answers
@@ -265,7 +265,7 @@ paths:
             schema:
               $ref: '#/components/schemas/QuestionRequest'
       responses:
-        '200':
+        '201':
           description: Question submitted successfully
           content:
             application/json:

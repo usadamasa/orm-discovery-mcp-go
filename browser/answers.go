@@ -90,19 +90,19 @@ func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, err
 	}
 
 	// Check response status
-	if resp.HTTPResponse.StatusCode != 200 {
+	if resp.HTTPResponse.StatusCode != 201 {
 		return nil, fmt.Errorf("質問送信がステータス%dで失敗", resp.HTTPResponse.StatusCode)
 	}
 
-	if resp.JSON200 == nil {
+	if resp.JSON201 == nil {
 		return nil, fmt.Errorf("有効なJSON応答を受信できませんでした")
 	}
 
 	// Convert generated response to our type
 	result := &QuestionResponse{
-		QuestionID: safeStringValue(resp.JSON200.QuestionId),
-		Status:     safeStringValue(resp.JSON200.Status),
-		Message:    safeStringValue(resp.JSON200.Message),
+		QuestionID: safeStringValue(resp.JSON201.QuestionId),
+		Status:     safeStringValue(resp.JSON201.Status),
+		Message:    safeStringValue(resp.JSON201.Message),
 	}
 
 	slog.Info("質問が正常に送信されました", "question_id", result.QuestionID)

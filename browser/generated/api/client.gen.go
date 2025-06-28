@@ -795,7 +795,7 @@ func NewSubmitQuestionRequestWithBody(server string, contentType string, body io
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/miso-answers-relay-service/questions")
+	operationPath := fmt.Sprintf("/api/v1/miso-answers-relay-service/questions/")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1195,7 +1195,7 @@ func (r GetBookFlatTOCResponse) StatusCode() int {
 type SubmitQuestionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *QuestionResponse
+	JSON201      *QuestionResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON500      *ErrorResponse
@@ -1494,12 +1494,12 @@ func ParseSubmitQuestionResponse(rsp *http.Response) (*SubmitQuestionResponse, e
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest QuestionResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest ErrorResponse
