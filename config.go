@@ -92,23 +92,18 @@ func LoadConfig() (*Config, error) {
 
 // setupLogger はslogの設定を行います
 func setupLogger(config *Config) {
-	// テキストハンドラーを使用（JSONではなく）
+	// シンプルなテキストハンドラー設定
 	opts := &slog.HandlerOptions{
-		Level: config.LogLevel,
-		// カスタマイズ可能な属性（必要に応じて）
+		Level:     config.LogLevel,
+		AddSource: true, // 関数名と行番号を表示
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-			// レベルを短縮形で表示
-			if a.Key == slog.LevelKey {
-				level := a.Value.Any().(slog.Level)
-				switch level {
-				case slog.LevelDebug:
-					a.Value = slog.StringValue("DBG")
-				case slog.LevelInfo:
-					a.Value = slog.StringValue("INF")
-				case slog.LevelWarn:
-					a.Value = slog.StringValue("WRN")
-				case slog.LevelError:
-					a.Value = slog.StringValue("ERR")
+			// ソースパスを簡潔に表示
+			if a.Key == slog.SourceKey {
+				if source, ok := a.Value.Any().(*slog.Source); ok {
+					// github.com/usadamasa/orm-discovery-mcp-go/ 部分を削除
+					if idx := strings.LastIndex(source.File, "orm-discovery-mcp-go/"); idx != -1 {
+						source.File = source.File[idx+len("orm-discovery-mcp-go/"):]
+					}
 				}
 			}
 			return a
