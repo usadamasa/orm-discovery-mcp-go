@@ -1,8 +1,10 @@
 package browser
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
@@ -354,4 +356,129 @@ func (bc *BrowserClient) UpdateCookiesFromBrowser() {
 		log.Printf("API呼び出し前にCookieを更新中...")
 	}
 	bc.syncCookiesFromBrowser()
+}
+
+// CreateRequestEditor creates a standardized RequestEditorFn for API calls
+func (bc *BrowserClient) CreateRequestEditor() func(ctx context.Context, req *http.Request) error {
+	return bc.createRequestEditorInternal("")
+}
+
+// CreateRequestEditorWithReferer creates a standardized RequestEditorFn with custom Referer
+func (bc *BrowserClient) CreateRequestEditorWithReferer(referer string) func(ctx context.Context, req *http.Request) error {
+	return bc.createRequestEditorInternal(referer)
+}
+
+// createRequestEditorInternal is the internal implementation for creating request editors
+func (bc *BrowserClient) createRequestEditorInternal(referer string) func(ctx context.Context, req *http.Request) error {
+	return func(ctx context.Context, req *http.Request) error {
+		// Set comprehensive browser-matching headers
+		req.Header.Set("Accept", "*/*")
+		req.Header.Set("Accept-Language", "ja,en-US;q=0.7,en;q=0.3")
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
+		req.Header.Set("Content-Type", "application/json")
+
+		// Set Referer only if provided
+		if referer != "" {
+			req.Header.Set("Referer", referer)
+		}
+
+		req.Header.Set("Origin", "https://learning.oreilly.com")
+		req.Header.Set("Connection", "keep-alive")
+		req.Header.Set("Sec-Fetch-Dest", "empty")
+		req.Header.Set("Sec-Fetch-Mode", "cors")
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		req.Header.Set("Priority", "u=0")
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
+		req.Header.Set("User-Agent", bc.userAgent)
+
+		// Debug logging for cookie transmission
+		if bc.debug {
+			cookies := bc.cookieJar.Cookies(req.URL)
+			log.Printf("API呼び出し先URL: %s", req.URL.String())
+			if referer != "" {
+				log.Printf("Referer: %s", referer)
+			} else {
+				log.Printf("Referer: (not set)")
+			}
+			log.Printf("送信予定Cookie数: %d", len(cookies))
+			for _, cookie := range cookies {
+				value := cookie.Value
+				if len(value) > 20 {
+					value = value[:20] + "..."
+				}
+				log.Printf("送信Cookie: %s=%s (Domain: %s, Path: %s)", cookie.Name, value, cookie.Domain, cookie.Path)
+			}
+		}
+
+		// CookieJar automatically handles cookie attachment
+		return nil
+	}
+}
+
+// GetContentFromURL retrieves HTML/XHTML content from the specified URL with authentication
+func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
+	// Determine content type from URL
+	contentType := "HTML"
+	if strings.HasSuffix(contentURL, ".xhtml") {
+		contentType = "XHTML"
+	} else if strings.Contains(contentURL, "/files/html/") {
+		contentType = "HTML (nested path)"
+	}
+
+	log.Printf("%sコンテンツを取得しています: %s", contentType, contentURL)
+
+	req, err := http.NewRequest("GET", contentURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers for HTML response (try different accept headers)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml,*/*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("User-Agent", bc.userAgent)
+
+	// Note: Authentication cookies are handled by httpClient.cookieJar automatically
+	// Manual cookie addition not needed for direct HTTP requests
+
+	resp, err := bc.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Warning: failed to close response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("content request failed with status %d", resp.StatusCode)
+	}
+
+	// Handle gzip compression
+	var reader io.Reader = resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer func() {
+			if err := gzipReader.Close(); err != nil {
+				log.Printf("Warning: failed to close gzip reader: %v", err)
+			}
+		}()
+		reader = gzipReader
+	}
+
+	bodyBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read content body: %w", err)
+	}
+
+	return string(bodyBytes), nil
 }

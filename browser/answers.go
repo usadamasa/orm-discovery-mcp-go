@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
@@ -57,46 +56,12 @@ func createQuestionRequest(question string) QuestionRequest {
 func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, error) {
 	log.Printf("質問を送信します: %s", question)
 
-	// Create OpenAPI client
+	// Create OpenAPI client with answers-specific referer
 	client := &api.ClientWithResponses{
 		ClientInterface: &api.Client{
-			Server: APIEndpointBase,
-			Client: bc.httpClient,
-			RequestEditors: []api.RequestEditorFn{
-				func(ctx context.Context, req *http.Request) error {
-					// Set headers to match actual browser requests
-					req.Header.Set("Accept", "*/*")
-					req.Header.Set("Accept-Language", "ja,en-US;q=0.7,en;q=0.3")
-					req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
-					req.Header.Set("Content-Type", "application/json")
-					req.Header.Set("Referer", "https://learning.oreilly.com/answers2/")
-					req.Header.Set("Origin", "https://learning.oreilly.com")
-					req.Header.Set("Connection", "keep-alive")
-					req.Header.Set("Sec-Fetch-Dest", "empty")
-					req.Header.Set("Sec-Fetch-Mode", "cors")
-					req.Header.Set("Sec-Fetch-Site", "same-origin")
-					req.Header.Set("Priority", "u=0")
-					req.Header.Set("X-Requested-With", "XMLHttpRequest")
-					req.Header.Set("User-Agent", bc.userAgent)
-
-					// デバッグ: Cookie送信状況をログ出力
-					if bc.debug {
-						cookies := bc.cookieJar.Cookies(req.URL)
-						log.Printf("API呼び出し先URL: %s", req.URL.String())
-						log.Printf("送信予定Cookie数: %d", len(cookies))
-						for _, cookie := range cookies {
-							value := cookie.Value
-							if len(value) > 20 {
-								value = value[:20] + "..."
-							}
-							log.Printf("送信Cookie: %s=%s (Domain: %s, Path: %s)", cookie.Name, value, cookie.Domain, cookie.Path)
-						}
-					}
-
-					// CookieJarが自動的にCookieを設定するため、手動で追加する必要なし
-					return nil
-				},
-			},
+			Server:         APIEndpointBase,
+			Client:         bc.httpClient,
+			RequestEditors: []api.RequestEditorFn{bc.CreateRequestEditorWithReferer("https://learning.oreilly.com/answers2/")},
 		},
 	}
 
@@ -153,46 +118,12 @@ func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*
 	// API呼び出し前にCookieを更新
 	bc.UpdateCookiesFromBrowser()
 
-	// Create OpenAPI client
+	// Create OpenAPI client with answers-specific referer
 	client := &api.ClientWithResponses{
 		ClientInterface: &api.Client{
-			Server: APIEndpointBase,
-			Client: bc.httpClient,
-			RequestEditors: []api.RequestEditorFn{
-				func(ctx context.Context, req *http.Request) error {
-					// Set headers to match actual browser requests
-					req.Header.Set("Accept", "*/*")
-					req.Header.Set("Accept-Language", "ja,en-US;q=0.7,en;q=0.3")
-					req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
-					req.Header.Set("Content-Type", "application/json")
-					req.Header.Set("Referer", "https://learning.oreilly.com/answers2/")
-					req.Header.Set("Origin", "https://learning.oreilly.com")
-					req.Header.Set("Connection", "keep-alive")
-					req.Header.Set("Sec-Fetch-Dest", "empty")
-					req.Header.Set("Sec-Fetch-Mode", "cors")
-					req.Header.Set("Sec-Fetch-Site", "same-origin")
-					req.Header.Set("Priority", "u=0")
-					req.Header.Set("X-Requested-With", "XMLHttpRequest")
-					req.Header.Set("User-Agent", bc.userAgent)
-
-					// デバッグ: Cookie送信状況をログ出力
-					if bc.debug {
-						cookies := bc.cookieJar.Cookies(req.URL)
-						log.Printf("API呼び出し先URL: %s", req.URL.String())
-						log.Printf("送信予定Cookie数: %d", len(cookies))
-						for _, cookie := range cookies {
-							value := cookie.Value
-							if len(value) > 20 {
-								value = value[:20] + "..."
-							}
-							log.Printf("送信Cookie: %s=%s (Domain: %s, Path: %s)", cookie.Name, value, cookie.Domain, cookie.Path)
-						}
-					}
-
-					// CookieJarが自動的にCookieを設定するため、手動で追加する必要なし
-					return nil
-				},
-			},
+			Server:         APIEndpointBase,
+			Client:         bc.httpClient,
+			RequestEditors: []api.RequestEditorFn{bc.CreateRequestEditorWithReferer("https://learning.oreilly.com/answers2/")},
 		},
 	}
 
