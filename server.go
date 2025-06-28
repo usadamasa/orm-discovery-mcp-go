@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -35,23 +35,23 @@ func NewServer(browserClient *browser.BrowserClient) *Server {
 		mcpServer:     mcpServer,
 	}
 	// 初期化処理の成功を確認するためのログ
-	log.Printf("サーバーを初期化しました")
+	slog.Info("サーバーを初期化しました")
 
 	srv.registerHandlers()
-	log.Printf("ハンドラーを登録しました")
+	slog.Info("ハンドラーを登録しました")
 
 	return srv
 }
 
 // StartStreamableHTTPServer はMCPサーバを返します
 func (s *Server) StartStreamableHTTPServer(port string) error {
-	log.Printf("HTTPサーバーを起動します :%s/mcp", port)
+	slog.Info("HTTPサーバーを起動します", "endpoint", port+"/mcp")
 	// タイムアウト設定を調整したサーバーを作成
 	httpServer := server.NewStreamableHTTPServer(
 		s.mcpServer,
 		server.WithStateLess(true),
 	)
-	log.Printf("HTTPサーバーを作成しました")
+	slog.Info("HTTPサーバーを作成しました")
 	err := httpServer.Start(port)
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func (s *Server) StartStreamableHTTPServer(port string) error {
 
 func (s *Server) StartStdioServer() error {
 	// MCPサーバーを標準入出力で起動
-	log.Printf("MCPサーバーを標準入出力で起動します")
+	slog.Info("MCPサーバーを標準入出力で起動します")
 	if err := server.ServeStdio(s.mcpServer); err != nil {
 		return fmt.Errorf("failed to start MCP server: %w", err)
 	}
@@ -222,7 +222,7 @@ func (s *Server) registerResources() {
 
 // SearchContentHandler は検索リクエストを処理します
 func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Printf("リクエスト受信: %+v", request)
+	slog.Debug("検索リクエスト受信")
 
 	// リクエストパラメータの取得
 	var requestParams struct {
@@ -267,13 +267,13 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 	}
 
 	// BrowserClientで直接検索を実行
-	log.Printf("BrowserClient呼び出し前")
+	slog.Debug("BrowserClient検索開始", "query", requestParams.Query)
 	results, err := s.browserClient.SearchContent(requestParams.Query, options)
 	if err != nil {
-		log.Printf("BrowserClient失敗: %v", err)
+		slog.Error("BrowserClient検索失敗", "error", err, "query", requestParams.Query)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil
 	}
-	log.Printf("BrowserClient呼び出し後 取得件数: %d件", len(results))
+	slog.Info("検索完了", "query", requestParams.Query, "result_count", len(results))
 
 	// 結果をレスポンスに変換
 	response := struct {
@@ -302,7 +302,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 // AskQuestionHandler processes question requests for O'Reilly Answers
 // NOTE: This functionality has not been fully tested in production
 func (s *Server) AskQuestionHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	log.Printf("質問リクエスト受信: %+v", request)
+	slog.Debug("質問リクエスト受信")
 
 	// リクエストパラメータの取得
 	var requestParams struct {
@@ -336,16 +336,16 @@ func (s *Server) AskQuestionHandler(ctx context.Context, request mcp.CallToolReq
 		return mcp.NewToolResultError("browser client is not available"), nil
 	}
 
-	log.Printf("質問を開始: %s (最大待機時間: %v)", requestParams.Question, maxWaitTime)
+	slog.Info("質問処理開始", "question", requestParams.Question, "max_wait_time", maxWaitTime)
 
 	// 質問を実行（ポーリング付き）
 	answer, err := s.browserClient.AskQuestion(requestParams.Question, maxWaitTime)
 	if err != nil {
-		log.Printf("質問処理失敗: %v", err)
+		slog.Error("質問処理失敗", "error", err, "question", requestParams.Question)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to ask question: %v", err)), nil
 	}
 
-	log.Printf("質問に対する回答を取得しました: %s", requestParams.Question)
+	slog.Info("質問に対する回答を取得しました", "question", requestParams.Question, "question_id", answer.QuestionID)
 
 	// レスポンスの構築
 	response := struct {
@@ -380,7 +380,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, request mcp.CallToolReq
 
 // GetBookDetailsResource handles book detail resource requests
 func (s *Server) GetBookDetailsResource(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	log.Printf("書籍詳細リソース取得リクエスト受信: %+v", request)
+	slog.Debug("書籍詳細リソース取得リクエスト受信", "uri", request.Params.URI)
 
 	// URIからproduct_idを抽出
 	productID := extractProductIDFromURI(request.Params.URI)
@@ -407,7 +407,7 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, request mcp.ReadRes
 
 	bookOverview, err := s.browserClient.GetBookDetails(productID)
 	if err != nil {
-		log.Printf("書籍詳細取得失敗: %v", err)
+		slog.Error("書籍詳細取得失敗", "error", err, "product_id", productID)
 		return []mcp.ResourceContents{
 			&mcp.TextResourceContents{
 				URI:      request.Params.URI,
@@ -439,7 +439,7 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, request mcp.ReadRes
 
 // GetBookTOCResource handles book TOC resource requests
 func (s *Server) GetBookTOCResource(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	log.Printf("書籍目次リソース取得リクエスト受信: %+v", request)
+	slog.Debug("書籍目次リソース取得リクエスト受信", "uri", request.Params.URI)
 
 	// URIからproduct_idを抽出
 	productID := extractProductIDFromURI(request.Params.URI)
@@ -466,7 +466,7 @@ func (s *Server) GetBookTOCResource(ctx context.Context, request mcp.ReadResourc
 
 	tocResponse, err := s.browserClient.GetBookTOC(productID)
 	if err != nil {
-		log.Printf("書籍目次取得失敗: %v", err)
+		slog.Error("書籍目次取得失敗", "error", err, "product_id", productID)
 		return []mcp.ResourceContents{
 			&mcp.TextResourceContents{
 				URI:      request.Params.URI,
@@ -498,7 +498,7 @@ func (s *Server) GetBookTOCResource(ctx context.Context, request mcp.ReadResourc
 
 // GetBookChapterContentResource handles book chapter content resource requests
 func (s *Server) GetBookChapterContentResource(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	log.Printf("書籍チャプター本文リソース取得リクエスト受信: %+v", request)
+	slog.Debug("書籍チャプター本文リソース取得リクエスト受信", "uri", request.Params.URI)
 
 	// URIからproduct_idとchapter_nameを抽出
 	productID, chapterName := extractProductIDAndChapterFromURI(request.Params.URI)
@@ -525,7 +525,7 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, request mcp.
 
 	chapterResponse, err := s.browserClient.GetBookChapterContent(productID, chapterName)
 	if err != nil {
-		log.Printf("書籍チャプター本文取得失敗: %v", err)
+		slog.Error("書籍チャプター本文取得失敗", "error", err, "product_id", productID, "chapter_name", chapterName)
 		return []mcp.ResourceContents{
 			&mcp.TextResourceContents{
 				URI:      request.Params.URI,
@@ -580,7 +580,7 @@ func (s *Server) GetBookChapterContentResourceTemplate(ctx context.Context, requ
 // GetAnswerResource handles answer resource requests
 // NOTE: This functionality has not been fully tested in production
 func (s *Server) GetAnswerResource(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	log.Printf("回答リソース取得リクエスト受信: %+v", request)
+	slog.Debug("回答リソース取得リクエスト受信", "uri", request.Params.URI)
 
 	// URIからquestion_idを抽出
 	questionID := extractQuestionIDFromURI(request.Params.URI)
@@ -608,7 +608,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, request mcp.ReadResource
 	// 回答を取得
 	answer, err := s.browserClient.GetQuestionByID(questionID)
 	if err != nil {
-		log.Printf("回答取得失敗: %v", err)
+		slog.Error("回答取得失敗", "error", err, "question_id", questionID)
 		return []mcp.ResourceContents{
 			&mcp.TextResourceContents{
 				URI:      request.Params.URI,

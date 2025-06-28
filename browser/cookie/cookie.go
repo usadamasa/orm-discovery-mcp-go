@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -101,7 +101,7 @@ func (cm *ManagerImpl) SaveCookies(ctx *context.Context) error {
 		return fmt.Errorf("failed to write cookies file: %w", err)
 	}
 
-	log.Printf("Saved %d cookies to %s", len(filteredCookies), cm.filePath)
+	slog.Info("Cookieを保存しました", "count", len(filteredCookies), "file_path", cm.filePath)
 	return nil
 }
 
@@ -157,7 +157,7 @@ func (cm *ManagerImpl) LoadCookies(ctx *context.Context) error {
 		return fmt.Errorf("failed to set cookies in browser: %w", err)
 	}
 
-	log.Printf("Loaded %d cookies from %s", len(validCookies), cm.filePath)
+	slog.Info("Cookieを読み込みました", "count", len(validCookies), "file_path", cm.filePath)
 	return nil
 }
 

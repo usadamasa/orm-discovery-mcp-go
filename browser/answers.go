@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
@@ -55,7 +55,7 @@ func createQuestionRequest(question string) QuestionRequest {
 // SubmitQuestion submits a question to O'Reilly Answers and returns the question ID
 // NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, error) {
-	log.Printf("質問を送信します: %s", question)
+	slog.Info("質問を送信します", "question", question)
 
 	// Create OpenAPI client with answers-specific referer
 	client := &api.ClientWithResponses{
@@ -69,7 +69,7 @@ func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, err
 	// Create a question request
 	questionReq := createQuestionRequest(question)
 
-	log.Printf("OpenAPI client経由で質問を送信中: %s", question)
+	slog.Debug("OpenAPI client経由で質問を送信中", "question", question)
 
 	// API呼び出し前にCookieを更新
 	bc.UpdateCookiesFromBrowser()
@@ -108,14 +108,14 @@ func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, err
 		Message:    safeStringValue(resp.JSON200.Message),
 	}
 
-	log.Printf("質問が正常に送信されました。質問ID: %s", result.QuestionID)
+	slog.Info("質問が正常に送信されました", "question_id", result.QuestionID)
 	return result, nil
 }
 
 // GetAnswer retrieves the answer for a submitted question
 // NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*AnswerResponse, error) {
-	log.Printf("回答を取得中: %s", questionID)
+	slog.Debug("回答を取得中", "question_id", questionID)
 
 	// API呼び出し前にCookieを更新
 	bc.UpdateCookiesFromBrowser()
@@ -159,9 +159,9 @@ func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*
 	}
 
 	if result.IsFinished {
-		log.Printf("回答が完了しました: %s", questionID)
+		slog.Info("回答が完了しました", "question_id", questionID)
 	} else {
-		log.Printf("回答はまだ生成中です: %s", questionID)
+		slog.Debug("回答はまだ生成中です", "question_id", questionID)
 	}
 
 	return result, nil
@@ -222,7 +222,7 @@ func convertAnswerData(data *api.AnswerData) AnswerData {
 // AskQuestion asks a question and polls for the answer until completion
 // NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) AskQuestion(question string, maxWaitTime time.Duration) (*AnswerResponse, error) {
-	log.Printf("質問を開始します: %s", question)
+	slog.Info("質問を開始します", "question", question)
 
 	// Submit question
 	questionResp, err := bc.SubmitQuestion(question)
@@ -244,19 +244,19 @@ func (bc *BrowserClient) AskQuestion(question string, maxWaitTime time.Duration)
 		// Get answer
 		answer, err := bc.GetAnswer(questionResp.QuestionID, true)
 		if err != nil {
-			log.Printf("回答取得エラー（リトライ中）: %v", err)
+			slog.Warn("回答取得エラー（リトライ中）", "error", err)
 			time.Sleep(pollInterval)
 			continue
 		}
 
 		// Check if finished
 		if answer.IsFinished {
-			log.Printf("質問への回答が完了しました: %s", question)
+			slog.Info("質問への回答が完了しました", "question", question)
 			return answer, nil
 		}
 
 		// Wait before next poll
-		log.Printf("回答生成中... %v経過", time.Since(start).Round(time.Second))
+		slog.Debug("回答生成中...", "elapsed_time", time.Since(start).Round(time.Second))
 		time.Sleep(pollInterval)
 
 		// Gradually increase poll interval to reduce load
@@ -272,7 +272,7 @@ func (bc *BrowserClient) AskQuestion(question string, maxWaitTime time.Duration)
 // GetQuestionByID retrieves a previously asked question and its answer
 // NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) GetQuestionByID(questionID string) (*AnswerResponse, error) {
-	log.Printf("質問IDで回答を取得: %s", questionID)
+	slog.Debug("質問IDで回答を取得", "question_id", questionID)
 	return bc.GetAnswer(questionID, true)
 }
 

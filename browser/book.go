@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -17,7 +17,7 @@ import (
 
 // GetBookDetails retrieves book details and table of contents from O'Reilly book Product ID
 func (bc *BrowserClient) GetBookDetails(productID string) (*BookDetailResponse, error) {
-	log.Printf("プロダクトIDから書籍詳細を取得しています: %s", productID)
+	slog.Info("プロダクトIDから書籍詳細を取得しています", "product_id", productID)
 
 	// Get book details from API
 	bookDetail, err := bc.getBookDetails(productID)
@@ -35,12 +35,12 @@ func (bc *BrowserClient) GetBookTOC(productID string) (*TableOfContentsResponse,
 
 // GetBookChapterContent retrieves and parses chapter content from O'Reilly book
 func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*ChapterContentResponse, error) {
-	log.Printf("チャプター本文を取得しています: %s/%s", productID, chapterName)
+	slog.Info("チャプター本文を取得しています", "product_id", productID, "chapter_name", chapterName)
 
 	// Step 1: Get chapter title from TOC
 	chapterTitle, err := bc.getChapterTitleFromTOC(productID, chapterName)
 	if err != nil {
-		log.Printf("TOCからタイトル取得に失敗: %v (チャプター名をタイトルとして使用)", err)
+		slog.Warn("TOCからタイトル取得に失敗、チャプター名を使用", "error", err, "chapter_name", chapterName)
 		chapterTitle = chapterName
 	}
 
@@ -76,8 +76,11 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 		},
 	}
 
-	log.Printf("チャプター本文取得に成功しました: %s (%d paragraphs, %d headings, %d code blocks)",
-		chapterTitle, len(parsedContent.Paragraphs), len(parsedContent.Headings), len(parsedContent.CodeBlocks))
+	slog.Info("チャプター本文取得に成功しました",
+		"title", chapterTitle,
+		"paragraph_count", len(parsedContent.Paragraphs),
+		"heading_count", len(parsedContent.Headings),
+		"code_block_count", len(parsedContent.CodeBlocks))
 
 	return response, nil
 }
@@ -86,7 +89,7 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 
 // getBookDetails retrieves comprehensive book metadata from O'Reilly API using OpenAPI client
 func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, error) {
-	log.Printf("書籍詳細を取得しています: %s", productID)
+	slog.Debug("書籍詳細APIを呼び出しています", "product_id", productID)
 
 	// Create OpenAPI client with book-specific referer
 	client, err := api.NewClientWithResponses(APIEndpointBase,
@@ -96,7 +99,7 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 		return nil, fmt.Errorf("failed to create OpenAPI client: %v", err)
 	}
 
-	log.Printf("書籍詳細APIを試行しています: %s", productID)
+	slog.Debug("書籍詳細APIリクエスト送信", "product_id", productID)
 	resp, err := client.GetBookDetailsWithResponse(context.Background(), productID)
 	if err != nil {
 		return nil, fmt.Errorf("書籍詳細APIエンドポイントが失敗しました: %v", err)
@@ -113,7 +116,7 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 
 	// Convert from generated API type to local type
 	bookDetail := convertAPIBookDetailToLocal(resp.JSON200)
-	log.Printf("書籍詳細取得に成功しました: %s", bookDetail.Title)
+	slog.Info("書籍詳細取得に成功しました", "title", bookDetail.Title, "product_id", productID)
 	return bookDetail, nil
 }
 
@@ -214,7 +217,7 @@ func convertAPIBookDetailToLocal(apiBook *api.BookDetailResponse) *BookDetailRes
 
 // getBookTOC retrieves table of contents from O'Reilly API using OpenAPI client
 func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse, error) {
-	log.Printf("目次を取得しています: %s", productID)
+	slog.Debug("目次APIを呼び出しています", "product_id", productID)
 
 	// Create OpenAPI client
 	client, err := api.NewClientWithResponses(APIEndpointBase,
@@ -224,7 +227,7 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 		return nil, fmt.Errorf("failed to create OpenAPI client: %v", err)
 	}
 
-	log.Printf("目次APIを試行しています: %s", productID)
+	slog.Debug("目次APIリクエスト送信", "product_id", productID)
 
 	// Make a raw HTTP request to see the actual response structure
 	httpResp, err := client.GetBookFlatTOC(context.Background(), productID)
@@ -233,7 +236,7 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 	}
 	defer func() {
 		if err := httpResp.Body.Close(); err != nil {
-			log.Printf("Warning: failed to close response body: %v", err)
+			slog.Warn("レスポンスボディのクローズに失敗", "error", err)
 		}
 	}()
 
@@ -264,20 +267,19 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 	// Check response status
 	if resp.HTTPResponse.StatusCode != 200 {
 		// Log the raw response body for debugging
-		log.Printf("API response status: %d", resp.HTTPResponse.StatusCode)
-		log.Printf("API response body: %s", string(resp.Body))
+		slog.Error("目次API異常レスポンス", "status_code", resp.HTTPResponse.StatusCode, "response_body", string(resp.Body))
 		return nil, fmt.Errorf("API request failed with status %d", resp.HTTPResponse.StatusCode)
 	}
 
 	if resp.JSON200 == nil {
 		// Log the raw response body for debugging
-		log.Printf("Failed to parse JSON response. Raw response: %s", string(resp.Body))
+		slog.Error("JSONレスポンス解析失敗", "response_body", string(resp.Body))
 		return nil, fmt.Errorf("no valid JSON response received")
 	}
 
 	// Convert from generated API type to local type
 	tocResponse := convertAPIFlatTOCToLocal(resp.JSON200)
-	log.Printf("目次取得に成功しました: %s (%d items)", tocResponse.BookTitle, tocResponse.TotalChapters)
+	slog.Info("目次取得に成功しました", "title", tocResponse.BookTitle, "chapter_count", tocResponse.TotalChapters)
 	return tocResponse, nil
 }
 
@@ -347,13 +349,13 @@ func (bc *BrowserClient) GetChapterHTMLContent(productID, chapterName string) (s
 		return "", "", fmt.Errorf("failed to get HTML content from %s: %w", chapterHref, err)
 	}
 
-	log.Printf("チャプターHTML取得に成功しました: %s (%d bytes)", chapterHref, len(htmlContent))
+	slog.Debug("チャプターHTML取得に成功しました", "href", chapterHref, "content_size", len(htmlContent))
 	return htmlContent, chapterHref, nil
 }
 
 // getChapterHrefFromTOC retrieves chapter href URL from flat-toc
 func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (string, error) {
-	log.Printf("flat-tocからチャプターhrefを取得しています: %s/%s", productID, chapterName)
+	slog.Debug("flat-tocからチャプターhrefを取得しています", "product_id", productID, "chapter_name", chapterName)
 
 	// Get flat-toc for the book
 	toc, err := bc.getBookTOC(productID)
@@ -379,7 +381,7 @@ func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (s
 				href = APIEndpointBase + "/api/v2/epubs/urn:orm:book:" + productID + "/files/" + href
 			}
 
-			log.Printf("チャプターhref取得に成功しました: %s -> %s", chapterName, href)
+			slog.Debug("チャプターhref取得に成功しました", "chapter_name", chapterName, "href", href)
 			return href, nil
 		}
 	}
@@ -403,7 +405,7 @@ func (bc *BrowserClient) getChapterHrefFromTOC(productID, chapterName string) (s
 			href = APIEndpointBase + "/api/v2/epubs/urn:orm:book:" + productID + "/files/" + href
 		}
 
-		log.Printf("部分マッチでチャプターhref取得: %s -> %s", chapterName, href)
+		slog.Debug("部分マッチでチャプターhref取得", "chapter_name", chapterName, "href", href)
 		return href, nil
 	}
 

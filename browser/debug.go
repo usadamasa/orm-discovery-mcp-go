@@ -2,7 +2,7 @@ package browser
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -17,7 +17,7 @@ func (bc *BrowserClient) debugScreenshot(ctx context.Context, name string) {
 
 	var buf []byte
 	if err := chromedp.Run(ctx, chromedp.FullScreenshot(&buf, 90)); err != nil {
-		log.Printf("スクリーンショット取得エラー: %v", err)
+		slog.Warn("スクリーンショット取得エラー", "error", err)
 		return
 	}
 
@@ -26,9 +26,9 @@ func (bc *BrowserClient) debugScreenshot(ctx context.Context, name string) {
 
 	// ファイルとして保存
 	if err := os.WriteFile(imgPath, buf, 0644); err != nil {
-		log.Printf("スクリーンショット保存エラー: %v", err)
+		slog.Warn("スクリーンショット保存エラー", "error", err)
 		return
 	}
 
-	log.Printf("デバッグスクリーンショットを保存しました: %s", imgPath)
+	slog.Debug("デバッグスクリーンショットを保存しました", "path", imgPath)
 }

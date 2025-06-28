@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -63,20 +63,20 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 	// Cookieの復元を試行
 	if cookieManager != nil && cookieManager.CookieFileExists() {
-		log.Printf("既存のCookieファイルが見つかりました。復元を試行します")
+		slog.Info("既存のCookieファイルが見つかりました。復元を試行します")
 		if err := cookieManager.LoadCookies(&ctx); err != nil {
-			log.Printf("Cookie復元に失敗しました: %v", err)
+			slog.Warn("Cookie復元に失敗しました", "error", err)
 		} else {
 			// ブラウザのCookieをHTTPクライアントに同期
 			client.syncCookiesFromBrowser()
 
 			// Cookieが有効かどうか検証
 			if client.validateAuthentication(ctx) {
-				log.Printf("Cookieを使用してログインが完了しました")
+				slog.Info("Cookieを使用してログインが完了しました")
 				client.cookieManager = cookieManager
 				return client, nil
 			}
-			log.Printf("Cookieが無効でした。通常のログインを実行します")
+			slog.Info("Cookieが無効でした。通常のログインを実行します")
 		}
 	}
 
@@ -89,13 +89,13 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	// ログイン成功後にCookieを保存
 	client.cookieManager = cookieManager
 	if err := cookieManager.SaveCookies(&ctx); err != nil {
-		log.Printf("Cookieの保存に失敗しました: %v", err)
+		slog.Warn("Cookieの保存に失敗しました", "error", err)
 	}
 
 	// ブラウザのCookieをHTTPクライアントに同期
 	client.syncCookiesFromBrowser()
 
-	log.Printf("ブラウザクライアントの初期化とログインが完了しました")
+	slog.Info("ブラウザクライアントの初期化とログインが完了しました")
 	return client, nil
 }
 
@@ -108,7 +108,7 @@ func (bc *BrowserClient) Close() {
 
 // login はO'Reillyにログインし、セッションCookieを取得します
 func (bc *BrowserClient) login(userID, password string) error {
-	log.Printf("O'Reillyへのログインを開始します: %s", userID)
+	slog.Info("O'Reillyへのログインを開始します", "user_id", userID)
 
 	var cookies []*http.Cookie
 	var divText string
@@ -117,16 +117,16 @@ func (bc *BrowserClient) login(userID, password string) error {
 		// ログインページに移動
 		chromedp.Navigate("https://www.oreilly.com/member/login/"),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Printf("ログインページに移動しました")
+			slog.Debug("ログインページに移動しました")
 			return nil
 		}),
 		// メールアドレスの入力
 		chromedp.WaitVisible(`input[name="email"]`, chromedp.ByQuery),
 		chromedp.SendKeys(`input[name="email"]`, userID, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			log.Printf("メールアドレスを入力しました: %s", userID)
+			slog.Debug("メールアドレスを入力しました", "user_id", userID)
 			bc.debugScreenshot(ctx, "orm_filled_email")
-			log.Printf("Continueボタンをクリックしようとしています")
+			slog.Debug("Continueボタンをクリックしようとしています")
 			return nil
 		}),
 		// Continueボタンをクリック
@@ -135,7 +135,7 @@ func (bc *BrowserClient) login(userID, password string) error {
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// クリック操作
 			bc.debugScreenshot(ctx, "orm_clicked_continue")
-			log.Printf("Continueボタンをクリックしました")
+			slog.Debug("Continueボタンをクリックしました")
 			return nil
 		}),
 		// リダイレクトまたはページ更新を待機
@@ -143,15 +143,16 @@ func (bc *BrowserClient) login(userID, password string) error {
 		chromedp.Text(`.sub-title`, &divText, chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			bc.debugScreenshot(ctx, "acm_after_redirected")
-			log.Printf(".sub-title: %s", divText)
+			slog.Debug(".sub-title取得", "text", divText)
 			var currentURL string
 			if err := chromedp.Location(&currentURL).Do(ctx); err != nil {
 				return err
 			}
 			if strings.Contains(currentURL, "idp.acm.org") {
-				log.Printf("ACM IDPにリダイレクトされました")
+				slog.Info("ACM IDPにリダイレクトされました", "url", currentURL)
 			} else {
-				log.Fatalf("想定されたログインフローが見つかりませんでした。現在のURL: %s", currentURL)
+				slog.Error("想定されたログインフローが見つかりませんでした", "current_url", currentURL)
+				return fmt.Errorf("想定されたログインフローが見つかりませんでした。現在のURL: %s", currentURL)
 			}
 			return nil
 		}),
@@ -159,26 +160,26 @@ func (bc *BrowserClient) login(userID, password string) error {
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// @acm.orgを除いたユーザー名を取得
 			username := strings.TrimSuffix(userID, "@acm.org")
-			log.Printf("ACMユーザー名: %s", username)
+			slog.Debug("ACMユーザー名を取得", "username", username)
 
 			return chromedp.Run(ctx,
 				// ユーザー名フィールドを待機
 				chromedp.WaitVisible(`input[placeholder*="username"]`, chromedp.ByQuery),
 				chromedp.ActionFunc(func(ctx context.Context) error {
-					log.Printf("ACMユーザー名フィールドが表示されました")
+					slog.Debug("ACMユーザー名フィールドが表示されました")
 					return nil
 				}),
 				// ユーザー名を入力
 				chromedp.Clear(`input[placeholder*="username"]`, chromedp.ByQuery),
 				chromedp.SendKeys(`input[placeholder*="username"]`, username, chromedp.ByQuery),
 				chromedp.ActionFunc(func(ctx context.Context) error {
-					log.Printf("ACMユーザー名を入力しました: %s", username)
+					slog.Debug("ACMユーザー名を入力しました", "username", username)
 					return nil
 				}),
 				// パスワードを入力
 				chromedp.SendKeys(`input[placeholder*="password"]`, password, chromedp.ByQuery),
 				chromedp.ActionFunc(func(ctx context.Context) error {
-					log.Printf("ACMパスワードを入力しました")
+					slog.Debug("ACMパスワードを入力しました")
 					return nil
 				}),
 				chromedp.ActionFunc(func(ctx context.Context) error {
@@ -188,7 +189,7 @@ func (bc *BrowserClient) login(userID, password string) error {
 				// Sign inボタンをクリック
 				chromedp.Click(`.btn`, chromedp.ByQuery),
 				chromedp.ActionFunc(func(ctx context.Context) error {
-					log.Printf("ACM Sign inボタンをクリックしました")
+					slog.Debug("ACM Sign inボタンをクリックしました")
 					return nil
 				}),
 			)
@@ -201,18 +202,18 @@ func (bc *BrowserClient) login(userID, password string) error {
 			for time.Now().Before(timeout) {
 				var currentURL string
 				if err := chromedp.Location(&currentURL).Do(ctx); err != nil {
-					log.Printf("URL取得エラー: %v", err)
+					slog.Debug("URL取得エラー", "error", err)
 					time.Sleep(2 * time.Second)
 					continue
 				}
 
-				log.Printf("ログイン処理中のURL: %s", currentURL)
+				slog.Debug("ログイン処理中", "url", currentURL)
 
 				// ログイン成功の判定
 				if strings.Contains(currentURL, "learning.oreilly.com") ||
 					strings.Contains(currentURL, "oreilly.com/home") ||
 					strings.Contains(currentURL, "oreilly.com/member") {
-					log.Printf("ログイン成功を確認しました")
+					slog.Info("ログイン成功を確認しました", "final_url", currentURL)
 					return nil
 				}
 
@@ -248,7 +249,7 @@ func (bc *BrowserClient) login(userID, password string) error {
 			}
 			// Cookieを保存
 			bc.cookies = cookies
-			log.Printf("%d個のCookieを取得しました", len(cookies))
+			slog.Info("Cookieを取得しました", "count", len(cookies))
 			return nil
 		}),
 	)
@@ -275,18 +276,18 @@ func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
 	bc.debugScreenshot(ctx, "validate_saved_cookie_authentication")
 
 	if err != nil {
-		log.Printf("認証検証中にエラーが発生しました: %v", err)
+		slog.Warn("認証検証中にエラーが発生しました", "error", err)
 		return false
 	}
-	log.Printf("ログイン処理中のURL: %s", currentURL)
+	slog.Debug("認証検証中", "url", currentURL, "title", pageTitle)
 
 	// ログインページにリダイレクトされていないかチェック
 	if currentURL != ormHome {
-		log.Printf("認証が無効です。現在のURL: %s", currentURL)
+		slog.Info("認証が無効です", "current_url", currentURL, "expected_url", ormHome)
 		return false
 	}
 
-	log.Printf("認証検証成功: %s", pageTitle)
+	slog.Info("認証検証成功", "title", pageTitle)
 	return true
 }
 
@@ -300,7 +301,7 @@ func (bc *BrowserClient) syncCookiesFromBrowser() {
 	}))
 
 	if err != nil {
-		log.Printf("ブラウザからのCookie取得に失敗しました: %v", err)
+		slog.Warn("ブラウザからのCookie取得に失敗しました", "error", err)
 		return
 	}
 
@@ -336,13 +337,13 @@ func (bc *BrowserClient) syncCookiesFromBrowser() {
 
 	// デバッグログ
 	if bc.debug {
-		log.Printf("HTTPクライアントに%d個のCookieを同期しました", len(httpCookies))
+		slog.Debug("HTTPクライアントにCookieを同期しました", "count", len(httpCookies))
 		for _, c := range httpCookies {
 			value := c.Value
 			if len(value) > 20 {
 				value = value[:20] + "..."
 			}
-			log.Printf("Cookie同期: %s=%s (Domain: %s, Path: %s)", c.Name, value, c.Domain, c.Path)
+			slog.Debug("Cookie同期", "name", c.Name, "value", value, "domain", c.Domain, "path", c.Path)
 		}
 	}
 
@@ -353,7 +354,7 @@ func (bc *BrowserClient) syncCookiesFromBrowser() {
 // UpdateCookiesFromBrowser はAPI呼び出し前にCookieを最新状態に更新します
 func (bc *BrowserClient) UpdateCookiesFromBrowser() {
 	if bc.debug {
-		log.Printf("API呼び出し前にCookieを更新中...")
+		slog.Debug("API呼び出し前にCookieを更新中...")
 	}
 	bc.syncCookiesFromBrowser()
 }
@@ -394,19 +395,16 @@ func (bc *BrowserClient) createRequestEditorInternal(referer string) func(ctx co
 		// Debug logging for cookie transmission
 		if bc.debug {
 			cookies := bc.cookieJar.Cookies(req.URL)
-			log.Printf("API呼び出し先URL: %s", req.URL.String())
+			slog.Debug("API呼び出し準備", "url", req.URL.String(), "cookie_count", len(cookies))
 			if referer != "" {
-				log.Printf("Referer: %s", referer)
-			} else {
-				log.Printf("Referer: (not set)")
+				slog.Debug("Referer設定", "referer", referer)
 			}
-			log.Printf("送信予定Cookie数: %d", len(cookies))
 			for _, cookie := range cookies {
 				value := cookie.Value
 				if len(value) > 20 {
 					value = value[:20] + "..."
 				}
-				log.Printf("送信Cookie: %s=%s (Domain: %s, Path: %s)", cookie.Name, value, cookie.Domain, cookie.Path)
+				slog.Debug("送信Cookie", "name", cookie.Name, "value", value, "domain", cookie.Domain, "path", cookie.Path)
 			}
 		}
 
@@ -425,7 +423,7 @@ func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
 		contentType = "HTML (nested path)"
 	}
 
-	log.Printf("%sコンテンツを取得しています: %s", contentType, contentURL)
+	slog.Info("コンテンツを取得しています", "type", contentType, "url", contentURL)
 
 	req, err := http.NewRequest("GET", contentURL, nil)
 	if err != nil {
@@ -452,7 +450,7 @@ func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			log.Printf("Warning: failed to close response body: %v", err)
+			slog.Warn("レスポンスボディのクローズに失敗", "error", err)
 		}
 	}()
 
@@ -469,7 +467,7 @@ func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
 		}
 		defer func() {
 			if err := gzipReader.Close(); err != nil {
-				log.Printf("Warning: failed to close gzip reader: %v", err)
+				slog.Warn("gzipリーダーのクローズに失敗", "error", err)
 			}
 		}()
 		reader = gzipReader

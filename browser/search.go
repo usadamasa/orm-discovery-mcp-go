@@ -3,7 +3,7 @@ package browser
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
@@ -203,7 +203,7 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int,
 		IsTopics:     &isTopics,
 	}
 
-	log.Printf("Making OpenAPI search request: query=%s, rows=%d", query, rows)
+	slog.Debug("OpenAPI検索リクエスト開始", "query", query, "rows", rows)
 
 	// Make the API call
 	resp, err := client.SearchContentV2WithResponse(context.Background(), params)
@@ -225,7 +225,7 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int,
 
 // SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します
 func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, error) {
-	log.Printf("API検索を開始します: %s", query)
+	slog.Info("API検索を開始します", "query", query)
 
 	// オプションのデフォルト値を設定
 	rows := 100
@@ -266,7 +266,7 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 
 	apiResponse, err := bc.makeHTTPSearchRequest(query, rows, tzOffset, aiaOnly, featureFlags, report, isTopics)
 	if err != nil {
-		log.Printf("API search failed: %v", err)
+		slog.Error("API検索に失敗しました", "error", err, "query", query)
 		return nil, fmt.Errorf("API search failed: %w", err)
 	}
 
@@ -282,7 +282,7 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 		rawResults = *apiResponse.Hits
 	}
 
-	log.Printf("API returned %d results", len(rawResults))
+	slog.Debug("API検索レスポンス取得", "result_count", len(rawResults))
 
 	// Normalize results using Go instead of JavaScript
 	for i, rawResult := range rawResults {
@@ -293,6 +293,6 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 		results = append(results, normalized)
 	}
 
-	log.Printf("API検索が完了しました。%d件の結果を取得: %s", len(results), query)
+	slog.Info("API検索が完了しました", "query", query, "result_count", len(results))
 	return results, nil
 }
