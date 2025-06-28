@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
@@ -22,6 +25,8 @@ type Manager interface {
 	LoadCookies(ctx *context.Context) error
 	CookieFileExists() bool
 	DeleteCookieFile() error
+	GetCookiesForURL(url *url.URL) []*http.Cookie
+	SetCookies(url *url.URL, cookies []*http.Cookie) error
 }
 
 // entry はCookieの情報を保持する構造体
@@ -45,6 +50,7 @@ type cookieCache struct {
 type ManagerImpl struct {
 	tmpDir   string
 	filePath string
+	cookies  []*http.Cookie
 }
 
 // NewCookieManager は新しいCookieManagerを作成する
@@ -52,6 +58,7 @@ func NewCookieManager(tmpDir string) *ManagerImpl {
 	return &ManagerImpl{
 		tmpDir:   tmpDir,
 		filePath: filepath.Join(tmpDir, cookieFileName),
+		cookies:  make([]*http.Cookie, 0),
 	}
 }
 
@@ -69,6 +76,7 @@ func (cm *ManagerImpl) SaveCookies(ctx *context.Context) error {
 
 	// 重要なCookieのみをフィルタリング
 	var filteredCookies []entry
+	var httpCookies []*http.Cookie
 	for _, cookie := range cookies {
 		if cm.isImportantCookie(cookie.Name) {
 			cookieData := entry{
@@ -83,8 +91,25 @@ func (cm *ManagerImpl) SaveCookies(ctx *context.Context) error {
 				cookieData.Expires = time.Unix(int64(cookie.Expires), 0)
 			}
 			filteredCookies = append(filteredCookies, cookieData)
+
+			// http.Cookieとしても保存
+			httpCookie := &http.Cookie{
+				Name:     cookie.Name,
+				Value:    cookie.Value,
+				Domain:   cookie.Domain,
+				Path:     cookie.Path,
+				HttpOnly: cookie.HTTPOnly,
+				Secure:   cookie.Secure,
+			}
+			if cookie.Expires != 0 {
+				httpCookie.Expires = time.Unix(int64(cookie.Expires), 0)
+			}
+			httpCookies = append(httpCookies, httpCookie)
 		}
 	}
+
+	// 内部のクッキーストレージを更新
+	cm.cookies = httpCookies
 
 	cache := cookieCache{
 		Cookies: filteredCookies,
@@ -135,6 +160,24 @@ func (cm *ManagerImpl) LoadCookies(ctx *context.Context) error {
 		return fmt.Errorf("no valid cookies found")
 	}
 
+	// http.Cookieとして内部ストレージに保存
+	var httpCookies []*http.Cookie
+	for _, cookie := range validCookies {
+		httpCookie := &http.Cookie{
+			Name:     cookie.Name,
+			Value:    cookie.Value,
+			Domain:   cookie.Domain,
+			Path:     cookie.Path,
+			HttpOnly: cookie.HTTPOnly,
+			Secure:   cookie.Secure,
+		}
+		if !cookie.Expires.IsZero() {
+			httpCookie.Expires = cookie.Expires
+		}
+		httpCookies = append(httpCookies, httpCookie)
+	}
+	cm.cookies = httpCookies
+
 	// ブラウザにCookieを設定
 	var actions []chromedp.Action
 	for _, cookie := range validCookies {
@@ -173,6 +216,104 @@ func (cm *ManagerImpl) DeleteCookieFile() error {
 		return nil
 	}
 	return os.Remove(cm.filePath)
+}
+
+// GetCookiesForURL は指定されたURLに対して適切なCookieを返す
+func (cm *ManagerImpl) GetCookiesForURL(url *url.URL) []*http.Cookie {
+	var result []*http.Cookie
+	now := time.Now()
+
+	for _, cookie := range cm.cookies {
+		// 期限切れチェック
+		if !cookie.Expires.IsZero() && cookie.Expires.Before(now) {
+			continue
+		}
+
+		// ドメインマッチング
+		if !cm.cookieMatchesDomain(cookie, url.Host) {
+			continue
+		}
+
+		// パスマッチング
+		if !cm.cookieMatchesPath(cookie, url.Path) {
+			continue
+		}
+
+		// Secure属性チェック
+		if cookie.Secure && url.Scheme != "https" {
+			continue
+		}
+
+		result = append(result, cookie)
+	}
+
+	return result
+}
+
+// SetCookies は指定されたURLに対してCookieを設定する
+func (cm *ManagerImpl) SetCookies(url *url.URL, cookies []*http.Cookie) error {
+	// 既存のクッキーをマップに変換（名前とドメインをキーとして使用）
+	existingCookies := make(map[string]*http.Cookie)
+	for _, cookie := range cm.cookies {
+		key := cookie.Name + "|" + cookie.Domain
+		existingCookies[key] = cookie
+	}
+
+	// 新しいクッキーを追加または更新
+	for _, newCookie := range cookies {
+		// ドメインが設定されていない場合はURLのホストを使用
+		if newCookie.Domain == "" {
+			newCookie.Domain = url.Host
+		}
+		// パスが設定されていない場合はデフォルトパスを使用
+		if newCookie.Path == "" {
+			newCookie.Path = "/"
+		}
+
+		key := newCookie.Name + "|" + newCookie.Domain
+		existingCookies[key] = newCookie
+	}
+
+	// マップから配列に戻す
+	cm.cookies = make([]*http.Cookie, 0, len(existingCookies))
+	for _, cookie := range existingCookies {
+		cm.cookies = append(cm.cookies, cookie)
+	}
+
+	return nil
+}
+
+// cookieMatchesDomain はクッキーがドメインにマッチするかをチェック
+func (cm *ManagerImpl) cookieMatchesDomain(cookie *http.Cookie, host string) bool {
+	domain := cookie.Domain
+	if domain == "" {
+		return false
+	}
+
+	// ドメインが"."で始まる場合（例：.oreilly.com）
+	if strings.HasPrefix(domain, ".") {
+		// サブドメインマッチング
+		return strings.HasSuffix(host, domain) || host == domain[1:]
+	}
+
+	// 完全一致
+	return host == domain
+}
+
+// cookieMatchesPath はクッキーがパスにマッチするかをチェック
+func (cm *ManagerImpl) cookieMatchesPath(cookie *http.Cookie, path string) bool {
+	cookiePath := cookie.Path
+	if cookiePath == "" {
+		cookiePath = "/"
+	}
+
+	// パスプレフィックスマッチング
+	if !strings.HasPrefix(path, cookiePath) {
+		return false
+	}
+
+	// 完全一致またはスラッシュで区切られている
+	return len(path) == len(cookiePath) || cookiePath[len(cookiePath)-1] == '/' || path[len(cookiePath)] == '/'
 }
 
 // isImportantCookie は保存すべき重要なCookieかどうかを判定する

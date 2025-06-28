@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"time"
@@ -42,19 +41,11 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 	ctx, _ := chromedp.NewContext(allocCtx)
 
-	// CookieJarを作成
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cookie jar: %w", err)
-	}
-
 	client := &BrowserClient{
-		ctx:       ctx,
-		cancel:    cancel,
-		cookieJar: jar,
+		ctx:    ctx,
+		cancel: cancel,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
-			Jar:     jar,
 		},
 		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 		tmpDir:    tmpDir,
@@ -62,7 +53,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	}
 
 	// Cookieの復元を試行
-	if cookieManager != nil && cookieManager.CookieFileExists() {
+	if cookieManager.CookieFileExists() {
 		slog.Info("既存のCookieファイルが見つかりました。復元を試行します")
 		if err := cookieManager.LoadCookies(&ctx); err != nil {
 			slog.Warn("Cookie復元に失敗しました", "error", err)
@@ -247,8 +238,6 @@ func (bc *BrowserClient) login(userID, password string) error {
 					HttpOnly: c.HTTPOnly,
 				}
 			}
-			// Cookieを保存
-			bc.cookies = cookies
 			slog.Info("Cookieを取得しました", "count", len(cookies))
 			return nil
 		}),
@@ -291,7 +280,7 @@ func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
 	return true
 }
 
-// syncCookiesFromBrowser はブラウザのCookieをHTTPクライアントのCookieJarに同期します
+// syncCookiesFromBrowser はブラウザのCookieをcookie.Managerに同期します
 func (bc *BrowserClient) syncCookiesFromBrowser() {
 	var cookies []*network.Cookie
 	err := chromedp.Run(bc.ctx, chromedp.ActionFunc(func(ctx context.Context) error {
@@ -305,7 +294,7 @@ func (bc *BrowserClient) syncCookiesFromBrowser() {
 		return
 	}
 
-	// ブラウザのCookieをHTTPクライアントのCookieJarに追加
+	// ブラウザのCookieをcookie.Managerに設定
 	var httpCookies []*http.Cookie
 	for _, c := range cookies {
 		httpCookie := &http.Cookie{
@@ -331,13 +320,17 @@ func (bc *BrowserClient) syncCookiesFromBrowser() {
 		{Scheme: "https", Host: "oreilly.com"},
 	}
 
-	for _, u := range urls {
-		bc.cookieJar.SetCookies(u, httpCookies)
+	if bc.cookieManager != nil {
+		for _, u := range urls {
+			if err := bc.cookieManager.SetCookies(u, httpCookies); err != nil {
+				slog.Warn("cookie.ManagerへのCookie設定に失敗", "url", u.String(), "error", err)
+			}
+		}
 	}
 
 	// デバッグログ
 	if bc.debug {
-		slog.Debug("HTTPクライアントにCookieを同期しました", "count", len(httpCookies))
+		slog.Debug("cookie.ManagerにCookieを同期しました", "count", len(httpCookies))
 		for _, c := range httpCookies {
 			value := c.Value
 			if len(value) > 20 {
@@ -347,16 +340,6 @@ func (bc *BrowserClient) syncCookiesFromBrowser() {
 		}
 	}
 
-	// BrowserClientのcookiesフィールドも更新
-	bc.cookies = httpCookies
-}
-
-// UpdateCookiesFromBrowser はAPI呼び出し前にCookieを最新状態に更新します
-func (bc *BrowserClient) UpdateCookiesFromBrowser() {
-	if bc.debug {
-		slog.Debug("API呼び出し前にCookieを更新中...")
-	}
-	bc.syncCookiesFromBrowser()
 }
 
 // CreateRequestEditor creates a standardized RequestEditorFn for API calls
@@ -392,9 +375,20 @@ func (bc *BrowserClient) createRequestEditorInternal(referer string) func(ctx co
 		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 		req.Header.Set("User-Agent", bc.userAgent)
 
+		// Get cookies from cookie.Manager and set them manually
+		cookies := bc.cookieManager.GetCookiesForURL(req.URL)
+
+		// Set Cookie header manually
+		if len(cookies) > 0 {
+			var cookieValues []string
+			for _, cookie := range cookies {
+				cookieValues = append(cookieValues, cookie.Name+"="+cookie.Value)
+			}
+			req.Header.Set("Cookie", strings.Join(cookieValues, "; "))
+		}
+
 		// Debug logging for cookie transmission
 		if bc.debug {
-			cookies := bc.cookieJar.Cookies(req.URL)
 			slog.Debug("API呼び出し準備", "url", req.URL.String(), "cookie_count", len(cookies))
 			if referer != "" {
 				slog.Debug("Referer設定", "referer", referer)
@@ -408,7 +402,6 @@ func (bc *BrowserClient) createRequestEditorInternal(referer string) func(ctx co
 			}
 		}
 
-		// CookieJar automatically handles cookie attachment
 		return nil
 	}
 }
@@ -441,8 +434,15 @@ func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.Header.Set("User-Agent", bc.userAgent)
 
-	// Note: Authentication cookies are handled by httpClient.cookieJar automatically
-	// Manual cookie addition not needed for direct HTTP requests
+	// Add authentication cookies manually using cookie.Manager
+	cookies := bc.cookieManager.GetCookiesForURL(req.URL)
+	if len(cookies) > 0 {
+		var cookieValues []string
+		for _, cookie := range cookies {
+			cookieValues = append(cookieValues, cookie.Name+"="+cookie.Value)
+		}
+		req.Header.Set("Cookie", strings.Join(cookieValues, "; "))
+	}
 
 	resp, err := bc.httpClient.Do(req)
 	if err != nil {

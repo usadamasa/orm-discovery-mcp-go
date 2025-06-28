@@ -71,9 +71,6 @@ func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, err
 
 	slog.Debug("OpenAPI client経由で質問を送信中", "question", question)
 
-	// API呼び出し前にCookieを更新
-	bc.UpdateCookiesFromBrowser()
-
 	// Convert to API request format
 	apiRequest := api.QuestionRequest{
 		Question:          questionReq.Question,
@@ -116,9 +113,6 @@ func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, err
 // NOTE: This functionality has not been fully tested in production
 func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*AnswerResponse, error) {
 	slog.Debug("回答を取得中", "question_id", questionID)
-
-	// API呼び出し前にCookieを更新
-	bc.UpdateCookiesFromBrowser()
 
 	// Create OpenAPI client with answers-specific referer
 	client := &api.ClientWithResponses{

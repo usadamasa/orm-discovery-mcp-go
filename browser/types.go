@@ -17,8 +17,6 @@ type BrowserClient struct {
 	ctx           context.Context
 	cancel        context.CancelFunc
 	httpClient    *http.Client
-	cookieJar     http.CookieJar
-	cookies       []*http.Cookie
 	userAgent     string
 	cookieManager cookie.Manager
 	debug         bool
