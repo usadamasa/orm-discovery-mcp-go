@@ -73,21 +73,28 @@ func (s *Server) registerHandlers() {
 	// Add search tool
 	searchTool := mcp.NewTool("search_content",
 		mcp.WithDescription(`
-			Search content on O'Reilly Learning Platform.
-			Returns a list of books, videos, and articles with their product IDs, titles, descriptions, authors, and topics.
+			Search O'Reilly Learning Platform content efficiently.
+			Returns books, videos, and articles with product IDs for resource access.
 
-			Use this as the first step to discover relevant content for specific technologies, programming concepts, or technical challenges.
-			Each result includes a product_id that can be used to access detailed information through MCP resources:
+			QUERY BEST PRACTICES:
+			- Use 2-5 focused keywords (not full sentences)
+			- Prefer specific technical terms over general descriptions
+			- Combine technology + concept for better results
+			
+			EXAMPLES:
+			✓ Good: "Docker containers", "React hooks", "Python async", "Kubernetes monitoring"
+			✗ Poor: "How to use Docker for containerization", "Best practices for React development"
+			
+			Results include product_id for accessing detailed content via MCP resources:
+			- Book details: "oreilly://book-details/{product_id}"
+			- Table of contents: "oreilly://book-toc/{product_id}"
+			- Chapter content: "oreilly://book-chapter/{product_id}/{chapter_name}"
 
-			- Book details and TOC: Use resource URI "oreilly://book-details/{product_id}"
-			- Table of contents only: Use resource URI "oreilly://book-toc/{product_id}" 
-			- Chapter content: Use resource URI "oreilly://book-chapter/{product_id}/{chapter_name}"
-
-			IMPORTANT: When referencing any content found through this search, always cite the source with title, author(s), and O'Reilly Media as the publisher.
+			IMPORTANT: Always cite sources with title, author(s), and O'Reilly Media as publisher.
 		`),
 		mcp.WithString("query",
 			mcp.Required(),
-			mcp.Description("Search query for specific technologies, frameworks, concepts, or technical challenges (e.g., 'Docker containers', 'React hooks', 'machine learning algorithms', 'microservices architecture')"),
+			mcp.Description("2-5 focused keywords for specific technologies, frameworks, or concepts. Avoid full sentences. Examples: 'Docker containers', 'React hooks', 'machine learning algorithms', 'microservices architecture'"),
 		),
 		mcp.WithNumber("rows",
 			mcp.Description("Number of results to return (default: 100)"),
@@ -116,26 +123,32 @@ func (s *Server) registerHandlers() {
 	// Add ask question tool
 	askQuestionTool := mcp.NewTool("ask_question",
 		mcp.WithDescription(`
-			Ask technical questions to O'Reilly Answers AI and receive comprehensive, well-sourced responses.
+			Ask focused technical questions to O'Reilly Answers AI for comprehensive, well-sourced responses.
 			
-			This tool leverages O'Reilly's AI-powered question answering service, which draws from O'Reilly's extensive 
-			library of technical books, videos, and articles to provide detailed, accurate answers. 
+			QUESTION BEST PRACTICES:
+			- Keep questions under 100 characters for optimal processing
+			- Ask specific, focused questions rather than broad topics
+			- Use clear, direct language in English
+			- Focus on practical "how-to" or "what is" questions
+			
+			EFFECTIVE QUESTION PATTERNS:
+			✓ Good: "How to optimize React performance?", "What is Kubernetes service mesh?", "Python async vs threading?"
+			✗ Poor: "Can you explain everything about React performance optimization techniques and best practices?"
 			
 			Response includes:
 			- Comprehensive markdown-formatted answer
 			- Source citations with specific book/article references
 			- Related resources for deeper learning
-			- Suggested follow-up questions for exploration
+			- Suggested follow-up questions
 			- Question ID for future reference
 			
-			The AI searches across programming, data science, cloud computing, DevOps, machine learning, 
-			and other technical domains covered in O'Reilly's content library.
+			Covers: programming, data science, cloud computing, DevOps, machine learning, and other technical domains.
 
 			IMPORTANT: Always cite the sources provided in the response when referencing the information.
 		`),
 		mcp.WithString("question",
 			mcp.Required(),
-			mcp.Description("Natural language question about technical topics, programming, data science, cloud computing, etc. IMPORTANT: Questions must be written in English for optimal AI processing. (e.g., 'How do I build a data lake on S3?', 'What are the best practices for React performance optimization?')"),
+			mcp.Description("Focused technical question in English (under 100 characters preferred). Examples: 'How to optimize React performance?', 'What is Kubernetes service mesh?', 'Python async vs threading?'"),
 		),
 		mcp.WithNumber("max_wait_time_seconds",
 			mcp.Description("Maximum time to wait for answer generation in seconds (default: 300, max: 600)"),
