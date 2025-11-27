@@ -1,57 +1,70 @@
 name: CI
 
-on:
-  push: {}
-  pull_request: {}
+"on":
+  push:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  ci-status-check:
+    runs-on: ubuntu-slim
+    if: failure()
+    timeout-minutes: 10
+    needs:
+      - test
+      - lint
+    steps:
+      - run: exit 1
+
   test:
     name: Test
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Aqua
-      uses: ./.github/actions/setup-aqua
+      - name: Setup Aqua
+        uses: ./.github/actions/setup-aqua
 
-    - name: Setup Go
-      uses: ./.github/actions/setup-go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
-    - name: Run tests
-      run: go test ./... -v -race -coverprofile=coverage.out
+      - name: Run tests
+        run: go test ./... -v -race -coverprofile=coverage.out
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.out
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Aqua
-      uses: ./.github/actions/setup-aqua
+      - name: Setup Aqua
+        uses: ./.github/actions/setup-aqua
 
-    - name: Setup Go
-      uses: ./.github/actions/setup-go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
-    - name: Format code
-      run: |
-        task format
-        if [ -n "$(git status --porcelain)" ]; then
-          echo "Code is not formatted properly"
-          git diff
-          exit 1
-        fi
+      - name: Format code
+        run: |
+          task format
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code is not formatted properly"
+            git diff
+            exit 1
+          fi
 
-    - name: Run lint
-      run: task lint
+      - name: Run lint
+        run: task lint
