@@ -1,0 +1,19 @@
+yaml-files:
+  - '*.yaml'
+  - '*.yml'
+
+# https://yamllint.readthedocs.io/en/stable/configuration.html
+extends: default
+
+ignore-from-file:
+  - .gitignore
+
+rules:
+  line-length: disable
+  document-start: disable
+  comments:
+    level: error
+  comments-indentation:
+    level: error
+  truthy:
+    level: error
