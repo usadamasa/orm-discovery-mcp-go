@@ -42,4 +42,4 @@ changelog:
   disable: true
 
 release:
-  replace_existing_draft: true
+  use_existing_draft: true
