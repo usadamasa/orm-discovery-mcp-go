@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.0.2](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.1...v0.0.2) - 2025-12-30
+- fix by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/16
+- fix by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/18
+
 ## [v0.0.1](https://github.com/usadamasa/orm-discovery-mcp-go/commits/v0.0.1) - 2025-12-30
 - Fix/login flow by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/1
 - Setup ci by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/2
