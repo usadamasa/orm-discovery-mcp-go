@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Upgrade mcp-go from v0.32.0 to v0.43.2
+  - Enhanced session management capabilities
+  - Improved HTTP client features with custom header support
+  - Fixed notification issues affecting client tool calls
+  - Improved JSON schema unmarshaling (supports both $defs and definitions)
+  - No breaking changes - full backward compatibility maintained
+
 ## [v0.0.3](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.2...v0.0.3) - 2025-12-30
 - handle terminate headless chrome by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/20
 - add unit test to auth.go by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/22
