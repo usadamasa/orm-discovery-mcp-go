@@ -215,7 +215,7 @@ Place a `.env` file in the same directory as the executable. The system will aut
 
 ## Dependencies
 
-**Core Framework**: `github.com/mark3labs/mcp-go` - MCP protocol implementation
+**Core Framework**: `github.com/mark3labs/mcp-go v0.43.2` - MCP protocol implementation
 **Browser Automation**: `github.com/chromedp/chromedp` - Chrome DevTools Protocol
 
 ## Browser Requirements
