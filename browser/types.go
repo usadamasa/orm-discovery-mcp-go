@@ -15,7 +15,8 @@ const (
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
 type BrowserClient struct {
 	ctx           context.Context
-	cancel        context.CancelFunc
+	ctxCancel     context.CancelFunc // chromedp.NewContext()のcancel
+	allocCancel   context.CancelFunc // chromedp.NewExecAllocator()のcancel
 	httpClient    *http.Client
 	userAgent     string
 	cookieManager cookie.Manager

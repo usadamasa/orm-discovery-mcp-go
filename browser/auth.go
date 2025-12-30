@@ -90,14 +90,14 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
 	)
 
-	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer cancel()
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
 
-	ctx, _ := chromedp.NewContext(allocCtx)
+	ctx, ctxCancel := chromedp.NewContext(allocCtx)
 
 	client := &BrowserClient{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:         ctx,
+		ctxCancel:   ctxCancel,
+		allocCancel: allocCancel,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &GzipTransport{
@@ -149,8 +149,12 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 // Close はブラウザクライアントをクリーンアップします
 func (bc *BrowserClient) Close() {
-	if bc.cancel != nil {
-		bc.cancel()
+	// 正しい順序でクリーンアップ: ctx → allocator
+	if bc.ctxCancel != nil {
+		bc.ctxCancel()
+	}
+	if bc.allocCancel != nil {
+		bc.allocCancel()
 	}
 }
 
