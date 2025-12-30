@@ -1,0 +1,10 @@
+# Changelog
+
+## [v0.0.1](https://github.com/usadamasa/orm-discovery-mcp-go/commits/v0.0.1) - 2025-12-30
+- Fix/login flow by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/1
+- Setup ci by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/2
+- add dependabot and other by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/3
+- fix by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/8
+- introduce tagpr and goreleaser by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/12
+- fix permission by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/13
+- fix variable by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/14
