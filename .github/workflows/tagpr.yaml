@@ -12,8 +12,15 @@ concurrency:
 jobs:
   tagpr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+      packages: write
+
     outputs:
       tagpush: ${{ steps.tagpr.outputs.tagpush }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,9 +41,12 @@ jobs:
   release:
     needs: tagpr
     if: needs.tagpr.outputs.tagpush == 'true'
+
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
