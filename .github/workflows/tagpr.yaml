@@ -42,7 +42,7 @@ jobs:
 
   release:
     needs: tagpr
-    if: needs.tagpr.outputs.tag == ''
+    if: needs.tagpr.outputs.tag != ''
 
     runs-on: ubuntu-latest
 
