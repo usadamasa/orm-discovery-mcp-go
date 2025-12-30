@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.0.3](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.2...v0.0.3) - 2025-12-30
+- handle terminate headless chrome by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/20
+- add unit test to auth.go by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/22
+
 ## [v0.0.2](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.1...v0.0.2) - 2025-12-30
 - fix by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/16
 - fix by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/18
