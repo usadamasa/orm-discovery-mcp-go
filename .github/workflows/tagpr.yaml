@@ -1,0 +1,59 @@
+name: tagpr
+
+"on":
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tagpr:
+    runs-on: ubuntu-latest
+    outputs:
+      tagpush: ${{ steps.tagpr.outputs.tagpush }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.TAGPR_APP_ID }}
+          private-key: ${{ secrets.TAGPR_PRIVATE_KEY }}
+
+      - name: Run tagpr
+        id: tagpr
+        uses: Songmu/tagpr@v1
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+  release:
+    needs: tagpr
+    if: needs.tagpr.outputs.tagpush == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Aqua
+        uses: ./.github/actions/setup-aqua
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

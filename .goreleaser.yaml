@@ -1,0 +1,47 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - task generate:api:oreilly
+
+builds:
+  - id: orm-discovery-mcp-go
+    main: .
+    binary: orm-discovery-mcp-go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    flags:
+      - -trimpath
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+      - CLAUDE.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  disable: true
+
+release:
+  draft: true
+  replace_existing_draft: true
+  prerelease: auto

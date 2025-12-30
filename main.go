@@ -9,7 +9,20 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 )
 
+// GoReleaserによって埋め込まれるバージョン情報
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
+	// --versionフラグの処理
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		fmt.Printf("orm-discovery-mcp-go %s (commit: %s, built: %s)\n", version, commit, date)
+		os.Exit(0)
+	}
+
 	runMCPServer()
 }
 
