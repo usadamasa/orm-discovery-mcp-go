@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.0.4](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.3...v0.0.4) - 2025-12-30
+- build(deps): bump github.com/mark3labs/mcp-go from 0.32.0 to 0.43.2 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/9
+- build(deps): bump golang.org/x/net from 0.41.0 to 0.48.0 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/10
+- build(deps): bump github.com/chromedp/chromedp from 0.13.7 to 0.14.2 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/5
+- build(deps): bump github.com/oapi-codegen/runtime from 1.1.1 to 1.1.2 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/4
+
 ## [Unreleased]
 
 ### Changed
