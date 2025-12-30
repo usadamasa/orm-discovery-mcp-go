@@ -12,12 +12,18 @@ const (
 	APIEndpointBase = "https://learning.oreilly.com"
 )
 
+// HTTPDoer はHTTP通信を実行するインターフェース
+// *http.Client はこのインターフェースを実装しています
+type HTTPDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
 type BrowserClient struct {
 	ctx           context.Context
 	ctxCancel     context.CancelFunc // chromedp.NewContext()のcancel
 	allocCancel   context.CancelFunc // chromedp.NewExecAllocator()のcancel
-	httpClient    *http.Client
+	httpClient    HTTPDoer           // HTTP通信を実行するインターフェース (*http.Clientが実装)
 	userAgent     string
 	cookieManager cookie.Manager
 	debug         bool
