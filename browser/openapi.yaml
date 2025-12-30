@@ -5,7 +5,7 @@ info:
   version: 1.0.0
   contact:
     name: Generated from browser package
-    
+
 servers:
   - url: https://learning.oreilly.com
     description: O'Reilly Learning Platform
@@ -352,7 +352,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RawSearchResult'
-    
+
     SearchDataContainer:
       type: object
       description: Container for search data
@@ -361,7 +361,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RawSearchResult'
-    
+
     RawSearchResult:
       type: object
       description: Raw search result from O'Reilly API
@@ -471,7 +471,7 @@ components:
         pub_date:
           type: string
           description: Publication date alternative
-    
+
     Author:
       type: object
       description: Author information
@@ -479,7 +479,7 @@ components:
         name:
           type: string
           description: Author name
-    
+
     Creator:
       type: object
       description: Creator information
@@ -487,7 +487,7 @@ components:
         name:
           type: string
           description: Creator name
-    
+
     Publisher:
       type: object
       description: Publisher information
@@ -501,7 +501,7 @@ components:
         slug:
           type: string
           description: Publisher slug
-    
+
     Topics:
       type: object
       description: Topic information
@@ -522,7 +522,7 @@ components:
         epub_identifier:
           type: string
           description: EPUB identifier
-    
+
     BookDetailResponse:
       type: object
       description: Comprehensive book metadata
@@ -577,8 +577,8 @@ components:
           type: object
           additionalProperties: true
           description: Additional metadata
-    
-    
+
+
     TableOfContentsItem:
       type: object
       description: Table of contents item
@@ -606,7 +606,7 @@ components:
           type: object
           additionalProperties: true
           description: Additional metadata
-    
+
     TableOfContentsResponse:
       type: object
       description: Table of contents response
@@ -767,7 +767,9 @@ components:
           description: List of paragraphs in order
           items:
             type: string
-          example: ["This is the first paragraph.", "This is the second paragraph."]
+          example:
+            - "This is the first paragraph."
+            - "This is the second paragraph."
         headings:
           type: array
           description: List of headings with levels
@@ -804,7 +806,7 @@ components:
                 description: Text paragraph
               - $ref: '#/components/schemas/CodeBlock'
               - $ref: '#/components/schemas/ImageReference'
-        
+
     ContentHeading:
       type: object
       description: A heading element
@@ -873,9 +875,12 @@ components:
         type:
           type: string
           description: Link type
-          enum: ["external", "internal", "anchor"]
+          enum:
+            - "external"
+            - "internal"
+            - "anchor"
           example: "external"
-    
+
     BookOverviewAndTOCResponse:
       type: object
       description: Combined book details and table of contents
@@ -884,7 +889,7 @@ components:
           $ref: '#/components/schemas/BookDetailResponse'
         table_of_contents:
           $ref: '#/components/schemas/TableOfContentsResponse'
-    
+
     QuestionRequest:
       type: object
       description: Request to submit a question to O'Reilly Answers
@@ -1039,7 +1044,8 @@ components:
           items:
             type: string
           description: Authors of the source
-          example: ["Martin Kleppmann"]
+          example:
+            - "Martin Kleppmann"
         cover_image:
           type: string
           description: Cover image URL

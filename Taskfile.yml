@@ -93,7 +93,10 @@ tasks:
       - '{{.BIN_DIR}}/{{.BINARY_NAME}}'
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -trimpath -ldflags="-s -w" -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
+      - |
+        go build -trimpath \
+          -ldflags="-s -w -X main.version=dev -X main.commit=local -X main.date={{now | date \"2006-01-02T15:04:05Z07:00\"}}" \
+          -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
 
   # === Cleaning ===
   clean:generated:

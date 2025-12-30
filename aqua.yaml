@@ -16,3 +16,5 @@ packages:
   - name: golang/tools/goimports@v0.34.0
   - name: golangci/golangci-lint@v2.1.6
   - name: deepmap/oapi-codegen@v2.4.1
+  - name: Songmu/tagpr@v1.5.0
+  - name: goreleaser/goreleaser@v2.6.0
