@@ -3,8 +3,8 @@ module github.com/usadamasa/orm-discovery-mcp-go
 go 1.24.3
 
 require (
-	github.com/chromedp/cdproto v0.0.0-20250621212827-3f1355e655b9
-	github.com/chromedp/chromedp v0.13.7
+	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
+	github.com/chromedp/chromedp v0.14.2
 	github.com/mark3labs/mcp-go v0.43.2
 	github.com/oapi-codegen/runtime v1.1.1
 	golang.org/x/net v0.48.0
@@ -19,7 +19,7 @@ require (
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20250617014309-d9cfd875a529 // indirect
 	github.com/getkin/kin-openapi v0.132.0 // indirect
-	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8 // indirect
+	github.com/go-json-experiment/json v0.0.0-20250725192818-e39067aee2d2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.1 // indirect
 	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
