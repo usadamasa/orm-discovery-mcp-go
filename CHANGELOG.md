@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.0.5](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.4...v0.0.5) - 2025-12-30
+- fix goreleaser config by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/24
+
 ## [v0.0.4](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.3...v0.0.4) - 2025-12-30
 - build(deps): bump github.com/mark3labs/mcp-go from 0.32.0 to 0.43.2 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/9
 - build(deps): bump golang.org/x/net from 0.41.0 to 0.48.0 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/10
