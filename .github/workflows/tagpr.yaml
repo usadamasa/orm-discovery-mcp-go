@@ -19,12 +19,14 @@ jobs:
       packages: write
 
     outputs:
-      tagpush: ${{ steps.tagpr.outputs.tagpush }}
+      tag: ${{ steps.tagpr.outputs.tag }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
+      # using usadamasa-tagpr
       - name: Generate GitHub App token
         id: generate-token
         uses: actions/create-github-app-token@v2
@@ -40,7 +42,7 @@ jobs:
 
   release:
     needs: tagpr
-    if: needs.tagpr.outputs.tagpush == 'true'
+    if: needs.tagpr.outputs.tag == ''
 
     runs-on: ubuntu-latest
 
