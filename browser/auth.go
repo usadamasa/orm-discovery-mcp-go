@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -81,6 +82,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 	// ヘッドレスブラウザのコンテキストを作成
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.UserDataDir(filepath.Join(tmpDir, "chrome-user-data")),
 		chromedp.Flag("headless", true),
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
@@ -122,6 +124,13 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 			if client.validateAuthentication(ctx) {
 				slog.Info("Cookieを使用してログインが完了しました")
 				client.cookieManager = cookieManager
+
+				// デバッグモードでなければ、ブラウザをクローズ
+				if !debug {
+					slog.Info("非デバッグモード: ブラウザコンテキストをクローズします")
+					client.Close()
+				}
+
 				return client, nil
 			}
 			slog.Info("Cookieが無効でした。通常のログインを実行します")
@@ -144,6 +153,13 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	client.syncCookiesFromBrowser()
 
 	slog.Info("ブラウザクライアントの初期化とログインが完了しました")
+
+	// デバッグモードでなければ、ブラウザをクローズ
+	if !debug {
+		slog.Info("非デバッグモード: ブラウザコンテキストをクローズします")
+		client.Close()
+	}
+
 	return client, nil
 }
 
@@ -156,6 +172,55 @@ func (bc *BrowserClient) Close() {
 	if bc.allocCancel != nil {
 		bc.allocCancel()
 	}
+}
+
+// ReauthenticateIfNeeded はCookie有効期限切れ時にブラウザを再起動して再認証します
+func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
+	slog.Info("Cookie有効期限切れ検出: 再認証を開始します")
+
+	// 一時的にブラウザを起動
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.UserDataDir(filepath.Join(bc.tmpDir, "chrome-user-data")),
+		chromedp.Flag("headless", true),
+		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-web-security", true),
+		chromedp.Flag("disable-features", "VizDisplayCompositor"),
+		chromedp.UserAgent(bc.userAgent),
+	)
+
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer allocCancel()
+
+	ctx, ctxCancel := chromedp.NewContext(allocCtx)
+	defer ctxCancel()
+
+	// ブラウザコンテキストを一時的に更新
+	bc.ctx = ctx
+	bc.ctxCancel = ctxCancel
+	bc.allocCancel = allocCancel
+
+	// ログイン実行
+	if err := bc.login(userID, password); err != nil {
+		return fmt.Errorf("再認証に失敗しました: %w", err)
+	}
+
+	// Cookie保存
+	if err := bc.cookieManager.SaveCookies(&ctx); err != nil {
+		slog.Warn("Cookieの保存に失敗しました", "error", err)
+	}
+
+	// ブラウザのCookieをHTTPクライアントに同期
+	bc.syncCookiesFromBrowser()
+
+	// 非デバッグモード時はすぐにクローズ
+	if !bc.debug {
+		bc.Close()
+	}
+
+	slog.Info("再認証が完了しました")
+	return nil
 }
 
 // login はO'Reillyにログインし、セッションCookieを取得します
@@ -514,6 +579,10 @@ func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
 			slog.Warn("レスポンスボディのクローズに失敗", "error", err)
 		}
 	}()
+
+	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		return "", fmt.Errorf("authentication error: status %d (cookies may have expired)", resp.StatusCode)
+	}
 
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("content request failed with status %d", resp.StatusCode)

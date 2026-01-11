@@ -50,7 +50,7 @@ func runMCPServer() {
 	defer browserClient.Close() // プロセス終了時にブラウザをクリーンアップ
 
 	slog.Info("ブラウザクライアントの初期化が完了しました")
-	s := NewServer(browserClient)
+	s := NewServer(browserClient, cfg)
 
 	if cfg.Transport == "http" {
 		if err := s.StartStreamableHTTPServer(fmt.Sprintf(":%s", cfg.Port)); err != nil {

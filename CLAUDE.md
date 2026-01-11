@@ -470,7 +470,7 @@ The `browser/` package implements a clean, modular design:
 
 1. **Authentication Layer** (`browser/auth.go`)
    - Cookie-first authentication strategy with validation
-   - ChromeDP-based browser automation for login flows
+   - ChromeDP-based browser automation for login flows (see `.claude/skills/chromedp-lifecycle.md` for lifecycle management)
    - ACM IdP automatic detection and handling
 
 2. **API Integration Layer** (`browser/search.go`, `browser/book.go`)
