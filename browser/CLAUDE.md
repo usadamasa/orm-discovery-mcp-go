@@ -362,6 +362,8 @@ opts := append(chromedp.DefaultExecAllocatorOptions[:],
 
 ## ChromeDP Lifecycle Management
 
+**For detailed ChromeDP lifecycle management patterns and best practices, see**: `.claude/skills/chromedp-lifecycle.md`
+
 ### Overview
 ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern to **avoid issues with URL operations in production environments**. As a secondary benefit, this also reduces memory usage.
 
