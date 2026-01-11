@@ -17,10 +17,11 @@ import (
 type Server struct {
 	browserClient *browser.BrowserClient
 	mcpServer     *server.MCPServer
+	config        *Config
 }
 
 // NewServer は新しいサーバーインスタンスを作成します
-func NewServer(browserClient *browser.BrowserClient) *Server {
+func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
 	// MCPサーバーの設定とデバッグログの追加
 	mcpServer := server.NewMCPServer(
 		"Search O'Reilly Learning Platform",
@@ -33,6 +34,7 @@ func NewServer(browserClient *browser.BrowserClient) *Server {
 	srv := &Server{
 		browserClient: browserClient,
 		mcpServer:     mcpServer,
+		config:        config,
 	}
 	// 初期化処理の成功を確認するためのログ
 	slog.Info("サーバーを初期化しました")
@@ -66,6 +68,17 @@ func (s *Server) StartStdioServer() error {
 		return fmt.Errorf("failed to start MCP server: %w", err)
 	}
 	return nil
+}
+
+// isAuthError は認証エラーかどうかを判定します
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "authentication error") ||
+		strings.Contains(errMsg, "401") ||
+		strings.Contains(errMsg, "403")
 }
 
 // registerHandlers はハンドラーを登録します
@@ -281,6 +294,18 @@ func (s *Server) SearchContentHandler(ctx context.Context, request mcp.CallToolR
 	// BrowserClientで直接検索を実行
 	slog.Debug("BrowserClient検索開始", "query", requestParams.Query)
 	results, err := s.browserClient.SearchContent(requestParams.Query, options)
+	if err != nil && isAuthError(err) {
+		// 自動再認証を試行
+		slog.Info("認証エラー検出: 再認証を試みます")
+		if reauthErr := s.browserClient.ReauthenticateIfNeeded(s.config.OReillyUserID, s.config.OReillyPassword); reauthErr != nil {
+			slog.Error("再認証失敗", "error", reauthErr)
+			return mcp.NewToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil
+		}
+
+		// リトライ
+		results, err = s.browserClient.SearchContent(requestParams.Query, options)
+	}
+
 	if err != nil {
 		slog.Error("BrowserClient検索失敗", "error", err, "query", requestParams.Query)
 		return mcp.NewToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil
