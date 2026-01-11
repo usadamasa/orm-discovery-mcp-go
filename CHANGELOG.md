@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.0.6](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.5...v0.0.6) - 2026-01-11
+- Fix/disposable chrome by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/26
+
 ## [v0.0.5](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.4...v0.0.5) - 2025-12-30
 - fix goreleaser config by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/24
 
