@@ -363,7 +363,7 @@ opts := append(chromedp.DefaultExecAllocatorOptions[:],
 ## ChromeDP Lifecycle Management
 
 ### Overview
-ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern to minimize memory usage.
+ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern to **avoid issues with URL operations in production environments**. As a secondary benefit, this also reduces memory usage.
 
 ### Key Patterns
 
@@ -394,9 +394,10 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 ```
 
 **Benefits**:
-- **100-300MB memory reduction** after authentication
+- **Avoids URL operation issues** in production environments (primary reason)
 - Browser process only runs during authentication
 - HTTP API calls work without browser
+- 100-300MB memory reduction as secondary benefit
 
 #### 2. Debug Mode Persistence
 **Pattern**: Keep browser alive in debug mode for screenshot functionality
@@ -532,6 +533,8 @@ When implementing ChromeDP-based features:
 - [ ] Verify memory usage before/after browser close
 
 ### Memory Impact
+
+Note: Memory reduction is a secondary benefit. The primary reason for closing the browser after authentication is to avoid URL operation issues in production environments.
 
 | Mode | Browser State | Memory Usage | Use Case |
 |------|---------------|--------------|----------|
