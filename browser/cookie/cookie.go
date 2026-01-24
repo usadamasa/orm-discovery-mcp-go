@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 )
@@ -26,7 +25,8 @@ const (
 // Manager の前方宣言（main パッケージの構造体）
 type Manager interface {
 	SaveCookies(ctx *context.Context) error
-	LoadCookies(ctx *context.Context) error
+	SaveCookiesFromData(cookies []*http.Cookie) error
+	LoadCookies() error
 	CookieFileExists() bool
 	DeleteCookieFile() error
 	GetCookiesForURL(url *url.URL) []*http.Cookie
@@ -139,8 +139,53 @@ func (cm *ManagerImpl) SaveCookies(ctx *context.Context) error {
 	return nil
 }
 
-// LoadCookies はファイルからCookieを読み込んでブラウザに設定する
-func (cm *ManagerImpl) LoadCookies(ctx *context.Context) error {
+// SaveCookiesFromData は渡されたCookieをファイルに保存する（chromedp不要）
+// login()から取得済みのCookieを直接保存する際に使用する
+func (cm *ManagerImpl) SaveCookiesFromData(cookies []*http.Cookie) error {
+	// 重要なCookieのみをフィルタリング
+	var filteredCookies []entry
+	var httpCookies []*http.Cookie
+	for _, cookie := range cookies {
+		if cm.isImportantCookie(cookie.Name) {
+			cookieData := entry{
+				Name:     cookie.Name,
+				Value:    cookie.Value,
+				Domain:   cookie.Domain,
+				Path:     cookie.Path,
+				HTTPOnly: cookie.HttpOnly,
+				Secure:   cookie.Secure,
+				Expires:  cookie.Expires,
+			}
+			filteredCookies = append(filteredCookies, cookieData)
+			httpCookies = append(httpCookies, cookie)
+		}
+	}
+
+	// 内部のクッキーストレージを更新
+	cm.cookies = httpCookies
+
+	cache := cookieCache{
+		Cookies: filteredCookies,
+		SavedAt: time.Now(),
+	}
+
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal cookies: %w", err)
+	}
+
+	err = os.WriteFile(cm.filePath, data, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write cookies file: %w", err)
+	}
+
+	slog.Info("Cookieを保存しました", "count", len(filteredCookies), "file_path", cm.filePath)
+	return nil
+}
+
+// LoadCookies はファイルからCookieを読み込んで内部ストレージに設定する
+// chromedpを使用せずにHTTPクライアントで使用可能なCookieを復元する
+func (cm *ManagerImpl) LoadCookies() error {
 	if !cm.CookieFileExists() {
 		return fmt.Errorf("cookie file does not exist: %s", cm.filePath)
 	}
@@ -186,31 +231,6 @@ func (cm *ManagerImpl) LoadCookies(ctx *context.Context) error {
 		httpCookies = append(httpCookies, httpCookie)
 	}
 	cm.cookies = httpCookies
-
-	// ブラウザにCookieを設定 (タイムアウト付き)
-	loadCtx, loadCancel := context.WithTimeout(*ctx, CookieOperationTimeout)
-	defer loadCancel()
-
-	var actions []chromedp.Action
-	for _, cookie := range validCookies {
-		var expires *cdp.TimeSinceEpoch
-		if !cookie.Expires.IsZero() {
-			exp := cdp.TimeSinceEpoch(cookie.Expires)
-			expires = &exp
-		}
-
-		actions = append(actions, network.SetCookie(cookie.Name, cookie.Value).
-			WithDomain(cookie.Domain).
-			WithPath(cookie.Path).
-			WithExpires(expires).
-			WithHTTPOnly(cookie.HTTPOnly).
-			WithSecure(cookie.Secure))
-	}
-
-	err = chromedp.Run(loadCtx, actions...)
-	if err != nil {
-		return fmt.Errorf("failed to set cookies in browser: %w", err)
-	}
 
 	slog.Info("Cookieを読み込みました", "count", len(validCookies), "file_path", cm.filePath)
 	return nil

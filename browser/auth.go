@@ -106,16 +106,15 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	// Cookieの復元を試行
 	if cookieManager.CookieFileExists() {
 		slog.Info("既存のCookieファイルが見つかりました。復元を試行します")
-		if err := cookieManager.LoadCookies(&client.ctx); err != nil {
+		if err := cookieManager.LoadCookies(); err != nil {
 			slog.Warn("Cookie復元に失敗しました", "error", err)
 		} else {
-			// ブラウザのCookieをHTTPクライアントに同期
-			client.syncCookiesFromBrowser()
+			// cookie.Managerをクライアントに設定
+			client.cookieManager = cookieManager
 
-			// Cookieが有効かどうか検証
-			if client.validateAuthentication(client.ctx) {
+			// HTTPリクエストでCookieが有効かどうか検証（chromedp不要）
+			if client.validateAuthenticationViaHTTP() {
 				slog.Info("Cookieを使用してログインが完了しました")
-				client.cookieManager = cookieManager
 
 				// デバッグモードでなければ、ブラウザをクローズ
 				if !debug {
@@ -130,7 +129,8 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	}
 
 	// 通常のログインを実行
-	if err := client.login(userID, password); err != nil {
+	cookies, err := client.login(userID, password)
+	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			slog.Error("ログインタイムアウト: ブラウザをクローズします", "timeout", LoginTimeout)
 		}
@@ -138,14 +138,23 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 
-	// ログイン成功後にCookieを保存
+	// ログイン成功後にCookieを保存（login()で取得済みのCookieを使用、chromedp不要）
 	client.cookieManager = cookieManager
-	if err := cookieManager.SaveCookies(&client.ctx); err != nil {
+	if err := cookieManager.SaveCookiesFromData(cookies); err != nil {
 		slog.Warn("Cookieの保存に失敗しました", "error", err)
 	}
 
-	// ブラウザのCookieをHTTPクライアントに同期
-	client.syncCookiesFromBrowser()
+	// Cookie を内部ストレージに設定
+	urls := []*url.URL{
+		{Scheme: "https", Host: "learning.oreilly.com"},
+		{Scheme: "https", Host: "www.oreilly.com"},
+		{Scheme: "https", Host: "oreilly.com"},
+	}
+	for _, u := range urls {
+		if err := cookieManager.SetCookies(u, cookies); err != nil {
+			slog.Warn("cookie.ManagerへのCookie設定に失敗", "url", u.String(), "error", err)
+		}
+	}
 
 	slog.Info("ブラウザクライアントの初期化とログインが完了しました")
 
@@ -197,7 +206,8 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 	bc.chromedpManager = manager
 
 	// ログイン実行
-	if err := bc.login(userID, password); err != nil {
+	cookies, err := bc.login(userID, password)
+	if err != nil {
 		slog.Error("再認証ログイン失敗", "error", err)
 		// エラー時は常にCloseしてリソースを解放
 		bc.Close()
@@ -207,13 +217,22 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 		return fmt.Errorf("再認証に失敗しました: %w", err)
 	}
 
-	// Cookie保存 - bc.ctx を再利用(manager.Context()を再度呼び出さない)
-	if err := bc.cookieManager.SaveCookies(&bc.ctx); err != nil {
+	// Cookie保存（login()で取得済みのCookieを使用、chromedp不要）
+	if err := bc.cookieManager.SaveCookiesFromData(cookies); err != nil {
 		slog.Warn("Cookieの保存に失敗しました", "error", err)
 	}
 
-	// ブラウザのCookieをHTTPクライアントに同期
-	bc.syncCookiesFromBrowser()
+	// Cookie を内部ストレージに設定
+	urls := []*url.URL{
+		{Scheme: "https", Host: "learning.oreilly.com"},
+		{Scheme: "https", Host: "www.oreilly.com"},
+		{Scheme: "https", Host: "oreilly.com"},
+	}
+	for _, u := range urls {
+		if err := bc.cookieManager.SetCookies(u, cookies); err != nil {
+			slog.Warn("cookie.ManagerへのCookie設定に失敗", "url", u.String(), "error", err)
+		}
+	}
 
 	// 非デバッグモード時はすぐにクローズ
 	if !bc.debug {
@@ -224,8 +243,8 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 	return nil
 }
 
-// login はO'Reillyにログインし、セッションCookieを取得します
-func (bc *BrowserClient) login(userID, password string) error {
+// login はO'Reillyにログインし、セッションCookieを取得して返します
+func (bc *BrowserClient) login(userID, password string) ([]*http.Cookie, error) {
 	slog.Info("O'Reillyへのログインを開始します", "user_id", userID)
 
 	// ログイン処理にタイムアウトを設定
@@ -375,109 +394,64 @@ func (bc *BrowserClient) login(userID, password string) error {
 	)
 
 	if err != nil {
-		return fmt.Errorf("ログイン処理でエラーが発生しました: %w", err)
+		return nil, fmt.Errorf("ログイン処理でエラーが発生しました: %w", err)
 	}
 
-	return nil
+	return cookies, nil
 }
 
-// validateAuthentication はCookieが有効かどうかを検証します
-func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
-	// 認証検証にタイムアウトを設定
-	authCtx, authCancel := context.WithTimeout(bc.ctx, AuthValidationTimeout)
-	defer authCancel()
+// validateAuthenticationViaHTTP はHTTPリクエストでCookieの有効性を検証します
+// chromedpを使用せずにHTTPクライアントで認証を検証する
+func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), AuthValidationTimeout)
+	defer cancel()
 
-	var pageTitle string
-	var currentURL string
-	err := chromedp.Run(authCtx,
-		// 認証が必要なページにアクセス
-		chromedp.Navigate(ormHome),
-		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		chromedp.Title(&pageTitle),
-		chromedp.Location(&currentURL),
-	)
-	bc.debugScreenshot(ctx, "validate_saved_cookie_authentication")
-
+	req, err := http.NewRequestWithContext(ctx, "GET", ormHome, nil)
 	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			slog.Warn("認証検証がタイムアウトしました", "timeout", AuthValidationTimeout)
-		} else {
-			slog.Warn("認証検証中にエラーが発生しました", "error", err)
-		}
-		return false
-	}
-	slog.Debug("認証検証中", "url", currentURL, "title", pageTitle)
-
-	// ログインページにリダイレクトされていないかチェック
-	if currentURL != ormHome {
-		slog.Info("認証が無効です", "current_url", currentURL, "expected_url", ormHome)
+		slog.Warn("認証検証リクエスト作成に失敗", "error", err)
 		return false
 	}
 
-	slog.Info("認証検証成功", "title", pageTitle)
-	return true
-}
+	// ヘッダー設定
+	req.Header.Set("User-Agent", bc.userAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml")
 
-// syncCookiesFromBrowser はブラウザのCookieをcookie.Managerに同期します
-func (bc *BrowserClient) syncCookiesFromBrowser() {
-	var cookies []*network.Cookie
-	err := chromedp.Run(bc.ctx, chromedp.ActionFunc(func(ctx context.Context) error {
-		var err error
-		cookies, err = network.GetCookies().Do(ctx)
-		return err
-	}))
+	// Cookie を設定
+	cookies := bc.cookieManager.GetCookiesForURL(req.URL)
+	if len(cookies) > 0 {
+		var cookieValues []string
+		for _, cookie := range cookies {
+			cookieValues = append(cookieValues, cookie.Name+"="+cookie.Value)
+		}
+		req.Header.Set("Cookie", strings.Join(cookieValues, "; "))
+	}
 
+	resp, err := bc.httpClient.Do(req)
 	if err != nil {
-		slog.Warn("ブラウザからのCookie取得に失敗しました", "error", err)
-		return
+		slog.Warn("認証検証リクエストに失敗", "error", err)
+		return false
 	}
-
-	// ブラウザのCookieをcookie.Managerに設定
-	var httpCookies []*http.Cookie
-	for _, c := range cookies {
-		httpCookie := &http.Cookie{
-			Name:     c.Name,
-			Value:    c.Value,
-			Domain:   c.Domain,
-			Path:     c.Path,
-			Secure:   c.Secure,
-			HttpOnly: c.HTTPOnly,
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			slog.Warn("レスポンスボディのクローズに失敗", "error", cerr)
 		}
+	}()
 
-		if c.Expires != 0 {
-			httpCookie.Expires = time.Unix(int64(c.Expires), 0)
-		}
-
-		httpCookies = append(httpCookies, httpCookie)
+	// 401/403 は認証失敗
+	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		slog.Info("認証が無効です", "status", resp.StatusCode)
+		return false
 	}
 
-	// O'Reilly関連のURLでCookieを設定
-	urls := []*url.URL{
-		{Scheme: "https", Host: "learning.oreilly.com"},
-		{Scheme: "https", Host: "www.oreilly.com"},
-		{Scheme: "https", Host: "oreilly.com"},
+	// 200 は認証成功
+	if resp.StatusCode == 200 {
+		slog.Info("HTTP認証検証成功", "status", resp.StatusCode)
+		return true
 	}
 
-	if bc.cookieManager != nil {
-		for _, u := range urls {
-			if err := bc.cookieManager.SetCookies(u, httpCookies); err != nil {
-				slog.Warn("cookie.ManagerへのCookie設定に失敗", "url", u.String(), "error", err)
-			}
-		}
-	}
-
-	// デバッグログ
-	if bc.debug {
-		slog.Debug("cookie.ManagerにCookieを同期しました", "count", len(httpCookies))
-		for _, c := range httpCookies {
-			value := c.Value
-			if len(value) > 20 {
-				value = value[:20] + "..."
-			}
-			slog.Debug("Cookie同期", "name", c.Name, "value", value, "domain", c.Domain, "path", c.Path)
-		}
-	}
-
+	// それ以外のステータスコード（302リダイレクトなど）は認証失敗として扱う
+	slog.Warn("予期しないステータスコード", "status", resp.StatusCode)
+	return false
 }
 
 // CreateRequestEditor creates a standardized RequestEditorFn for API calls

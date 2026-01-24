@@ -39,8 +39,17 @@ func (m *MockCookieManager) SaveCookies(ctx *context.Context) error {
 	return nil
 }
 
-// LoadCookies はファイルからCookieを読み込んでブラウザに設定する（モック）
-func (m *MockCookieManager) LoadCookies(ctx *context.Context) error {
+// SaveCookiesFromData は渡されたCookieをファイルに保存する（モック）
+func (m *MockCookieManager) SaveCookiesFromData(cookies []*http.Cookie) error {
+	if m.saveError != nil {
+		return m.saveError
+	}
+	m.cookies = cookies
+	return nil
+}
+
+// LoadCookies はファイルからCookieを読み込んで内部ストレージに設定する（モック）
+func (m *MockCookieManager) LoadCookies() error {
 	if m.loadError != nil {
 		return m.loadError
 	}
