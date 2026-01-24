@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.0.7](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.6...v0.0.7) - 2026-01-24
+- feat: add comprehensive timeouts to browser and API operations by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/29
+- fix: resolve Chrome SingletonLock error by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/31
+
 ## [v0.0.6](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.5...v0.0.6) - 2026-01-11
 - Fix/disposable chrome by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/26
 
