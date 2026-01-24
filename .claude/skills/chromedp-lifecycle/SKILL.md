@@ -160,15 +160,15 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
     bc.chromedpManager = manager
 
     // 4. Re-login
-    if err := bc.login(userID, password); err != nil {
+    cookies, err := bc.login(userID, password)
+    if err != nil {
         return fmt.Errorf("再認証に失敗しました: %w", err)
     }
 
-    // 4. Save cookies
-    bc.cookieManager.SaveCookies(&ctx)
-    bc.syncCookiesFromBrowser()
+    // 5. Save cookies (using SaveCookiesFromData, no chromedp needed)
+    bc.cookieManager.SaveCookiesFromData(cookies)
 
-    // 5. Close immediately (non-debug mode)
+    // 6. Close immediately (non-debug mode)
     if !bc.debug {
         bc.Close()
     }

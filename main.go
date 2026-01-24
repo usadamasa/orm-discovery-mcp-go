@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 )
 
-// GoReleaserによって埋め込まれるバージョン情報
+// Version information embedded by GoReleaser.
 var (
 	version = "dev"
 	commit  = "none"
@@ -17,7 +20,7 @@ var (
 )
 
 func main() {
-	// --versionフラグの処理
+	// Handle --version flag
 	if len(os.Args) > 1 && os.Args[1] == "--version" {
 		fmt.Printf("orm-discovery-mcp-go %s (commit: %s, built: %s)\n", version, commit, date)
 		os.Exit(0)
@@ -27,7 +30,20 @@ func main() {
 }
 
 func runMCPServer() {
-	// 設定の読み込み
+	// Create context with signal handling for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up signal handling
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigCh
+		slog.Info("シグナルを受信しました", "signal", sig)
+		cancel()
+	}()
+
+	// Load configuration
 	cfg, err := LoadConfig()
 	if err != nil {
 		slog.Error("設定の読み込みに失敗しました", "error", err)
@@ -35,30 +51,30 @@ func runMCPServer() {
 	}
 	slog.Info("設定を読み込みました")
 
-	// BrowserClientの直接初期化
+	// Initialize BrowserClient
 	slog.Info("ブラウザクライアントを使用してO'Reillyにログインします...")
 
-	// Cookieマネージャーを作成 (CacheHome を使用)
+	// Create cookie manager (using CacheHome)
 	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
-	// ブラウザクライアントを作成してログイン (StateHome を使用 - Chrome一時データ用)
+	// Create browser client and login (using StateHome for Chrome temp data)
 	browserClient, err := browser.NewBrowserClient(cfg.OReillyUserID, cfg.OReillyPassword, cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
 	if err != nil {
 		slog.Error("ブラウザクライアントの初期化に失敗しました", "error", err)
 		os.Exit(1)
 	}
-	defer browserClient.Close() // プロセス終了時にブラウザをクリーンアップ
+	defer browserClient.Close() // Clean up browser on process exit
 
 	slog.Info("ブラウザクライアントの初期化が完了しました")
 	s := NewServer(browserClient, cfg)
 
 	if cfg.Transport == "http" {
-		if err := s.StartStreamableHTTPServer(fmt.Sprintf(":%s", cfg.Port)); err != nil {
+		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf(":%s", cfg.Port)); err != nil {
 			slog.Error("HTTPサーバーの起動に失敗しました", "error", err, "port", cfg.Port)
 			os.Exit(1)
 		}
 	} else {
-		if err := s.StartStdioServer(); err != nil {
+		if err := s.StartStdioServer(ctx); err != nil {
 			fmt.Printf("Server error: %v\n", err)
 		}
 	}
