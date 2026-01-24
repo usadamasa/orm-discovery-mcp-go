@@ -17,7 +17,7 @@ type Config struct {
 	Transport       string
 	OReillyUserID   string
 	OReillyPassword string
-	TmpDir          string
+	XDGDirs         *XDGDirs // XDG Base Directory準拠のディレクトリパス
 	LogLevel        slog.Level
 	LogFile         string // ログファイルパス(空の場合はstderrのみ)
 }
@@ -51,11 +51,17 @@ func LoadConfig() (*Config, error) {
 		log.Fatalf("OREILLY_USER_ID と OREILLY_PASSWORD が設定されていません")
 	}
 
-	// 一時ディレクトリの取得
-	tmpDir := getEnv("ORM_MCP_GO_TMP_DIR")
-	if tmpDir == "" {
-		// 環境変数が設定されていない場合は/var/tmpを使用
-		tmpDir = "/var/tmp/"
+	// XDGディレクトリの解決
+	// ORM_MCP_GO_DEBUG_DIR: デバッグ用に全ディレクトリを上書きする環境変数
+	// 注意: この時点ではslogが未初期化のため、エラーはstderrにのみ出力される
+	debugDir := getEnv("ORM_MCP_GO_DEBUG_DIR")
+	xdgDirs, err := GetXDGDirs(debugDir)
+	if err != nil {
+		log.Fatalf("XDGディレクトリの解決に失敗しました: %v", err)
+	}
+	// ディレクトリを作成
+	if err := xdgDirs.EnsureExists(); err != nil {
+		log.Fatalf("XDGディレクトリの作成に失敗しました: %v", err)
 	}
 
 	// ログレベルの設定（デフォルト: INFO）
@@ -76,8 +82,8 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	// ログファイルパスの取得
-	logFile := getEnv("ORM_MCP_GO_LOG_FILE")
+	// ログファイルパスの取得（XDG Base Directory Specification準拠）
+	logFile := xdgDirs.LogPath()
 
 	config := &Config{
 		Port:            port,
@@ -85,7 +91,7 @@ func LoadConfig() (*Config, error) {
 		Transport:       transport,
 		OReillyUserID:   OReillyUserID,
 		OReillyPassword: OReillyPassword,
-		TmpDir:          tmpDir,
+		XDGDirs:         xdgDirs,
 		LogLevel:        logLevel,
 		LogFile:         logFile,
 	}
@@ -105,7 +111,8 @@ func setupLogger(config *Config) {
 	if config.LogFile != "" {
 		file, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			log.Printf("ログファイルを開けません: %v (stderrのみ使用)", err)
+			// 注意: この時点ではslogが未初期化のため、stderrにのみ出力
+			log.Printf("ログファイルを開けません (path=%s): %v (stderrのみ使用)", config.LogFile, err)
 		} else {
 			writer = io.MultiWriter(os.Stderr, file)
 		}
@@ -144,6 +151,15 @@ func setupLogger(config *Config) {
 		logAttrs = append(logAttrs, "log_file", config.LogFile)
 	}
 	slog.Info("ログシステムを初期化しました", logAttrs...)
+
+	// XDGディレクトリ情報をログ出力
+	if config.XDGDirs != nil {
+		slog.Debug("XDGディレクトリを設定しました",
+			"state_home", config.XDGDirs.StateHome,
+			"cache_home", config.XDGDirs.CacheHome,
+			"config_home", config.XDGDirs.ConfigHome,
+		)
+	}
 }
 
 // getEnv は環境変数を取得します（.envファイルの値が優先されます）

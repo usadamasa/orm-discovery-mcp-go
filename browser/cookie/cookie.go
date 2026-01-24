@@ -52,16 +52,17 @@ type cookieCache struct {
 
 // ManagerImpl はCookieの保存と復元を管理する
 type ManagerImpl struct {
-	tmpDir   string
+	cacheDir string
 	filePath string
 	cookies  []*http.Cookie
 }
 
 // NewCookieManager は新しいCookieManagerを作成する
-func NewCookieManager(tmpDir string) *ManagerImpl {
+// cacheDir: XDG CacheHome ディレクトリ（例: ~/.cache/orm-mcp-go）
+func NewCookieManager(cacheDir string) *ManagerImpl {
 	return &ManagerImpl{
-		tmpDir:   tmpDir,
-		filePath: filepath.Join(tmpDir, cookieFileName),
+		cacheDir: cacheDir,
+		filePath: filepath.Join(cacheDir, cookieFileName),
 		cookies:  make([]*http.Cookie, 0),
 	}
 }

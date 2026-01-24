@@ -40,7 +40,7 @@ type BrowserClient struct {
 	userAgent       string
 	cookieManager   cookie.Manager
 	debug           bool
-	tmpDir          string
+	stateDir        string // XDG StateHome (Chrome一時データ、スクリーンショット用)
 }
 
 // TableOfContentsItem represents a single item in the table of contents

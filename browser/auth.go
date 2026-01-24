@@ -77,13 +77,14 @@ func (grc *gzipReadCloser) Close() error {
 }
 
 // NewBrowserClient は新しいブラウザクライアントを作成し、ログインを実行します
-func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, tmpDir string) (*BrowserClient, error) {
+// stateDir: XDG StateHome (Chrome一時データ用)
+func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, stateDir string) (*BrowserClient, error) {
 	if userID == "" || password == "" {
 		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required")
 	}
 
 	// ChromeDPライフサイクルマネージャーを作成(古いディレクトリを自動クリーンアップ)
-	manager, err := cdp.NewManager(tmpDir, debug)
+	manager, err := cdp.NewManager(stateDir, debug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ChromeDP manager: %w", err)
 	}
@@ -98,7 +99,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 			},
 		},
 		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-		tmpDir:    tmpDir,
+		stateDir:  stateDir,
 		debug:     debug,
 	}
 
@@ -186,7 +187,7 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 	}
 
 	// 新しいChromeDPライフサイクルマネージャーを作成
-	manager, err := cdp.NewManager(bc.tmpDir, bc.debug)
+	manager, err := cdp.NewManager(bc.stateDir, bc.debug)
 	if err != nil {
 		return fmt.Errorf("failed to create ChromeDP manager for reauthentication: %w", err)
 	}
