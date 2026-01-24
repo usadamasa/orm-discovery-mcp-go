@@ -112,56 +112,26 @@ func (s *Server) registerHandlers() {
 	// Add search tool
 	searchTool := &mcp.Tool{
 		Name: "search_content",
-		Description: `
-			Search O'Reilly Learning Platform content efficiently.
-			Returns books, videos, and articles with product IDs for resource access.
+		Description: `Search O'Reilly content and return books/videos/articles with product_id for resource access.
 
-			QUERY BEST PRACTICES:
-			- Use 2-5 focused keywords (not full sentences)
-			- Prefer specific technical terms over general descriptions
-			- Combine technology + concept for better results
+Example: "Docker containers" (Good) / "How to use Docker" (Poor)
 
-			EXAMPLES:
-			Good: "Docker containers", "React hooks", "Python async", "Kubernetes monitoring"
-			Poor: "How to use Docker for containerization", "Best practices for React development"
+Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}
 
-			Results include product_id for accessing detailed content via MCP resources:
-			- Book details: "oreilly://book-details/{product_id}"
-			- Table of contents: "oreilly://book-toc/{product_id}"
-			- Chapter content: "oreilly://book-chapter/{product_id}/{chapter_name}"
-
-			IMPORTANT: Always cite sources with title, author(s), and O'Reilly Media as publisher.
-		`,
+IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 	}
 	mcp.AddTool(s.server, searchTool, s.SearchContentHandler)
 
 	// Add ask question tool
 	askQuestionTool := &mcp.Tool{
 		Name: "ask_question",
-		Description: `
-			Ask focused technical questions to O'Reilly Answers AI for comprehensive, well-sourced responses.
+		Description: `Ask technical questions to O'Reilly Answers AI and get sourced responses.
 
-			QUESTION BEST PRACTICES:
-			- Keep questions under 100 characters for optimal processing
-			- Ask specific, focused questions rather than broad topics
-			- Use clear, direct language in English
-			- Focus on practical "how-to" or "what is" questions
+Example: "How to optimize React performance?" (Good) / "Explain everything about React" (Poor)
 
-			EFFECTIVE QUESTION PATTERNS:
-			Good: "How to optimize React performance?", "What is Kubernetes service mesh?", "Python async vs threading?"
-			Poor: "Can you explain everything about React performance optimization techniques and best practices?"
+Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id})
 
-			Response includes:
-			- Comprehensive markdown-formatted answer
-			- Source citations with specific book/article references
-			- Related resources for deeper learning
-			- Suggested follow-up questions
-			- Question ID for future reference
-
-			Covers: programming, data science, cloud computing, DevOps, machine learning, and other technical domains.
-
-			IMPORTANT: Always cite the sources provided in the response when referencing the information.
-		`,
+IMPORTANT: Cite sources provided in the response.`,
 	}
 	mcp.AddTool(s.server, askQuestionTool, s.AskQuestionHandler)
 
@@ -176,7 +146,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://book-details/{product_id}",
 			Name:        "O'Reilly Book Details",
-			Description: "Get comprehensive book information including title, authors, publication date, description, topics, and table of contents. IMPORTANT: Always provide proper attribution when referencing this book information.",
+			Description: "Get book info (title, authors, date, description, topics, TOC). Cite sources when referencing.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookDetailsResource,
@@ -187,7 +157,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://book-toc/{product_id}",
 			Name:        "O'Reilly Book Table of Contents",
-			Description: "Get detailed table of contents with chapter names and structure. IMPORTANT: When discussing book structure, always cite the book title, author(s), and O'Reilly Media.",
+			Description: "Get table of contents with chapter names and structure. Cite book title, author(s), O'Reilly Media.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookTOCResource,
@@ -198,7 +168,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://book-chapter/{product_id}/{chapter_name}",
 			Name:        "O'Reilly Book Chapter Content",
-			Description: "Extract full text content of a specific chapter. CRITICAL: Any content extracted MUST be properly cited with book title, author(s), chapter title, and O'Reilly Media.",
+			Description: "Get full chapter text. CRITICAL: Cite book title, author(s), chapter title, O'Reilly Media.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookChapterContentResource,
@@ -209,7 +179,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://answer/{question_id}",
 			Name:        "O'Reilly Answers Response",
-			Description: "Access a previously generated answer by question ID. This retrieves the full AI-generated response including answer content, sources, and related resources. IMPORTANT: Always cite the sources provided when referencing the answer content.",
+			Description: "Retrieve previously generated answer by question_id. Cite sources when referencing.",
 			MIMEType:    "application/json",
 		},
 		s.GetAnswerResource,
@@ -220,7 +190,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-details/{product_id}",
 			Name:        "O'Reilly Book Details Template",
-			Description: "Template for accessing O'Reilly book details. Use product_id from search_content results to get comprehensive book information including title, authors, publication date, description, topics, and table of contents.",
+			Description: "Use product_id from search_content to get book details.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookDetailsResource,
@@ -230,7 +200,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-toc/{product_id}",
 			Name:        "O'Reilly Book TOC Template",
-			Description: "Template for accessing O'Reilly book table of contents. Use product_id from search_content results to get detailed chapter structure and navigation information.",
+			Description: "Use product_id from search_content to get table of contents.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookTOCResource,
@@ -240,7 +210,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-chapter/{product_id}/{chapter_name}",
 			Name:        "O'Reilly Book Chapter Template",
-			Description: "Template for accessing O'Reilly book chapter content. Use product_id from search_content and chapter_name from table of contents to get full chapter text including headings, paragraphs, and code examples.",
+			Description: "Use product_id and chapter_name to get chapter content.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookChapterContentResource,
@@ -250,7 +220,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://answer/{question_id}",
 			Name:        "O'Reilly Answers Template",
-			Description: "Template for accessing O'Reilly Answers responses. Use question_id returned from ask_question tool to retrieve the complete AI-generated answer with sources and related resources.",
+			Description: "Use question_id from ask_question to retrieve the answer.",
 			MIMEType:    "application/json",
 		},
 		s.GetAnswerResource,
