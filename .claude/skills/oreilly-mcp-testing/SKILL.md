@@ -39,8 +39,26 @@ TRANSPORT=http PORT=8080 ./bin/orm-discovery-mcp-go
 | `PORT` | HTTPサーバーポート | ❌ (デフォルト: 8080) |
 | `ORM_MCP_GO_DEBUG` | デバッグモード有効化 | ❌ |
 | `ORM_MCP_GO_LOG_LEVEL` | ログレベル: `DEBUG`, `INFO`, `WARN`, `ERROR` | ❌ (デフォルト: INFO) |
-| `ORM_MCP_GO_LOG_FILE` | ログファイルパス(空の場合はstderrのみ) | ❌ |
-| `ORM_MCP_GO_TMP_DIR` | 一時ディレクトリ(Cookie保存先) | ❌ |
+| `ORM_MCP_GO_DEBUG_DIR` | デバッグ用ディレクトリ(全パスを上書き) | ❌ |
+
+### XDG Base Directory Specification
+
+ファイル保存先はXDG Base Directory Specificationに準拠しています。
+
+| 用途 | XDG環境変数 | デフォルトパス |
+|------|-------------|----------------|
+| ログ、Chrome一時データ、スクリーンショット | `$XDG_STATE_HOME` | `~/.local/state/orm-mcp-go/` |
+| Cookie | `$XDG_CACHE_HOME` | `~/.cache/orm-mcp-go/` |
+| 将来の設定ファイル | `$XDG_CONFIG_HOME` | `~/.config/orm-mcp-go/` |
+
+**保存ファイル詳細**:
+- StateHome: Chrome一時データ(`chrome-user-data-{PID}/`)、スクリーンショット(`screenshots/`)、ログ(`orm-mcp-go.log`)
+- CacheHome: Cookie(`cookies.json`) - 再生成可能なデータのため
+
+**環境変数の優先度**:
+1. `ORM_MCP_GO_DEBUG_DIR` (デバッグ用、最優先)
+2. XDG環境変数
+3. デフォルトパス
 
 ## テスト手法
 
@@ -114,10 +132,9 @@ stdioモードのサーバーに対してJSON-RPCリクエストを送信しま�
 # 基本的なデバッグモード
 ORM_MCP_GO_DEBUG=true ./bin/orm-discovery-mcp-go
 
-# 詳細なMCPプロトコルログ + ファイル出力
+# 詳細なMCPプロトコルログ
 ORM_MCP_GO_DEBUG=true \
 ORM_MCP_GO_LOG_LEVEL=DEBUG \
-ORM_MCP_GO_LOG_FILE=/var/tmp/orm-mcp-go.log \
 ./bin/orm-discovery-mcp-go
 ```
 
@@ -151,12 +168,12 @@ time=2026-01-24T12:00:01.000+09:00 level=DEBUG source=server.go:49 msg="MCP成�
 
 #### ログファイル出力
 
-`ORM_MCP_GO_LOG_FILE`を設定すると、stderrとファイルの両方にログが出力されます。
+ログはstderrとXDG準拠のログファイル(`~/.local/state/orm-mcp-go/orm-mcp-go.log`)の両方に出力されます。
 stdioモードではstdoutはJSON-RPC専用なので、ログは必ずstderr/ファイルに出力されます。
 
 ```bash
 # ログファイルをリアルタイムで監視
-tail -f /var/tmp/orm-mcp-go.log
+tail -f ~/.local/state/orm-mcp-go/orm-mcp-go.log
 ```
 
 **ヘッダー検証例**:

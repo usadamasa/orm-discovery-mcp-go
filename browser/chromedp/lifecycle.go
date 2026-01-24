@@ -29,7 +29,7 @@ const (
 // - ctx is valid only until Close() is called
 // - Close() should be called only once (subsequent calls are silently ignored)
 type Manager struct {
-	tmpDir        string
+	cacheDir      string
 	chromeDataDir string
 	allocCtx      context.Context
 	allocCancel   context.CancelFunc
@@ -40,18 +40,19 @@ type Manager struct {
 }
 
 // NewManager creates a new ChromeDP lifecycle manager.
+// cacheDir: XDG CacheHome ディレクトリ（例: ~/.cache/orm-mcp-go）
 // It automatically cleans up old Chrome data directories from previous processes.
-func NewManager(tmpDir string, debug bool) (*Manager, error) {
+func NewManager(cacheDir string, debug bool) (*Manager, error) {
 	// 古いChromeデータディレクトリのクリーンアップ
 	// クリーンアップ失敗は致命的ではないが、ログに記録する
-	if err := cleanupOldChromeDataDirs(tmpDir); err != nil {
+	if err := cleanupOldChromeDataDirs(cacheDir); err != nil {
 		slog.Warn("古いChromeデータディレクトリのクリーンアップに失敗しましたが、続行します",
-			"path", tmpDir,
+			"path", cacheDir,
 			"error", err)
 	}
 
 	// プロセス固有のユーザーデータディレクトリを生成
-	chromeDataDir := filepath.Join(tmpDir, fmt.Sprintf("chrome-user-data-%d", os.Getpid()))
+	chromeDataDir := filepath.Join(cacheDir, fmt.Sprintf("chrome-user-data-%d", os.Getpid()))
 	slog.Debug("Chromeユーザーデータディレクトリ", "path", chromeDataDir)
 
 	// ChromeDPオプションの設定
@@ -74,7 +75,7 @@ func NewManager(tmpDir string, debug bool) (*Manager, error) {
 	ctx, ctxCancel := chromedp.NewContext(allocCtx)
 
 	return &Manager{
-		tmpDir:        tmpDir,
+		cacheDir:      cacheDir,
 		chromeDataDir: chromeDataDir,
 		allocCtx:      allocCtx,
 		allocCancel:   allocCancel,

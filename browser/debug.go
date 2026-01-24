@@ -2,9 +2,11 @@ package browser
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/chromedp/chromedp"
 )
@@ -21,8 +23,16 @@ func (bc *BrowserClient) debugScreenshot(ctx context.Context, name string) {
 		return
 	}
 
-	// tmpDirを使用してスクリーンショットを保存
-	imgPath := filepath.Join(bc.tmpDir, name+".png")
+	// stateDirのscreenshotsサブディレクトリを使用
+	screenshotDir := filepath.Join(bc.stateDir, "screenshots")
+	if err := os.MkdirAll(screenshotDir, 0700); err != nil {
+		slog.Warn("スクリーンショットディレクトリ作成エラー", "error", err)
+		return
+	}
+
+	ts := time.Now()
+	timestamp := ts.Format("20060102150405") + fmt.Sprintf("%03d", ts.Nanosecond()/1e6)
+	imgPath := filepath.Join(screenshotDir, timestamp+"_"+name+".png")
 
 	// ファイルとして保存
 	if err := os.WriteFile(imgPath, buf, 0644); err != nil {

@@ -66,4 +66,16 @@ claude mcp add -s user orm-discovery-mcp-go \
 1. `ask_question`で技術的な質問を投稿 → `question_id`取得
 2. `oreilly://answer/{question_id}`でAI生成回答を取得
 
+## ファイル保存先
+
+XDG Base Directory Specificationに準拠しています。
+
+| 用途 | XDG環境変数 | デフォルトパス |
+|------|-------------|----------------|
+| ログ、Chrome一時データ、スクリーンショット | `$XDG_STATE_HOME` | `~/.local/state/orm-mcp-go/` |
+| Cookie | `$XDG_CACHE_HOME` | `~/.cache/orm-mcp-go/` |
+| 将来の設定ファイル | `$XDG_CONFIG_HOME` | `~/.config/orm-mcp-go/` |
+
+**デバッグ用**: `ORM_MCP_GO_DEBUG_DIR`を設定すると、全てのパスがその値で上書きされます。
+
 詳細は[API_REFERENCE.md](API_REFERENCE.md)を参照してください。

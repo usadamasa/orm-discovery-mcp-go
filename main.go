@@ -38,11 +38,11 @@ func runMCPServer() {
 	// BrowserClientの直接初期化
 	slog.Info("ブラウザクライアントを使用してO'Reillyにログインします...")
 
-	// Cookieマネージャーを作成
-	cookieManager := cookie.NewCookieManager(cfg.TmpDir)
+	// Cookieマネージャーを作成 (CacheHome を使用)
+	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
-	// ブラウザクライアントを作成してログイン
-	browserClient, err := browser.NewBrowserClient(cfg.OReillyUserID, cfg.OReillyPassword, cookieManager, cfg.Debug, cfg.TmpDir)
+	// ブラウザクライアントを作成してログイン (StateHome を使用 - Chrome一時データ用)
+	browserClient, err := browser.NewBrowserClient(cfg.OReillyUserID, cfg.OReillyPassword, cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
 	if err != nil {
 		slog.Error("ブラウザクライアントの初期化に失敗しました", "error", err)
 		os.Exit(1)
