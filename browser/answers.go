@@ -83,8 +83,10 @@ func (bc *BrowserClient) SubmitQuestion(question string) (*QuestionResponse, err
 		},
 	}
 
-	// Submit question
-	resp, err := client.SubmitQuestionWithResponse(context.Background(), apiRequest)
+	// Submit question (タイムアウト付き)
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
+	defer apiCancel()
+	resp, err := client.SubmitQuestionWithResponse(apiCtx, apiRequest)
 	if err != nil {
 		return nil, fmt.Errorf("質問送信失敗: %w", err)
 	}
@@ -128,8 +130,10 @@ func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*
 		IncludeUnfinished: &includeUnfinished,
 	}
 
-	// Get answer
-	resp, err := client.GetAnswerWithResponse(context.Background(), questionID, params)
+	// Get answer (タイムアウト付き)
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
+	defer apiCancel()
+	resp, err := client.GetAnswerWithResponse(apiCtx, questionID, params)
 	if err != nil {
 		return nil, fmt.Errorf("回答取得失敗: %w", err)
 	}

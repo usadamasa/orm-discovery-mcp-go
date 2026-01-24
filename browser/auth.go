@@ -3,6 +3,7 @@ package browser
 import (
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -80,7 +81,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required")
 	}
 
-	// ヘッドレスブラウザのコンテキストを作成
+	// ヘッドレスブラウザのコンテキストを作成 (タイムアウト付き)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.UserDataDir(filepath.Join(tmpDir, "chrome-user-data")),
 		chromedp.Flag("headless", true),
@@ -92,16 +93,23 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
 	)
 
-	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	// タイムアウト付きコンテキストでブラウザを起動
+	baseCtx, baseCancel := context.WithTimeout(context.Background(), ChromeDPExecAllocatorTimeout)
+	allocCtx, allocCancel := chromedp.NewExecAllocator(baseCtx, opts...)
+	// baseCancelをallocCancelにラップして一緒にキャンセル
+	wrappedAllocCancel := func() {
+		allocCancel()
+		baseCancel()
+	}
 
 	ctx, ctxCancel := chromedp.NewContext(allocCtx)
 
 	client := &BrowserClient{
 		ctx:         ctx,
 		ctxCancel:   ctxCancel,
-		allocCancel: allocCancel,
+		allocCancel: wrappedAllocCancel,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: APIOperationTimeout,
 			Transport: &GzipTransport{
 				Transport: http.DefaultTransport,
 			},
@@ -139,6 +147,9 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 	// 通常のログインを実行
 	if err := client.login(userID, password); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Error("ログインタイムアウト: ブラウザをクローズします", "timeout", LoginTimeout)
+		}
 		client.Close()
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
@@ -178,7 +189,7 @@ func (bc *BrowserClient) Close() {
 func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 	slog.Info("Cookie有効期限切れ検出: 再認証を開始します")
 
-	// 一時的にブラウザを起動
+	// 一時的にブラウザを起動 (タイムアウト付き)
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.UserDataDir(filepath.Join(bc.tmpDir, "chrome-user-data")),
 		chromedp.Flag("headless", true),
@@ -190,7 +201,10 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 		chromedp.UserAgent(bc.userAgent),
 	)
 
-	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	baseCtx, baseCancel := context.WithTimeout(context.Background(), ChromeDPExecAllocatorTimeout)
+	defer baseCancel()
+
+	allocCtx, allocCancel := chromedp.NewExecAllocator(baseCtx, opts...)
 	defer allocCancel()
 
 	ctx, ctxCancel := chromedp.NewContext(allocCtx)
@@ -203,6 +217,10 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 
 	// ログイン実行
 	if err := bc.login(userID, password); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Error("再認証タイムアウト: ブラウザをクローズします", "timeout", ChromeDPExecAllocatorTimeout)
+			bc.Close()
+		}
 		return fmt.Errorf("再認証に失敗しました: %w", err)
 	}
 
@@ -227,10 +245,14 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 func (bc *BrowserClient) login(userID, password string) error {
 	slog.Info("O'Reillyへのログインを開始します", "user_id", userID)
 
+	// ログイン処理にタイムアウトを設定
+	loginCtx, loginCancel := context.WithTimeout(bc.ctx, LoginTimeout)
+	defer loginCancel()
+
 	var cookies []*http.Cookie
 	var divText string
 
-	err := chromedp.Run(bc.ctx,
+	err := chromedp.Run(loginCtx,
 		// ログインページに移動
 		chromedp.Navigate("https://www.oreilly.com/member/login/"),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -378,10 +400,13 @@ func (bc *BrowserClient) login(userID, password string) error {
 
 // validateAuthentication はCookieが有効かどうかを検証します
 func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
-	var pageTitle string
+	// 認証検証にタイムアウトを設定
+	authCtx, authCancel := context.WithTimeout(bc.ctx, AuthValidationTimeout)
+	defer authCancel()
 
+	var pageTitle string
 	var currentURL string
-	err := chromedp.Run(bc.ctx,
+	err := chromedp.Run(authCtx,
 		// 認証が必要なページにアクセス
 		chromedp.Navigate(ormHome),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
@@ -391,7 +416,11 @@ func (bc *BrowserClient) validateAuthentication(ctx context.Context) bool {
 	bc.debugScreenshot(ctx, "validate_saved_cookie_authentication")
 
 	if err != nil {
-		slog.Warn("認証検証中にエラーが発生しました", "error", err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Warn("認証検証がタイムアウトしました", "timeout", AuthValidationTimeout)
+		} else {
+			slog.Warn("認証検証中にエラーが発生しました", "error", err)
+		}
 		return false
 	}
 	slog.Debug("認証検証中", "url", currentURL, "title", pageTitle)
