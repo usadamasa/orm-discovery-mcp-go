@@ -26,6 +26,7 @@ tasks:
   # === Code Quality ===
   format:
     desc: Goコードのフォーマットを実行
+    deps: [generate:api:oreilly]
     sources:
       - '**/*.go'
       - 'go.mod'
@@ -55,6 +56,22 @@ tasks:
     cmds:
       - go test ./... -v
 
+  test:unit:
+    desc: Unitテストのみを実行（E2Eを除く）
+    deps: [generate:api:oreilly]
+    sources:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+    cmds:
+      - go test $(go list ./... | grep -v /e2e) -v -short
+
+  test:e2e:
+    desc: E2Eテストを実行（認証情報必須）
+    deps: [lint]
+    cmds:
+      - go test ./... -tags=e2e -v
+
   test:coverage:
     desc: カバレッジ付きでテストを実行
     deps: [generate:api:oreilly]
@@ -67,6 +84,12 @@ tasks:
     cmds:
       - go test ./... -v -race -coverprofile=coverage.out
       - go tool cover -html=coverage.out -o coverage.html
+
+  ci:e2e:
+    desc: CI用E2Eテスト
+    deps: [lint]
+    cmds:
+      - go test ./... -tags=e2e -v -race
 
   # === Building ===
   build:
