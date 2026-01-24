@@ -3,8 +3,19 @@ package browser
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+)
+
+// ChromeDP operation timeouts (all under 1 minute)
+const (
+	ChromeDPExecAllocatorTimeout = 45 * time.Second
+	LoginTimeout                 = 30 * time.Second
+	AuthValidationTimeout        = 15 * time.Second
+	CookieOperationTimeout       = 10 * time.Second
+	WaitVisibleTimeout           = 10 * time.Second
+	APIOperationTimeout          = 30 * time.Second
 )
 
 // APIEndpointBase O'Reilly API endpoints

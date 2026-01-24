@@ -28,6 +28,7 @@ func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
 		"1.0.0",
 		server.WithResourceCapabilities(true, true),
 		server.WithToolCapabilities(true),
+		server.WithPromptCapabilities(true),
 		server.WithLogging(),
 	)
 

@@ -203,10 +203,13 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int,
 		IsTopics:     &isTopics,
 	}
 
+	// OpenAPI検索リクエスト (タイムアウト付き)
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
+	defer apiCancel()
 	slog.Debug("OpenAPI検索リクエスト開始", "query", query, "rows", rows)
 
 	// Make the API call
-	resp, err := client.SearchContentV2WithResponse(context.Background(), params)
+	resp, err := client.SearchContentV2WithResponse(apiCtx, params)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAPI request failed: %w", err)
 	}

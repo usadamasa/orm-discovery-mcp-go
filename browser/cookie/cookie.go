@@ -17,7 +17,11 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-const cookieFileName = "orm-mcp-go-cookies.json"
+const (
+	cookieFileName = "orm-mcp-go-cookies.json"
+	// CookieOperationTimeout はCookie操作のタイムアウト時間
+	CookieOperationTimeout = 10 * time.Second
+)
 
 // Manager の前方宣言（main パッケージの構造体）
 type Manager interface {
@@ -64,8 +68,12 @@ func NewCookieManager(tmpDir string) *ManagerImpl {
 
 // SaveCookies はブラウザのCookieをファイルに保存する
 func (cm *ManagerImpl) SaveCookies(ctx *context.Context) error {
+	// Cookie保存操作にタイムアウトを設定
+	saveCtx, saveCancel := context.WithTimeout(*ctx, CookieOperationTimeout)
+	defer saveCancel()
+
 	var cookies []*network.Cookie
-	err := chromedp.Run(*ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+	err := chromedp.Run(saveCtx, chromedp.ActionFunc(func(ctx context.Context) error {
 		var err error
 		cookies, err = network.GetCookies().Do(ctx)
 		return err
@@ -178,7 +186,10 @@ func (cm *ManagerImpl) LoadCookies(ctx *context.Context) error {
 	}
 	cm.cookies = httpCookies
 
-	// ブラウザにCookieを設定
+	// ブラウザにCookieを設定 (タイムアウト付き)
+	loadCtx, loadCancel := context.WithTimeout(*ctx, CookieOperationTimeout)
+	defer loadCancel()
+
 	var actions []chromedp.Action
 	for _, cookie := range validCookies {
 		var expires *cdp.TimeSinceEpoch
@@ -195,7 +206,7 @@ func (cm *ManagerImpl) LoadCookies(ctx *context.Context) error {
 			WithSecure(cookie.Secure))
 	}
 
-	err = chromedp.Run(*ctx, actions...)
+	err = chromedp.Run(loadCtx, actions...)
 	if err != nil {
 		return fmt.Errorf("failed to set cookies in browser: %w", err)
 	}

@@ -99,8 +99,11 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 		return nil, fmt.Errorf("failed to create OpenAPI client: %v", err)
 	}
 
+	// 書籍詳細API呼び出し (タイムアウト付き)
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
+	defer apiCancel()
 	slog.Debug("書籍詳細APIリクエスト送信", "product_id", productID)
-	resp, err := client.GetBookDetailsWithResponse(context.Background(), productID)
+	resp, err := client.GetBookDetailsWithResponse(apiCtx, productID)
 	if err != nil {
 		return nil, fmt.Errorf("書籍詳細APIエンドポイントが失敗しました: %v", err)
 	}
@@ -227,10 +230,13 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 		return nil, fmt.Errorf("failed to create OpenAPI client: %v", err)
 	}
 
+	// 目次API呼び出し (タイムアウト付き)
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
+	defer apiCancel()
 	slog.Debug("目次APIリクエスト送信", "product_id", productID)
 
 	// Make a raw HTTP request to see the actual response structure
-	httpResp, err := client.GetBookFlatTOC(context.Background(), productID)
+	httpResp, err := client.GetBookFlatTOC(apiCtx, productID)
 	if err != nil {
 		return nil, fmt.Errorf("目次APIエンドポイントが失敗しました: %v", err)
 	}
@@ -258,8 +264,10 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 		return convertFlatTOCArrayToLocal(productID, flatTOCArray), nil
 	}
 
-	// If array parsing fails, try as object
-	resp, err := client.GetBookFlatTOCWithResponse(context.Background(), productID)
+	// If array parsing fails, try as object (同じタイムアウトコンテキストを使用)
+	apiCtx2, apiCancel2 := context.WithTimeout(context.Background(), APIOperationTimeout)
+	defer apiCancel2()
+	resp, err := client.GetBookFlatTOCWithResponse(apiCtx2, productID)
 	if err != nil {
 		return nil, fmt.Errorf("目次APIエンドポイントが失敗しました: %v", err)
 	}
