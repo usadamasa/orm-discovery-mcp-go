@@ -13,6 +13,96 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
+// createDebugHooks はMCPプロトコルのデバッグ用Hooksを作成します
+func createDebugHooks(debug bool, logLevel slog.Level) *server.Hooks {
+	hooks := &server.Hooks{}
+
+	// 全リクエストの前処理
+	hooks.AddBeforeAny(func(ctx context.Context, id any, method mcp.MCPMethod, message any) {
+		if logLevel <= slog.LevelDebug {
+			// メッセージをJSON形式でログ出力(機密情報を除外)
+			msgJSON, _ := json.Marshal(message)
+			slog.Debug("MCP受信",
+				"method", method,
+				"id", id,
+				"payload", string(msgJSON))
+		} else {
+			slog.Info("MCPリクエスト開始",
+				"method", method,
+				"id", id)
+		}
+	})
+
+	// 成功時の処理
+	hooks.AddOnSuccess(func(ctx context.Context, id any, method mcp.MCPMethod, message any, result any) {
+		if logLevel <= slog.LevelDebug {
+			// 結果のサイズを計算(大きすぎる場合は省略)
+			resultJSON, _ := json.Marshal(result)
+			resultSize := len(resultJSON)
+			if resultSize > 1000 {
+				slog.Debug("MCP成功",
+					"method", method,
+					"id", id,
+					"result_size", resultSize,
+					"result_preview", string(resultJSON[:500])+"...")
+			} else {
+				slog.Debug("MCP成功",
+					"method", method,
+					"id", id,
+					"result", string(resultJSON))
+			}
+		} else {
+			slog.Info("MCPリクエスト成功",
+				"method", method,
+				"id", id)
+		}
+	})
+
+	// エラー時の処理
+	hooks.AddOnError(func(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
+		slog.Error("MCPリクエスト失敗",
+			"method", method,
+			"id", id,
+			"error", err.Error())
+	})
+
+	// セッション登録時の処理
+	hooks.AddOnRegisterSession(func(ctx context.Context, session server.ClientSession) {
+		slog.Info("MCPセッション登録",
+			"session_id", session.SessionID())
+	})
+
+	// セッション解除時の処理
+	hooks.AddOnUnregisterSession(func(ctx context.Context, session server.ClientSession) {
+		slog.Info("MCPセッション解除",
+			"session_id", session.SessionID())
+	})
+
+	// ツール呼び出し前の処理
+	hooks.AddBeforeCallTool(func(ctx context.Context, id any, message *mcp.CallToolRequest) {
+		if logLevel <= slog.LevelDebug {
+			argsJSON, _ := json.Marshal(message.Params.Arguments)
+			slog.Debug("ツール呼び出し開始",
+				"tool", message.Params.Name,
+				"id", id,
+				"arguments", string(argsJSON))
+		} else {
+			slog.Info("ツール呼び出し",
+				"tool", message.Params.Name,
+				"id", id)
+		}
+	})
+
+	// リソース読み込み前の処理
+	hooks.AddBeforeReadResource(func(ctx context.Context, id any, message *mcp.ReadResourceRequest) {
+		slog.Debug("リソース読み込み開始",
+			"uri", message.Params.URI,
+			"id", id)
+	})
+
+	return hooks
+}
+
 // Server はMCPサーバーの実装です
 type Server struct {
 	browserClient *browser.BrowserClient
@@ -22,6 +112,9 @@ type Server struct {
 
 // NewServer は新しいサーバーインスタンスを作成します
 func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
+	// デバッグ用Hooksを作成
+	hooks := createDebugHooks(config.Debug, config.LogLevel)
+
 	// MCPサーバーの設定とデバッグログの追加
 	mcpServer := server.NewMCPServer(
 		"Search O'Reilly Learning Platform",
@@ -30,6 +123,8 @@ func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
 		server.WithToolCapabilities(true),
 		server.WithPromptCapabilities(true),
 		server.WithLogging(),
+		server.WithHooks(hooks),
+		server.WithRecovery(),
 	)
 
 	srv := &Server{

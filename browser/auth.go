@@ -9,11 +9,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+
+	cdp "github.com/usadamasa/orm-discovery-mcp-go/browser/chromedp"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -81,33 +82,15 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required")
 	}
 
-	// ヘッドレスブラウザのコンテキストを作成 (タイムアウト付き)
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.UserDataDir(filepath.Join(tmpDir, "chrome-user-data")),
-		chromedp.Flag("headless", true),
-		chromedp.Flag("disable-gpu", true),
-		chromedp.Flag("disable-dev-shm-usage", true),
-		chromedp.Flag("no-sandbox", true),
-		chromedp.Flag("disable-web-security", true),
-		chromedp.Flag("disable-features", "VizDisplayCompositor"),
-		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
-	)
-
-	// タイムアウト付きコンテキストでブラウザを起動
-	baseCtx, baseCancel := context.WithTimeout(context.Background(), ChromeDPExecAllocatorTimeout)
-	allocCtx, allocCancel := chromedp.NewExecAllocator(baseCtx, opts...)
-	// baseCancelをallocCancelにラップして一緒にキャンセル
-	wrappedAllocCancel := func() {
-		allocCancel()
-		baseCancel()
+	// ChromeDPライフサイクルマネージャーを作成(古いディレクトリを自動クリーンアップ)
+	manager, err := cdp.NewManager(tmpDir, debug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ChromeDP manager: %w", err)
 	}
 
-	ctx, ctxCancel := chromedp.NewContext(allocCtx)
-
 	client := &BrowserClient{
-		ctx:         ctx,
-		ctxCancel:   ctxCancel,
-		allocCancel: wrappedAllocCancel,
+		ctx:             manager.Context(),
+		chromedpManager: manager,
 		httpClient: &http.Client{
 			Timeout: APIOperationTimeout,
 			Transport: &GzipTransport{
@@ -122,14 +105,14 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	// Cookieの復元を試行
 	if cookieManager.CookieFileExists() {
 		slog.Info("既存のCookieファイルが見つかりました。復元を試行します")
-		if err := cookieManager.LoadCookies(&ctx); err != nil {
+		if err := cookieManager.LoadCookies(&client.ctx); err != nil {
 			slog.Warn("Cookie復元に失敗しました", "error", err)
 		} else {
 			// ブラウザのCookieをHTTPクライアントに同期
 			client.syncCookiesFromBrowser()
 
 			// Cookieが有効かどうか検証
-			if client.validateAuthentication(ctx) {
+			if client.validateAuthentication(client.ctx) {
 				slog.Info("Cookieを使用してログインが完了しました")
 				client.cookieManager = cookieManager
 
@@ -156,7 +139,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 	// ログイン成功後にCookieを保存
 	client.cookieManager = cookieManager
-	if err := cookieManager.SaveCookies(&ctx); err != nil {
+	if err := cookieManager.SaveCookies(&client.ctx); err != nil {
 		slog.Warn("Cookieの保存に失敗しました", "error", err)
 	}
 
@@ -176,6 +159,13 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 
 // Close はブラウザクライアントをクリーンアップします
 func (bc *BrowserClient) Close() {
+	// chromedpManagerがあればそれを使用(推奨)
+	if bc.chromedpManager != nil {
+		bc.chromedpManager.Close()
+		return
+	}
+
+	// 後方互換性のため: 古いスタイルのクリーンアップ
 	// 正しい順序でクリーンアップ: ctx → allocator
 	if bc.ctxCancel != nil {
 		bc.ctxCancel()
@@ -189,43 +179,35 @@ func (bc *BrowserClient) Close() {
 func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 	slog.Info("Cookie有効期限切れ検出: 再認証を開始します")
 
-	// 一時的にブラウザを起動 (タイムアウト付き)
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.UserDataDir(filepath.Join(bc.tmpDir, "chrome-user-data")),
-		chromedp.Flag("headless", true),
-		chromedp.Flag("disable-gpu", true),
-		chromedp.Flag("disable-dev-shm-usage", true),
-		chromedp.Flag("no-sandbox", true),
-		chromedp.Flag("disable-web-security", true),
-		chromedp.Flag("disable-features", "VizDisplayCompositor"),
-		chromedp.UserAgent(bc.userAgent),
-	)
+	// 既存のManagerをクローズ
+	if bc.chromedpManager != nil {
+		bc.chromedpManager.Close()
+		bc.chromedpManager = nil
+	}
 
-	baseCtx, baseCancel := context.WithTimeout(context.Background(), ChromeDPExecAllocatorTimeout)
-	defer baseCancel()
+	// 新しいChromeDPライフサイクルマネージャーを作成
+	manager, err := cdp.NewManager(bc.tmpDir, bc.debug)
+	if err != nil {
+		return fmt.Errorf("failed to create ChromeDP manager for reauthentication: %w", err)
+	}
 
-	allocCtx, allocCancel := chromedp.NewExecAllocator(baseCtx, opts...)
-	defer allocCancel()
-
-	ctx, ctxCancel := chromedp.NewContext(allocCtx)
-	defer ctxCancel()
-
-	// ブラウザコンテキストを一時的に更新
-	bc.ctx = ctx
-	bc.ctxCancel = ctxCancel
-	bc.allocCancel = allocCancel
+	// ブラウザコンテキストを更新
+	bc.ctx = manager.Context()
+	bc.chromedpManager = manager
 
 	// ログイン実行
 	if err := bc.login(userID, password); err != nil {
+		slog.Error("再認証ログイン失敗", "error", err)
+		// エラー時は常にCloseしてリソースを解放
+		bc.Close()
 		if errors.Is(err, context.DeadlineExceeded) {
-			slog.Error("再認証タイムアウト: ブラウザをクローズします", "timeout", ChromeDPExecAllocatorTimeout)
-			bc.Close()
+			return fmt.Errorf("再認証タイムアウト(%.0f秒): %w", ChromeDPExecAllocatorTimeout.Seconds(), err)
 		}
 		return fmt.Errorf("再認証に失敗しました: %w", err)
 	}
 
-	// Cookie保存
-	if err := bc.cookieManager.SaveCookies(&ctx); err != nil {
+	// Cookie保存 - bc.ctx を再利用(manager.Context()を再度呼び出さない)
+	if err := bc.cookieManager.SaveCookies(&bc.ctx); err != nil {
 		slog.Warn("Cookieの保存に失敗しました", "error", err)
 	}
 

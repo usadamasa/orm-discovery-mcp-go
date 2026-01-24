@@ -38,6 +38,8 @@ TRANSPORT=http PORT=8080 ./bin/orm-discovery-mcp-go
 | `TRANSPORT` | トランスポートモード: `stdio` または `http` | ❌ (デフォルト: stdio) |
 | `PORT` | HTTPサーバーポート | ❌ (デフォルト: 8080) |
 | `ORM_MCP_GO_DEBUG` | デバッグモード有効化 | ❌ |
+| `ORM_MCP_GO_LOG_LEVEL` | ログレベル: `DEBUG`, `INFO`, `WARN`, `ERROR` | ❌ (デフォルト: INFO) |
+| `ORM_MCP_GO_LOG_FILE` | ログファイルパス(空の場合はstderrのみ) | ❌ |
 | `ORM_MCP_GO_TMP_DIR` | 一時ディレクトリ(Cookie保存先) | ❌ |
 
 ## テスト手法
@@ -109,7 +111,14 @@ stdioモードのサーバーに対してJSON-RPCリクエストを送信しま�
 認証問題やAPIエラーのトラブルシューティングに使用します。
 
 ```bash
+# 基本的なデバッグモード
 ORM_MCP_GO_DEBUG=true ./bin/orm-discovery-mcp-go
+
+# 詳細なMCPプロトコルログ + ファイル出力
+ORM_MCP_GO_DEBUG=true \
+ORM_MCP_GO_LOG_LEVEL=DEBUG \
+ORM_MCP_GO_LOG_FILE=/var/tmp/orm-mcp-go.log \
+./bin/orm-discovery-mcp-go
 ```
 
 **出力されるデバッグ情報**:
@@ -117,6 +126,38 @@ ORM_MCP_GO_DEBUG=true ./bin/orm-discovery-mcp-go
 - 送信Cookie数と詳細
 - HTTPヘッダー情報
 - 認証フロー中のスクリーンショット
+- MCPプロトコルレベルのJSON-RPCメッセージ(LOG_LEVEL=DEBUG時)
+
+#### MCP Hooksによるログ出力
+
+サーバーはmcp-goのHooks機能を使用して、MCPプロトコルレベルのイベントをログ出力します。
+
+| イベント | ログレベル | 内容 |
+|---------|----------|------|
+| JSON-RPC受信 | DEBUG | method, id, payload |
+| JSON-RPC送信 | DEBUG/INFO | method, id, result |
+| エラー発生 | ERROR | method, id, error詳細 |
+| セッション登録 | INFO | session_id |
+| セッション解除 | INFO | session_id |
+| ツール呼び出し開始 | DEBUG/INFO | tool名, arguments |
+| リソース読み込み開始 | DEBUG | URI |
+
+**ログ出力例(LOG_LEVEL=DEBUG)**:
+```
+time=2026-01-24T12:00:00.000+09:00 level=DEBUG source=server.go:25 msg="MCP受信" method=tools/call id=1 payload="{...}"
+time=2026-01-24T12:00:00.100+09:00 level=DEBUG source=server.go:85 msg="ツール呼び出し開始" tool=search_content id=1 arguments="{\"query\":\"Docker\"}"
+time=2026-01-24T12:00:01.000+09:00 level=DEBUG source=server.go:49 msg="MCP成功" method=tools/call id=1 result_size=5432
+```
+
+#### ログファイル出力
+
+`ORM_MCP_GO_LOG_FILE`を設定すると、stderrとファイルの両方にログが出力されます。
+stdioモードではstdoutはJSON-RPC専用なので、ログは必ずstderr/ファイルに出力されます。
+
+```bash
+# ログファイルをリアルタイムで監視
+tail -f /var/tmp/orm-mcp-go.log
+```
 
 **ヘッダー検証例**:
 ```

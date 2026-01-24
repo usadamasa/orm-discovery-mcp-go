@@ -6,29 +6,95 @@ ChromeDP-based authentication implementation guide with "close-after-authenticat
 
 ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern to **avoid issues with URL operations in production environments**. As a secondary benefit, this also reduces memory usage.
 
+## パッケージ構成
+
+ChromeDPライフサイクル管理は `browser/chromedp/` パッケージに切り出されています:
+
+```
+browser/
+└── chromedp/
+    └── lifecycle.go   # Manager構造体とクリーンアップ関数
+```
+
+## Manager構造体
+
+`chromedp.Manager` はChromeDPブラウザインスタンスのライフサイクルを管理します:
+
+```go
+import cdp "github.com/usadamasa/orm-discovery-mcp-go/browser/chromedp"
+
+// 新しいマネージャーを作成(古いディレクトリを自動クリーンアップ)
+manager, err := cdp.NewManager(tmpDir, debug)
+if err != nil {
+    return nil, err
+}
+
+// ブラウザ操作用のコンテキストを取得
+ctx := manager.Context()
+
+// ブラウザを閉じてユーザーデータディレクトリを削除
+manager.Close()
+```
+
+### 主要メソッド
+
+- `NewManager(tmpDir, debug)` - 新しいマネージャーを作成(古いディレクトリを自動クリーンアップ)
+- `Context()` - ブラウザ操作用のコンテキストを返す
+- `Close()` - ブラウザを閉じてユーザーデータディレクトリを削除
+
+## SingletonLock問題の自動解決
+
+サーバーは起動時に以下の処理を自動的に行います:
+
+1. **プロセス固有のユーザーデータディレクトリ**: 各インスタンスは `chrome-user-data-{PID}` 形式のディレクトリを使用
+2. **安全な古いディレクトリのクリーンアップ**:
+   - プロセスが存在しない → 削除
+   - プロセスが存在するが別のプログラム → 削除
+   - **orm-discovery-mcp-goが実行中** → スキップ
+3. **旧形式ディレクトリ(chrome-user-data)の安全な削除**:
+   - SingletonLockがない → 削除
+   - SingletonLockがある → スキップ(警告ログ出力)
+4. **終了時のクリーンアップ**: Close()で自身のディレクトリを削除
+
+### 複数インスタンス対応
+
+複数のClaude Codeインスタンスから同時に起動しても競合しません:
+
+```bash
+# 例: 2つのインスタンスを同時起動
+./bin/orm-discovery-mcp-go &   # chrome-user-data-12345
+./bin/orm-discovery-mcp-go &   # chrome-user-data-12346
+```
+
 ## Core Principles
 
 1. **Minimize browser runtime**: Browser only runs during authentication
 2. **Production environment safety**: Avoid URL operation issues by closing browser after auth
 3. **Debug mode flexibility**: Keep browser alive for troubleshooting when needed
 4. **Automatic recovery**: Reauthenticate automatically on cookie expiration
-5. **User browser isolation**: Explicit UserDataDir prevents interference
+5. **User browser isolation**: Process-specific UserDataDir prevents interference
+6. **Automatic cleanup**: Old Chrome data directories are cleaned up on startup
 
 ## Implementation Patterns
 
 ### 1. Authentication-Only Browser Usage
 
-**Pattern**: Start ChromeDP → Authenticate → Close immediately (unless debug mode)
+**Pattern**: Start ChromeDP via Manager → Authenticate → Close immediately (unless debug mode)
 
 ```go
 // NewBrowserClient() - auth.go
 func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, tmpDir string) (*BrowserClient, error) {
-    // 1. Start ChromeDP with explicit UserDataDir
-    opts := append(chromedp.DefaultExecAllocatorOptions[:],
-        chromedp.UserDataDir(filepath.Join(tmpDir, "chrome-user-data")), // Explicit isolation
-        chromedp.Flag("headless", true),
-        // ... other flags
-    )
+    // 1. Create ChromeDP Manager (auto-cleans old directories)
+    manager, err := cdp.NewManager(tmpDir, debug)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create ChromeDP manager: %w", err)
+    }
+
+    client := &BrowserClient{
+        ctx:             manager.Context(),
+        chromedpManager: manager,
+        // ... other fields
+    }
 
     // 2. Authenticate (either via cookies or password login)
     // ... authentication logic ...
@@ -44,10 +110,12 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 ```
 
 **Benefits**:
-- **Avoids URL operation issues** in production environments (primary reason)
+- **Avoids SingletonLock errors** by using process-specific directories
+- **Avoids URL operation issues** in production environments
 - Browser process only runs during authentication
 - HTTP API calls work without browser
 - 100-300MB memory reduction as secondary benefit
+- **Automatic cleanup** of old Chrome data directories
 
 ### 2. Debug Mode Persistence
 
@@ -68,30 +136,30 @@ if !debug {
 
 ### 3. Automatic Reauthentication
 
-**Pattern**: Detect 401/403 errors → Restart browser → Re-login → Close
+**Pattern**: Detect 401/403 errors → Create new Manager → Re-login → Close
 
 ```go
 // ReauthenticateIfNeeded() - auth.go
 func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
     slog.Info("Cookie有効期限切れ検出: 再認証を開始します")
 
-    // 1. Temporarily restart browser
-    opts := append(chromedp.DefaultExecAllocatorOptions[:],
-        chromedp.UserDataDir(filepath.Join(bc.tmpDir, "chrome-user-data")),
-        // ... flags ...
-    )
-    allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
-    defer allocCancel()
+    // 1. Close existing Manager
+    if bc.chromedpManager != nil {
+        bc.chromedpManager.Close()
+        bc.chromedpManager = nil
+    }
 
-    ctx, ctxCancel := chromedp.NewContext(allocCtx)
-    defer ctxCancel()
+    // 2. Create new ChromeDP Manager
+    manager, err := cdp.NewManager(bc.tmpDir, bc.debug)
+    if err != nil {
+        return fmt.Errorf("failed to create ChromeDP manager: %w", err)
+    }
 
-    // 2. Update browser context temporarily
-    bc.ctx = ctx
-    bc.ctxCancel = ctxCancel
-    bc.allocCancel = allocCancel
+    // 3. Update browser context
+    bc.ctx = manager.Context()
+    bc.chromedpManager = manager
 
-    // 3. Re-login
+    // 4. Re-login
     if err := bc.login(userID, password); err != nil {
         return fmt.Errorf("再認証に失敗しました: %w", err)
     }
@@ -135,11 +203,16 @@ if err != nil && isAuthError(err) {
 
 ### Why No isClosed Flag?
 
-**Answer**: Not needed - nil-safe checks are sufficient
+**Answer**: Not needed - Manager handles cleanup internally
 
 ```go
-// Close() - No state flag required
+// Close() - Manager handles all cleanup
 func (bc *BrowserClient) Close() {
+    if bc.chromedpManager != nil {
+        bc.chromedpManager.Close()
+        return
+    }
+    // Fallback for backward compatibility
     if bc.ctxCancel != nil {
         bc.ctxCancel()
     }
@@ -150,29 +223,33 @@ func (bc *BrowserClient) Close() {
 ```
 
 **Rationale**:
+- Manager handles browser close and directory cleanup atomically
 - Go's nil-safe checks prevent double-close issues
 - Multiple Close() calls are harmless
 - Simpler implementation without additional state
 
 ## Chrome Isolation (User Browser Protection)
 
-### Explicit UserDataDir Setting
+### Process-Specific UserDataDir Setting
 
-**Pattern**: Always specify isolated UserDataDir to prevent interference
+**Pattern**: Each process uses isolated UserDataDir to prevent SingletonLock conflicts
 
 ```go
-chromedp.UserDataDir(filepath.Join(tmpDir, "chrome-user-data"))
+// Manager creates process-specific directory
+chromeDataDir := filepath.Join(tmpDir, fmt.Sprintf("chrome-user-data-%d", os.Getpid()))
+chromedp.UserDataDir(chromeDataDir)
 ```
 
 **Benefits**:
+- **No SingletonLock conflicts**: Each process has its own directory
+- **Multiple instance support**: Multiple MCP servers can run simultaneously
+- **Automatic cleanup**: Old directories are cleaned up on startup
 - **Explicit isolation**: No accidental access to user's Chrome profile
 - **Unified management**: tmpDir controls both cookies and Chrome data
-- **Testability**: Easy to specify different directories for testing
-- **Visibility**: Clear in logs where Chrome data is stored
 
-**Default vs Explicit**:
-- **Default** (implicit): ChromeDP creates `/tmp/chromedp-*` automatically
-- **Explicit** (recommended): `filepath.Join(tmpDir, "chrome-user-data")` for clarity
+**Old vs New**:
+- **Old** (fixed): `filepath.Join(tmpDir, "chrome-user-data")` - causes SingletonLock conflicts
+- **New** (dynamic): `filepath.Join(tmpDir, "chrome-user-data-{PID}")` - no conflicts
 
 ## Defer Pattern for Cleanup
 
@@ -195,15 +272,17 @@ defer browserClient.Close() // プロセス終了時にブラウザをクリー�
 
 When implementing ChromeDP-based features:
 
-- [ ] Use explicit `UserDataDir` in ExecAllocatorOptions
+- [ ] Use `cdp.NewManager()` for ChromeDP lifecycle management
+- [ ] Store Manager in `chromedpManager` field
 - [ ] Close browser immediately after authentication (non-debug mode)
 - [ ] Keep browser alive in debug mode for screenshots
 - [ ] Implement 401/403 error detection
-- [ ] Add automatic reauthentication with browser restart
-- [ ] Use nil-safe checks instead of state flags
+- [ ] Add automatic reauthentication with new Manager
+- [ ] Use Manager.Close() for cleanup
 - [ ] Add defer browserClient.Close() in main.go only
 - [ ] Test both debug and non-debug modes
-- [ ] Verify browser closes after authentication in production mode
+- [ ] Test multiple instances running simultaneously
+- [ ] Verify old Chrome data directories are cleaned up
 
 ## Memory Impact
 
@@ -232,10 +311,32 @@ ps aux | grep chrome  # Should find running chrome process
 ps aux | grep orm-discovery-mcp-go  # Compare RSS with/without debug mode
 ```
 
+### Verify Multiple Instance Support
+```bash
+# 1. Build the project
+task build
+
+# 2. Start multiple instances simultaneously
+./bin/orm-discovery-mcp-go &
+PID1=$!
+./bin/orm-discovery-mcp-go &
+PID2=$!
+
+# 3. Verify both directories exist with different PIDs
+ls /var/tmp/ | grep chrome-user-data
+# Expected: chrome-user-data-{PID1}, chrome-user-data-{PID2}
+
+# 4. Verify cleanup after termination
+kill $PID1 $PID2
+ls /var/tmp/ | grep chrome-user-data
+# Expected: directories should be cleaned up
+```
+
 ### Verify Chrome Isolation
 ```bash
-# Check UserDataDir location
-ls -la /var/tmp/chrome-user-data  # ChromeDP data isolated here
+# Check UserDataDir location (process-specific)
+ls -la /var/tmp/ | grep chrome-user-data
+# Expected: chrome-user-data-{PID} directories for running processes
 
 # Verify no interference with user's Chrome
 ls -la ~/.config/google-chrome/Default/  # Should be unchanged
@@ -319,24 +420,27 @@ killall "Google Chrome"
 
 ### SingletonLockファイルの削除
 
-Chromeが異常終了した場合、SingletonLockファイルが残ることがある。
+**新しい実装では自動解決**: プロセス固有のディレクトリ(`chrome-user-data-{PID}`)を使用するため、SingletonLock 問題は通常発生しません。サーバー起動時に古いディレクトリは自動的にクリーンアップされます。
 
-**ロックファイルの場所**:
-```bash
-# デフォルトの場所
-ls -la /var/tmp/chrome-user-data/SingletonLock
+**旧形式ディレクトリが残っている場合**:
 
-# または環境変数で指定したtmpDir
-ls -la $ORM_MCP_GO_TMP_DIR/chrome-user-data/SingletonLock
+旧形式の `chrome-user-data` ディレクトリにSingletonLockがある場合、サーバーは以下の警告を出力してスキップします:
+
+```
+旧形式のChromeデータディレクトリにSingletonLockが存在するため削除をスキップ
+path=/var/tmp/chrome-user-data hint=手動で削除してください: rm -rf /var/tmp/chrome-user-data
 ```
 
-**ロックファイルの削除**:
+**手動削除が必要な場合**:
 ```bash
-# ロックファイルを削除
-rm -f /var/tmp/chrome-user-data/SingletonLock
+# 旧形式ディレクトリの確認
+ls -la /var/tmp/chrome-user-data
 
-# Chrome関連ファイルを全て削除 (再認証が必要になる)
+# Chrome関連ファイルを全て削除
 rm -rf /var/tmp/chrome-user-data
+
+# プロセス固有ディレクトリの削除(通常は不要 - 終了時に自動削除)
+rm -rf /var/tmp/chrome-user-data-*
 ```
 
 ### デバッグモードでの強制終了
