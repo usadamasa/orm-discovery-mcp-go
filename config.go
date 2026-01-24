@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"log"
 	"log/slog"
 	"os"
@@ -18,6 +19,7 @@ type Config struct {
 	OReillyPassword string
 	TmpDir          string
 	LogLevel        slog.Level
+	LogFile         string // ログファイルパス(空の場合はstderrのみ)
 }
 
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
@@ -74,6 +76,9 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	// ログファイルパスの取得
+	logFile := getEnv("ORM_MCP_GO_LOG_FILE")
+
 	config := &Config{
 		Port:            port,
 		Debug:           debug,
@@ -82,6 +87,7 @@ func LoadConfig() (*Config, error) {
 		OReillyPassword: OReillyPassword,
 		TmpDir:          tmpDir,
 		LogLevel:        logLevel,
+		LogFile:         logFile,
 	}
 
 	// slogの設定
@@ -92,6 +98,19 @@ func LoadConfig() (*Config, error) {
 
 // setupLogger はslogの設定を行います
 func setupLogger(config *Config) {
+	// ログ出力先の決定
+	var writer io.Writer = os.Stderr
+
+	// ログファイルが指定されている場合はMultiWriterを使用
+	if config.LogFile != "" {
+		file, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			log.Printf("ログファイルを開けません: %v (stderrのみ使用)", err)
+		} else {
+			writer = io.MultiWriter(os.Stderr, file)
+		}
+	}
+
 	// シンプルなテキストハンドラー設定
 	opts := &slog.HandlerOptions{
 		Level:     config.LogLevel,
@@ -111,15 +130,20 @@ func setupLogger(config *Config) {
 	}
 
 	// テキストハンドラーを作成
-	handler := slog.NewTextHandler(os.Stderr, opts)
+	handler := slog.NewTextHandler(writer, opts)
 
 	// デフォルトロガーを設定
 	slog.SetDefault(slog.New(handler))
 
 	// 設定完了後にデバッグ情報をログ出力
-	slog.Info("ログシステムを初期化しました",
+	logAttrs := []any{
 		"log_level", config.LogLevel.String(),
-		"debug_mode", config.Debug)
+		"debug_mode", config.Debug,
+	}
+	if config.LogFile != "" {
+		logAttrs = append(logAttrs, "log_file", config.LogFile)
+	}
+	slog.Info("ログシステムを初期化しました", logAttrs...)
 }
 
 // getEnv は環境変数を取得します（.envファイルの値が優先されます）
