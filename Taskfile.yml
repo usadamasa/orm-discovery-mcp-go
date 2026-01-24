@@ -67,10 +67,15 @@ tasks:
       - go test $(go list ./... | grep -v /e2e) -v -short
 
   test:e2e:
-    desc: E2Eテストを実行（認証情報必須）
+    desc: E2Eテストを実行（認証情報必須、race検査付き）
     deps: [lint]
+    sources:
+      - '**/*_e2e_test.go'
+      - '**/*_test.go'
+      - 'go.mod'
+      - 'go.sum'
     cmds:
-      - go test ./... -tags=e2e -v
+      - go test ./... -tags=e2e -v -race
 
   test:coverage:
     desc: カバレッジ付きでテストを実行
@@ -84,12 +89,6 @@ tasks:
     cmds:
       - go test ./... -v -race -coverprofile=coverage.out
       - go tool cover -html=coverage.out -o coverage.html
-
-  ci:e2e:
-    desc: CI用E2Eテスト
-    deps: [lint]
-    cmds:
-      - go test ./... -tags=e2e -v -race
 
   # === Building ===
   build:
@@ -121,6 +120,17 @@ tasks:
           -ldflags="-s -w -X main.version=dev -X main.commit=local -X main.date={{now | date \"2006-01-02T15:04:05Z07:00\"}}" \
           -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
 
+  install:
+    desc: Go バイナリをGOPATH/binにインストール
+    deps: [generate:api:oreilly, lint]
+    sources:
+      - 'main.go'
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+    cmds:
+      - go install -trimpath -v .
+
   # === Cleaning ===
   clean:generated:
     desc: 生成されたコードを削除
@@ -149,11 +159,11 @@ tasks:
 
   ci:
     desc: CI用タスク（すべてのチェック + ビルド）
-    deps: [generate:api:oreilly, format, lint, test:coverage, build]
+    deps: [format, lint, test:coverage, build]
 
   all:
     desc: すべてのタスクを実行
-    deps: [generate:api:oreilly, format, lint, test:coverage, build:release]
+    deps: [ci]
 
   # === Utilities ===
   deps:
