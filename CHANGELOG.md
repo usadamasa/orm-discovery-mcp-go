@@ -10,6 +10,18 @@
 - feat: apply progressive disclosure pattern to MCP tool descriptions by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/38
 - fix: initialize empty slices in convertAnswerData to prevent MCP validation errors by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/39
 - feat: embed version info in task install with clean build by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/40
+- Release for v0.0.8 by @usadamasa-tagpr[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/33
+
+## [v0.0.8](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.7...v0.0.8) - 2026-01-25
+- feat: add XDG Base Directory support by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/32
+- fix: avoid context canceled error when saving cookies after login by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/34
+- feat: migrate to modelcontextprotocol/go-sdk with StructuredContent support by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/35
+- feat: implement E2E tests with TestMain shared client optimization by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/36
+- chore: improve Taskfile.yml with install task and cleanup by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/37
+- build(deps): bump golang.org/x/net from 0.48.0 to 0.49.0 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/28
+- feat: apply progressive disclosure pattern to MCP tool descriptions by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/38
+- fix: initialize empty slices in convertAnswerData to prevent MCP validation errors by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/39
+- feat: embed version info in task install with clean build by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/40
 
 ## [v0.0.7](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.6...v0.0.7) - 2026-01-24
 - feat: add comprehensive timeouts to browser and API operations by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/29
