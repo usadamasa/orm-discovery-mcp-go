@@ -168,12 +168,21 @@ func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*
 // convertAnswerData converts the generated AnswerData to our type
 func convertAnswerData(data *api.AnswerData) AnswerData {
 	if data == nil {
-		return AnswerData{}
+		return AnswerData{
+			Answer:              "",
+			Sources:             []AnswerSource{},
+			RelatedResources:    []RelatedResource{},
+			AffiliationProducts: []AffiliationProduct{},
+			FollowupQuestions:   []string{},
+		}
 	}
 
 	result := AnswerData{
-		Answer:            safeStringValue(data.Answer),
-		FollowupQuestions: safeStringSliceValue(data.FollowupQuestions),
+		Answer:              safeStringValue(data.Answer),
+		FollowupQuestions:   safeStringSliceValue(data.FollowupQuestions),
+		Sources:             []AnswerSource{},
+		RelatedResources:    []RelatedResource{},
+		AffiliationProducts: []AffiliationProduct{},
 	}
 
 	// Convert sources
