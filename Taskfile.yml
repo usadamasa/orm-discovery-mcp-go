@@ -121,15 +121,21 @@ tasks:
           -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
 
   install:
-    desc: Go バイナリをGOPATH/binにインストール
+    desc: Go バイナリをGOPATH/binにインストール（常にクリーンビルド）
     deps: [generate:api:oreilly, lint]
-    sources:
-      - 'main.go'
-      - '**/*.go'
-      - 'go.mod'
-      - 'go.sum'
+    vars:
+      GIT_VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+      GIT_COMMIT:
+        sh: git rev-parse --short HEAD 2>/dev/null || echo "none"
+      BUILD_DATE:
+        sh: date -u +"%Y-%m-%dT%H:%M:%SZ"
     cmds:
-      - go install -trimpath -v .
+      - go clean -i .
+      - |
+        go install -trimpath -v \
+          -ldflags="-X main.version={{.GIT_VERSION}} -X main.commit={{.GIT_COMMIT}} -X main.date={{.BUILD_DATE}}" \
+          .
 
   # === Cleaning ===
   clean:generated:
