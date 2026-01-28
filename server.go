@@ -137,6 +137,9 @@ IMPORTANT: Cite sources provided in the response.`,
 
 	// Register resources
 	s.registerResources()
+
+	// Register prompts
+	s.registerPrompts()
 }
 
 // registerResources registers the resource handlers.
