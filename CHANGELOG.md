@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.0.9](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.8...v0.0.9) - 2026-01-28
+- feat: add MCP prompts support with three prompts by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/45
+
 ## [v0.0.8](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.7...v0.0.8) - 2026-01-25
 - feat: add XDG Base Directory support by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/32
 - fix: avoid context canceled error when saving cookies after login by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/34
