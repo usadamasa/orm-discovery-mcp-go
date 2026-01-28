@@ -55,6 +55,11 @@ claude mcp add -s user orm-discovery-mcp-go \
 - **`oreilly://book-chapter/{product_id}/{chapter_name}`**: チャプター内容
 - **`oreilly://answer/{question_id}`**: AI生成回答の取得
 
+### MCPプロンプト
+- **`learn-technology`**: 特定技術の学習パスを生成（例: Kubernetes、React）
+- **`research-topic`**: 技術トピックの多角的な調査（例: マイクロサービスアーキテクチャ）
+- **`debug-error`**: エラーメッセージのデバッグガイドを生成
+
 ### 利用フロー
 
 #### コンテンツ検索・アクセス
@@ -65,6 +70,11 @@ claude mcp add -s user orm-discovery-mcp-go \
 #### AI質問応答
 1. `ask_question`で技術的な質問を投稿 → `question_id`取得
 2. `oreilly://answer/{question_id}`でAI生成回答を取得
+
+#### プロンプト活用
+1. **技術学習**: `learn-technology`で学習したい技術名を指定 → 体系的な学習パスを取得
+2. **技術調査**: `research-topic`で調査トピックを指定 → 多角的な調査結果を取得
+3. **エラー解決**: `debug-error`でエラーメッセージを指定 → デバッグガイドを取得
 
 ## ファイル保存先
 

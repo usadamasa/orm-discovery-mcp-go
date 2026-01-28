@@ -1,11 +1,51 @@
 ---
 name: mcp-tool-progressive-disclosure
-description: MCPツール記述における段階的開示(Progressive Disclosure)パターンのガイド。ツール説明の最適化、コンテキスト効率の向上、LLMトークン消費の削減を目的とします。
+description: MCP記述の実践的ベストプラクティス (非公式ガイドライン)。ツール、リソース、プロンプトの説明最適化、コンテキスト効率の向上、LLMトークン消費の削減を目的とします。
 ---
 
-# MCPツール段階的開示ガイド
+# MCP記述の実践的ベストプラクティス
 
-MCPツール記述におけるProgressive Disclosure(段階的開示)パターンを適用し、LLMコンテキスト効率を向上させるためのガイドです。
+MCPのツール、リソース、プロンプト記述におけるProgressive Disclosure(段階的開示)パターンを適用し、LLMコンテキスト効率を向上させるためのガイドです。
+
+> **注意**: このガイドラインは公式MCP仕様に基づくものではなく、
+> LLMコンテキスト効率を向上させるための実践的なベストプラクティスです。
+> 公式仕様では description は「Human-readable description」とのみ定義されています。
+
+## 公式MCP仕様
+
+MCPの各コンポーネントにおける公式フィールド定義を参照用に記載します。
+
+### ツール (Tools)
+
+| フィールド | 必須 | 説明 |
+|-----------|------|------|
+| `name` | ✅ | Unique identifier for the tool |
+| `title` | ❌ | Optional human-readable name of the tool for display purposes |
+| `description` | ❌ | Human-readable description of functionality |
+| `inputSchema` | ✅ | JSON Schema defining expected parameters |
+| `outputSchema` | ❌ | Optional JSON Schema defining expected output structure |
+| `annotations` | ❌ | Optional properties describing tool behavior |
+
+### リソース (Resources)
+
+| フィールド | 必須 | 説明 |
+|-----------|------|------|
+| `uri` | ✅ | Unique identifier for the resource |
+| `name` | ✅ | The name of the resource |
+| `title` | ❌ | Optional human-readable name of the resource for display purposes |
+| `description` | ❌ | Optional description |
+| `mimeType` | ❌ | Optional MIME type |
+
+### プロンプト (Prompts)
+
+| フィールド | 必須 | 説明 |
+|-----------|------|------|
+| `name` | ✅ | Unique identifier for the prompt |
+| `title` | ❌ | Optional human-readable name of the prompt for display purposes |
+| `description` | ❌ | Optional human-readable description |
+| `arguments` | ❌ | Optional list of arguments for customization |
+
+---
 
 ## 概要
 
@@ -33,8 +73,8 @@ MCPツール記述におけるProgressive Disclosure(段階的開示)パター�
 
 **目的**: ツールの用途を即座に理解させる
 
-**ルール**:
-- 100文字以内の1行説明
+**推奨事項**:
+- 100文字以内を目安とした1行説明
 - 動詞で始める(「検索する」「取得する」「作成する」)
 - 最も重要な1機能のみ記述
 
@@ -48,7 +88,7 @@ Poor: "O'Reilly Learning Platformのコンテンツを効率的に検索する�
 
 **目的**: 正しい使い方を示す
 
-**ルール**:
+**推奨事項**:
 - Good/Poor例は各1つに絞る
 - パラメータは必須のみ詳細説明
 - オプションパラメータは名前と型のみ
@@ -68,16 +108,16 @@ Poor: "O'Reilly Learning Platformのコンテンツを効率的に検索する�
 
 **目的**: 高度な使用法を提供
 
-**ルール**:
+**推奨事項**:
 - 本当に必要な場合のみ含める
 - 別ドキュメントへの参照を推奨
 - IMPORTANT注釈は1項目のみ
 
 ---
 
-## ベストプラクティス
+## 推奨事項
 
-### 1. 概要は100文字以内
+### 1. 概要は100文字以内を目安に
 
 ```markdown
 # Good
@@ -283,6 +323,135 @@ Template Description: "Use product_id from search_content to get book details."
 
 ---
 
+## プロンプト説明の段階的開示
+
+MCPプロンプトはユーザーにワークフローを提供するための再利用可能なテンプレートです。プロンプト説明にも段階的開示を適用します。
+
+### 第1段階: 概要 (Name + Title)
+
+**目的**: プロンプトの用途を即座に理解させる
+
+**推奨事項**:
+- Name: 簡潔な識別子 (ケバブケース)
+- Title: 人間が読みやすいタイトル (50文字以内を目安)
+
+**例**:
+```
+Name: learn-technology
+Title: Learn a Technology
+```
+
+### 第2段階: Description
+
+**目的**: プロンプトの使い方と出力を説明する
+
+**推奨事項**:
+- 100文字以内を目安とした説明
+- 使用例は1ペア (Good/Poor形式は不要、呼び出し例を記載)
+- IMPORTANT注釈は1項目のみ
+
+**例**:
+```
+# Good (約100文字)
+Generate a structured learning path for a specific technology.
+
+Example: learn-technology(technology="Docker", experience_level="beginner")
+
+IMPORTANT: Uses search_content and book-details resources for learning.
+
+# Poor (冗長)
+Generate a comprehensive, structured learning path for any specific technology you want to learn.
+This prompt helps users by leveraging O'Reilly's vast library of resources including books, videos,
+and interactive tutorials to create personalized learning experiences...
+```
+
+### 第3段階: Arguments
+
+**目的**: パラメータの使い方を説明する
+
+**推奨事項**:
+- 必須引数: 詳細説明と例
+- オプション引数: 名前、簡潔な説明、デフォルト値のみ
+
+**例**:
+```markdown
+# Good
+Arguments:
+  technology (必須): 学習対象の技術名 (e.g., Docker, Kubernetes, React)
+  experience_level (オプション): beginner, intermediate, advanced (デフォルト: beginner)
+
+# Poor
+Arguments:
+  technology (必須): 学習したい技術の名前を指定します。例えばDocker、Kubernetes、
+    React、Python、Go、JavaScriptなど様々な技術を指定できます。技術名は
+    正確に記載することをお勧めします...
+```
+
+---
+
+## orm-discovery-mcp-go プロンプト改善例
+
+### learn-technology
+
+| 項目 | Before | After | 削減率 |
+|------|--------|-------|--------|
+| Description | 200文字 | 100文字 | 50% |
+| Arguments (計) | 150文字 | 80文字 | 47% |
+| **合計** | 350文字 | 180文字 | **49%** |
+
+**Before**:
+```
+Generate a comprehensive, structured learning path for any specific technology.
+This prompt leverages O'Reilly's extensive library including books, videos, and tutorials.
+It creates personalized learning experiences based on user's experience level and goals.
+
+Arguments:
+  technology: The name of the technology you want to learn. Specify the exact technology name
+    such as Docker, Kubernetes, React, Python, Go, JavaScript, etc.
+  experience_level: Your current experience level with the technology. Options are beginner,
+    intermediate, or advanced. Defaults to beginner if not specified.
+```
+
+**After**:
+```
+Generate a structured learning path for a specific technology.
+
+Example: learn-technology(technology="Docker", experience_level="beginner")
+
+IMPORTANT: Uses search_content and book-details resources for learning.
+
+Arguments:
+  technology (必須): 学習対象の技術名 (e.g., Docker, Kubernetes, React)
+  experience_level (オプション): beginner, intermediate, advanced (デフォルト: beginner)
+```
+
+### research-topic
+
+| 項目 | Before | After | 削減率 |
+|------|--------|-------|--------|
+| Description | 220文字 | 110文字 | 50% |
+| Arguments (計) | 140文字 | 75文字 | 46% |
+| **合計** | 360文字 | 185文字 | **49%** |
+
+### debug-error
+
+| 項目 | Before | After | 削減率 |
+|------|--------|-------|--------|
+| Description | 180文字 | 90文字 | 50% |
+| Arguments (計) | 180文字 | 100文字 | 44% |
+| **合計** | 360文字 | 190文字 | **47%** |
+
+### プロンプト総合削減効果
+
+| プロンプト | Before | After | 削減率 |
+|-----------|--------|-------|--------|
+| learn-technology | 350文字 | 180文字 | 49% |
+| research-topic | 360文字 | 185文字 | 49% |
+| debug-error | 360文字 | 190文字 | 47% |
+| **プロンプト合計** | 1,070文字 | 555文字 | **48%** |
+
+---
+
 ## 効果測定
 
 ### 削減効果の計算 (実測値 - 2026年1月)
@@ -309,7 +478,8 @@ Template Description: "Use product_id from search_content to get book details."
 |--------|--------|-------|--------|
 | ツール | 1,400文字 | 550文字 | 61% |
 | リソース/テンプレート | 1,480文字 | 595文字 | 60% |
-| **総合計** | 2,880文字 | 1,145文字 | **60%** |
+| プロンプト | 1,070文字 | 555文字 | 48% |
+| **総合計** | 3,950文字 | 1,700文字 | **57%** |
 
 ### コンテキスト効率への影響
 
@@ -321,7 +491,7 @@ Template Description: "Use product_id from search_content to get book details."
 
 ## チェックリスト
 
-MCPツール記述時の確認事項:
+### ツール記述時の確認事項
 
 - [ ] 概要は100文字以内か
 - [ ] 動詞で始まっているか
@@ -331,10 +501,30 @@ MCPツール記述時の確認事項:
 - [ ] オプションパラメータは簡潔か
 - [ ] 詳細情報は別ドキュメント参照か
 
+### プロンプト記述時の確認事項
+
+- [ ] Titleは50文字以内か
+- [ ] Descriptionは100文字以内か
+- [ ] 使用例は1ペア (呼び出し形式) か
+- [ ] IMPORTANT注釈は1項目以内か
+- [ ] 必須引数は詳細説明があるか
+- [ ] オプション引数はデフォルト値が記載されているか
+- [ ] 重複情報はないか
+
 ---
 
 ## 参考リンク
 
+### MCP公式仕様
+
+- [MCP Tools](https://modelcontextprotocol.io/docs/concepts/tools) - ツールの公式定義
+- [MCP Resources](https://modelcontextprotocol.io/docs/concepts/resources) - リソースの公式定義
+- [MCP Prompts](https://modelcontextprotocol.io/docs/concepts/prompts) - プロンプトの公式定義
+
+### 段階的開示パターン
+
 - [Progressive Disclosure (Nielsen Norman Group)](https://www.nngroup.com/articles/progressive-disclosure/)
-- [MCP Tool Design Guidelines](https://modelcontextprotocol.io/)
+
+### 実装例
+
 - orm-discovery-mcp-go: server.go のツール定義

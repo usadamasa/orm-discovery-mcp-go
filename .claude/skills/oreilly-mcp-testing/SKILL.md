@@ -11,6 +11,14 @@ description: MCP (Model Context Protocol) サーバーの動作確認手法ガ�
 
 MCPサーバーのテストは、標準入出力(stdio)モードまたはHTTPモードで行います。CLIコマンドは実装されていないため、すべての機能テストはMCPプロトコル経由で実施します。
 
+### 提供するMCPエンドポイント
+
+| カテゴリ | エンドポイント |
+|---------|---------------|
+| ツール | `search_content`, `ask_question` |
+| リソース | `book-details`, `book-toc`, `book-chapter`, `answer` |
+| プロンプト | `learn-technology`, `research-topic`, `debug-error` |
+
 ## クイックスタート
 
 ### サーバー起動
@@ -73,6 +81,7 @@ TRANSPORT=http PORT=8080 ./bin/orm-discovery-mcp-go
    - コンテンツ検索: "Search for books about machine learning"
    - Q&A: "Ask about Python best practices for beginners"
    - リソースアクセス: 書籍詳細やチャプター内容を取得
+   - プロンプト: "learn-technologyプロンプトでKubernetesの学習パスを生成して"
 
 ### 2. JSON-RPCリクエストによるテスト
 
@@ -120,6 +129,63 @@ stdioモードのサーバーに対してJSON-RPCリクエストを送信しま�
   "method": "resources/read",
   "params": {
     "uri": "oreilly://book-details/9781098166298"
+  }
+}
+```
+
+#### プロンプトのテスト
+
+##### prompts/list - 利用可能なプロンプト一覧
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "prompts/list",
+  "params": {}
+}
+```
+
+**期待される応答**:
+- `learn-technology`: 技術の学習パス生成
+- `research-topic`: 技術トピックの調査
+- `debug-error`: エラーデバッグガイド
+
+##### prompts/get - プロンプト内容の取得
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "prompts/get",
+  "params": {
+    "name": "learn-technology",
+    "arguments": {
+      "technology": "Docker",
+      "experience_level": "beginner"
+    }
+  }
+}
+```
+
+**期待される応答**:
+- `description`: "Learning path for Docker (beginner level)"
+- `messages`: userロールのメッセージ配列 (学習戦略とワークフローを含む)
+
+##### debug-error プロンプトのテスト
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "prompts/get",
+  "params": {
+    "name": "debug-error",
+    "arguments": {
+      "error_message": "NullPointerException",
+      "technology": "Java",
+      "context": "データベース接続時"
+    }
   }
 }
 ```
@@ -229,6 +295,14 @@ ls -la ~/.config/google-chrome/Default/  # 変更なし
 | `oreilly://book-toc/{product_id}` | 目次情報 |
 | `oreilly://book-chapter/{product_id}/{chapter_name}` | チャプターコンテンツ |
 | `oreilly://answer/{question_id}` | 回答の取得 |
+
+### プロンプト
+
+| プロンプト | 説明 | 必須引数 |
+|-----------|------|---------|
+| `learn-technology` | 技術の学習パス生成 | `technology` |
+| `research-topic` | 技術トピックの調査 | `topic` |
+| `debug-error` | エラーデバッグガイド | `error_message`, `technology` |
 
 ## トラブルシューティング
 

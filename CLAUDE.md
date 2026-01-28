@@ -168,9 +168,18 @@ The server exposes the following MCP capabilities:
 #### MCP Resource Templates
 The server provides resource templates for dynamic discovery, allowing MCP clients to understand available resource patterns:
 - `oreilly://book-details/{product_id}` - Template for book details access
-- `oreilly://book-toc/{product_id}` - Template for table of contents access  
+- `oreilly://book-toc/{product_id}` - Template for table of contents access
 - `oreilly://book-chapter/{product_id}/{chapter_name}` - Template for chapter content access
 - `oreilly://answer/{question_id}` - Template for answer retrieval access
+
+#### MCP Prompts
+The server provides reusable prompt templates for common learning and research workflows:
+
+| Prompt | Title | Description | Arguments |
+|--------|-------|-------------|-----------|
+| `learn-technology` | Learn a Technology | Generate a structured learning path for a specific technology | `technology` (required): Technology name to learn (e.g., "Kubernetes", "React") |
+| `research-topic` | Research a Topic | Conduct multi-perspective research on a technical topic | `topic` (required): Topic to research (e.g., "microservices architecture") |
+| `debug-error` | Debug an Error | Generate a debugging guide for a specific error message | `error_message` (required): The error message to debug |
 
 #### Usage Workflow
 
@@ -189,6 +198,11 @@ The server provides resource templates for dynamic discovery, allowing MCP clien
    - Suggested follow-up questions
    - `question_id` for future reference
 3. Optionally access stored answers via `oreilly://answer/{question_id}` resource
+
+**Prompt-Based Workflows:**
+1. **Learning Path Generation**: Use `learn-technology` prompt with a technology name to generate a structured learning path with recommended O'Reilly resources
+2. **Technical Research**: Use `research-topic` prompt to conduct comprehensive research on a topic, leveraging O'Reilly's content library
+3. **Error Debugging**: Use `debug-error` prompt with an error message to get a systematic debugging guide with relevant O'Reilly resources
 
 #### Citation Requirements
 **IMPORTANT**: All content accessed through these resources must be properly cited with:
