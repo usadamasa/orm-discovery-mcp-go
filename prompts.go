@@ -32,6 +32,40 @@ func (s *Server) registerPrompts() {
 		s.LearnTechnologyPromptHandler,
 	)
 
+	// review-history prompt
+	s.server.AddPrompt(
+		&mcp.Prompt{
+			Name:        "review-history",
+			Title:       "Review Research History",
+			Description: "Review past research history and find related information.\n\nExample: review-history(keyword=\"docker\")\n\nWorkflow: Access orm-mcp://history/recent or search by keyword.",
+			Arguments: []*mcp.PromptArgument{
+				{
+					Name:        "keyword",
+					Description: "Optional keyword to filter research history",
+					Required:    false,
+				},
+			},
+		},
+		s.ReviewHistoryPromptHandler,
+	)
+
+	// continue-research prompt
+	s.server.AddPrompt(
+		&mcp.Prompt{
+			Name:        "continue-research",
+			Title:       "Continue Previous Research",
+			Description: "Continue and deepen a previous research.\n\nExample: continue-research(research_id=\"req_abc123\")\n\nWorkflow: Retrieve past research and conduct additional searches.",
+			Arguments: []*mcp.PromptArgument{
+				{
+					Name:        "research_id",
+					Description: "The ID of the research entry to continue (e.g., req_abc123)",
+					Required:    true,
+				},
+			},
+		},
+		s.ContinueResearchPromptHandler,
+	)
+
 	// research-topic prompt
 	s.server.AddPrompt(
 		&mcp.Prompt{
@@ -256,4 +290,102 @@ Troubleshooting Guidelines:
 - Reference official documentation and best practices
 
 IMPORTANT: Verify solutions against official documentation. Always provide tested, reliable fixes.`, technology, errorMessage, contextInfo, errorMessage, technology, technology)
+}
+
+// ReviewHistoryPromptHandler handles the review-history prompt.
+func (s *Server) ReviewHistoryPromptHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	slog.Debug("review-historyプロンプトリクエスト受信")
+
+	keyword := getStringArg(req.Params.Arguments, "keyword", "")
+
+	slog.Info("review-historyプロンプト生成完了", "keyword", keyword)
+
+	return &mcp.GetPromptResult{
+		Description: fmt.Sprintf("Review research history%s", func() string {
+			if keyword != "" {
+				return fmt.Sprintf(" (keyword: %s)", keyword)
+			}
+			return ""
+		}()),
+		Messages: []*mcp.PromptMessage{
+			{
+				Role: "user",
+				Content: &mcp.TextContent{
+					Text: buildReviewHistoryUserMessage(keyword),
+				},
+			},
+		},
+	}, nil
+}
+
+// ContinueResearchPromptHandler handles the continue-research prompt.
+func (s *Server) ContinueResearchPromptHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	slog.Debug("continue-researchプロンプトリクエスト受信")
+
+	researchID := getStringArg(req.Params.Arguments, "research_id", "")
+	if researchID == "" {
+		return nil, fmt.Errorf("research_id argument is required")
+	}
+
+	slog.Info("continue-researchプロンプト生成完了", "research_id", researchID)
+
+	return &mcp.GetPromptResult{
+		Description: fmt.Sprintf("Continue research %s", researchID),
+		Messages: []*mcp.PromptMessage{
+			{
+				Role: "user",
+				Content: &mcp.TextContent{
+					Text: buildContinueResearchUserMessage(researchID),
+				},
+			},
+		},
+	}, nil
+}
+
+// buildReviewHistoryUserMessage builds the user message for review-history prompt.
+func buildReviewHistoryUserMessage(keyword string) string {
+	keywordGuidance := ""
+	resourceURI := "orm-mcp://history/recent"
+	if keyword != "" {
+		keywordGuidance = fmt.Sprintf("\nFilter by keyword: %s", keyword)
+		resourceURI = fmt.Sprintf("orm-mcp://history/search?keyword=%s", keyword)
+	}
+
+	return fmt.Sprintf(`You are reviewing past research history from O'Reilly resources.%s
+
+Workflow:
+1. Access research history: %s
+2. Review past searches and questions
+3. Identify patterns and frequently researched topics
+4. Suggest related areas for further exploration
+
+Review Guidelines:
+- Summarize key findings from past research
+- Identify knowledge gaps or areas needing deeper investigation
+- Cross-reference related research entries
+- Propose next steps based on research patterns
+
+IMPORTANT: Use past research to avoid redundant queries and build upon existing knowledge.`, keywordGuidance, resourceURI)
+}
+
+// buildContinueResearchUserMessage builds the user message for continue-research prompt.
+func buildContinueResearchUserMessage(researchID string) string {
+	return fmt.Sprintf(`You are continuing a previous research session.
+
+Research to continue: %s
+
+Workflow:
+1. Retrieve original research: orm-mcp://history/%s
+2. Review the original query and results
+3. Identify areas for deeper exploration
+4. Execute additional searches or questions on the same topic
+5. Synthesize new findings with previous results
+
+Continuation Guidelines:
+- Build upon the original research, don't repeat it
+- Focus on unanswered questions or emerging topics
+- Cross-reference with new sources
+- Provide an updated summary combining old and new insights
+
+IMPORTANT: Reference the original research when presenting continued findings.`, researchID, researchID)
 }

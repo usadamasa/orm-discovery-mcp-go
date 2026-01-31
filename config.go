@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // Config はアプリケーションの設定を保持します
@@ -20,6 +22,14 @@ type Config struct {
 	XDGDirs         *XDGDirs // XDG Base Directory準拠のディレクトリパス
 	LogLevel        slog.Level
 	LogFile         string // ログファイルパス(空の場合はstderrのみ)
+
+	// ログローテーション設定
+	LogMaxSizeMB  int // メインログ最大サイズ (MB)、デフォルト: 10
+	LogMaxBackups int // メインログ世代数、デフォルト: 3
+	LogMaxAgeDays int // メインログ保持日数、デフォルト: 30
+
+	// Research History 設定
+	HistoryMaxEntries int // 保持する最大エントリ数、デフォルト: 1000
 }
 
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
@@ -85,15 +95,49 @@ func LoadConfig() (*Config, error) {
 	// ログファイルパスの取得（XDG Base Directory Specification準拠）
 	logFile := xdgDirs.LogPath()
 
+	// ログローテーション設定の取得
+	logMaxSizeMB := 10
+	if sizeStr := getEnv("ORM_MCP_GO_LOG_MAX_SIZE_MB"); sizeStr != "" {
+		if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
+			logMaxSizeMB = size
+		}
+	}
+
+	logMaxBackups := 3
+	if backupsStr := getEnv("ORM_MCP_GO_LOG_MAX_BACKUPS"); backupsStr != "" {
+		if backups, err := strconv.Atoi(backupsStr); err == nil && backups > 0 {
+			logMaxBackups = backups
+		}
+	}
+
+	logMaxAgeDays := 30
+	if ageStr := getEnv("ORM_MCP_GO_LOG_MAX_AGE_DAYS"); ageStr != "" {
+		if age, err := strconv.Atoi(ageStr); err == nil && age > 0 {
+			logMaxAgeDays = age
+		}
+	}
+
+	// Research History 設定
+	historyMaxEntries := 1000
+	if entriesStr := getEnv("ORM_MCP_GO_HISTORY_MAX_ENTRIES"); entriesStr != "" {
+		if entries, err := strconv.Atoi(entriesStr); err == nil && entries > 0 {
+			historyMaxEntries = entries
+		}
+	}
+
 	config := &Config{
-		Port:            port,
-		Debug:           debug,
-		Transport:       transport,
-		OReillyUserID:   OReillyUserID,
-		OReillyPassword: OReillyPassword,
-		XDGDirs:         xdgDirs,
-		LogLevel:        logLevel,
-		LogFile:         logFile,
+		Port:              port,
+		Debug:             debug,
+		Transport:         transport,
+		OReillyUserID:     OReillyUserID,
+		OReillyPassword:   OReillyPassword,
+		XDGDirs:           xdgDirs,
+		LogLevel:          logLevel,
+		LogFile:           logFile,
+		LogMaxSizeMB:      logMaxSizeMB,
+		LogMaxBackups:     logMaxBackups,
+		LogMaxAgeDays:     logMaxAgeDays,
+		HistoryMaxEntries: historyMaxEntries,
 	}
 
 	// slogの設定
@@ -107,15 +151,16 @@ func setupLogger(config *Config) {
 	// ログ出力先の決定
 	var writer io.Writer = os.Stderr
 
-	// ログファイルが指定されている場合はMultiWriterを使用
+	// ログファイルが指定されている場合はLumberjackでローテーションを設定
 	if config.LogFile != "" {
-		file, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			// 注意: この時点ではslogが未初期化のため、stderrにのみ出力
-			log.Printf("ログファイルを開けません (path=%s): %v (stderrのみ使用)", config.LogFile, err)
-		} else {
-			writer = io.MultiWriter(os.Stderr, file)
+		lumberjackLogger := &lumberjack.Logger{
+			Filename:   config.LogFile,
+			MaxSize:    config.LogMaxSizeMB,  // MB
+			MaxBackups: config.LogMaxBackups, // 世代数
+			MaxAge:     config.LogMaxAgeDays, // 日数
+			Compress:   true,                 // 古いログを圧縮
 		}
+		writer = io.MultiWriter(os.Stderr, lumberjackLogger)
 	}
 
 	// シンプルなテキストハンドラー設定
@@ -148,7 +193,12 @@ func setupLogger(config *Config) {
 		"debug_mode", config.Debug,
 	}
 	if config.LogFile != "" {
-		logAttrs = append(logAttrs, "log_file", config.LogFile)
+		logAttrs = append(logAttrs,
+			"log_file", config.LogFile,
+			"log_max_size_mb", config.LogMaxSizeMB,
+			"log_max_backups", config.LogMaxBackups,
+			"log_max_age_days", config.LogMaxAgeDays,
+		)
 	}
 	slog.Info("ログシステムを初期化しました", logAttrs...)
 

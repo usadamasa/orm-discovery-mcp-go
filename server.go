@@ -15,9 +15,10 @@ import (
 
 // Server is the MCP server implementation.
 type Server struct {
-	browserClient *browser.BrowserClient
-	server        *mcp.Server
-	config        *Config
+	browserClient  *browser.BrowserClient
+	server         *mcp.Server
+	config         *Config
+	historyManager *ResearchHistoryManager
 }
 
 // NewServer creates a new server instance.
@@ -31,10 +32,20 @@ func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
 		nil,
 	)
 
+	// Initialize research history manager
+	historyManager := NewResearchHistoryManager(
+		config.XDGDirs.ResearchHistoryPath(),
+		config.HistoryMaxEntries,
+	)
+	if err := historyManager.Load(); err != nil {
+		slog.Warn("調査履歴の読み込みに失敗しました", "error", err)
+	}
+
 	srv := &Server{
-		browserClient: browserClient,
-		server:        mcpServer,
-		config:        config,
+		browserClient:  browserClient,
+		server:         mcpServer,
+		config:         config,
+		historyManager: historyManager,
 	}
 
 	// Add middleware for logging
@@ -138,6 +149,9 @@ IMPORTANT: Cite sources provided in the response.`,
 	// Register resources
 	s.registerResources()
 
+	// Register history resources
+	s.registerHistoryResources()
+
 	// Register prompts
 	s.registerPrompts()
 }
@@ -233,6 +247,7 @@ func (s *Server) registerResources() {
 // SearchContentHandler handles search requests.
 func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequest, args SearchContentArgs) (*mcp.CallToolResult, *SearchContentResult, error) {
 	slog.Debug("検索リクエスト受信")
+	start := time.Now()
 
 	if args.Query == "" {
 		return newToolResultError("query parameter is required"), nil, nil
@@ -282,6 +297,9 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	resultMaps := make([]map[string]interface{}, len(results))
 	copy(resultMaps, results)
 
+	// Record to research history
+	s.recordSearchHistory(args.Query, options, results, time.Since(start))
+
 	return nil, &SearchContentResult{
 		Count:   len(results),
 		Total:   len(results),
@@ -292,6 +310,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 // AskQuestionHandler processes question requests for O'Reilly Answers.
 func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolRequest, args AskQuestionArgs) (*mcp.CallToolResult, *AskQuestionResult, error) {
 	slog.Debug("質問リクエスト受信")
+	start := time.Now()
 
 	if args.Question == "" {
 		return newToolResultError("question parameter is required"), nil, nil
@@ -321,6 +340,9 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	slog.Info("質問に対する回答を取得しました", "question", args.Question, "question_id", answer.QuestionID)
+
+	// Record to research history
+	s.recordQuestionHistory(args.Question, answer, time.Since(start))
 
 	// Build StructuredContent response
 	return nil, &AskQuestionResult{
@@ -630,4 +652,89 @@ func extractQuestionIDFromURI(uri string) string {
 		return parts[len(parts)-1]
 	}
 	return ""
+}
+
+// recordSearchHistory records a search to the research history.
+func (s *Server) recordSearchHistory(query string, options map[string]interface{}, results []map[string]interface{}, duration time.Duration) {
+	if s.historyManager == nil {
+		return
+	}
+
+	// Build top results summary
+	topResults := make([]TopResultSummary, 0, 5)
+	for i, result := range results {
+		if i >= 5 {
+			break
+		}
+		summary := TopResultSummary{}
+		if title, ok := result["title"].(string); ok {
+			summary.Title = title
+		}
+		if authors, ok := result["authors"].([]interface{}); ok && len(authors) > 0 {
+			if author, ok := authors[0].(string); ok {
+				summary.Author = author
+			}
+		}
+		if productID, ok := result["product_id"].(string); ok {
+			summary.ProductID = productID
+		} else if isbn, ok := result["isbn"].(string); ok {
+			summary.ProductID = isbn
+		}
+		topResults = append(topResults, summary)
+	}
+
+	entry := ResearchEntry{
+		Type:       "search",
+		Query:      query,
+		ToolName:   "search_content",
+		Parameters: options,
+		ResultSummary: ResultSummary{
+			Count:      len(results),
+			TopResults: topResults,
+		},
+		DurationMs: duration.Milliseconds(),
+	}
+
+	if err := s.historyManager.AddEntry(entry); err != nil {
+		slog.Warn("調査履歴の追加に失敗しました", "error", err)
+		return
+	}
+
+	if err := s.historyManager.Save(); err != nil {
+		slog.Warn("調査履歴の保存に失敗しました", "error", err)
+	}
+}
+
+// recordQuestionHistory records a question to the research history.
+func (s *Server) recordQuestionHistory(question string, answer *browser.AnswerResponse, duration time.Duration) {
+	if s.historyManager == nil {
+		return
+	}
+
+	// Build answer preview (first 200 characters)
+	answerPreview := answer.MisoResponse.Data.Answer
+	if len(answerPreview) > 200 {
+		answerPreview = answerPreview[:200] + "..."
+	}
+
+	entry := ResearchEntry{
+		Type:     "question",
+		Query:    question,
+		ToolName: "ask_question",
+		ResultSummary: ResultSummary{
+			AnswerPreview: answerPreview,
+			SourcesCount:  len(answer.MisoResponse.Data.Sources),
+			FollowupCount: len(answer.MisoResponse.Data.FollowupQuestions),
+		},
+		DurationMs: duration.Milliseconds(),
+	}
+
+	if err := s.historyManager.AddEntry(entry); err != nil {
+		slog.Warn("調査履歴の追加に失敗しました", "error", err)
+		return
+	}
+
+	if err := s.historyManager.Save(); err != nil {
+		slog.Warn("調査履歴の保存に失敗しました", "error", err)
+	}
 }

@@ -106,3 +106,8 @@ func (x *XDGDirs) ScreenshotDir() string {
 func (x *XDGDirs) LogPath() string {
 	return filepath.Join(x.StateHome, "orm-mcp-go.log")
 }
+
+// ResearchHistoryPath は調査履歴ファイルのパスを返す
+func (x *XDGDirs) ResearchHistoryPath() string {
+	return filepath.Join(x.StateHome, "research-history.json")
+}
