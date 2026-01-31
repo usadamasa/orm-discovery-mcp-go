@@ -1,15 +1,11 @@
 {
   "name": "orm-discovery-mcp-go",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "O'Reilly Learning Platform research agent with MCP server",
   "author": {
     "name": "usadamasa"
   },
   "repository": "https://github.com/usadamasa/orm-discovery-mcp-go",
-  "homepage": "https://github.com/usadamasa/orm-discovery-mcp-go",
-  "bugs": {
-    "url": "https://github.com/usadamasa/orm-discovery-mcp-go/issues"
-  },
   "license": "MIT",
   "agents": ["./plugins/agents/oreilly-researcher.md"],
   "mcpServers": {
