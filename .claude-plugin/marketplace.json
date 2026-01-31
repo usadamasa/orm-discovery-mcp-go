@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "O'Reilly Learning Platform research agent with MCP server integration",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "plugins": [
     {
       "name": "orm-discovery-mcp-go",
       "source": "./",
       "description": "O'Reilly content search and Q&A MCP server with research agent",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "usadamasa"
       },
