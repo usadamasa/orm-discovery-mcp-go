@@ -6,15 +6,22 @@
     "name": "usadamasa"
   },
   "repository": "https://github.com/usadamasa/orm-discovery-mcp-go",
+  "homepage": "https://github.com/usadamasa/orm-discovery-mcp-go",
+  "bugs": {
+    "url": "https://github.com/usadamasa/orm-discovery-mcp-go/issues"
+  },
   "license": "MIT",
   "agents": ["./plugins/agents/oreilly-researcher.md"],
   "mcpServers": {
     "orm-discovery-mcp-go": {
       "command": "orm-discovery-mcp-go",
+      "args": [],
+      "transport": "stdio",
       "description": "O'Reilly content search and Q&A MCP server",
       "env": {
         "OREILLY_USER_ID": "${OREILLY_USER_ID}",
-        "OREILLY_PASSWORD": "${OREILLY_PASSWORD}"
+        "OREILLY_PASSWORD": "${OREILLY_PASSWORD}",
+        "TRANSPORT": "stdio"
       }
     }
   }
