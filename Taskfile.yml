@@ -159,33 +159,22 @@ tasks:
     deps: [clean:generated, clean:build, clean:test]
 
   # === Plugin Validation ===
-  plugin:validate:
-    desc: Claude Code プラグインの構造を検証
+  plugin:validate:marketplace:
+    desc: マーケットプレイスとプラグイン設定の統合検証
     sources:
       - '.claude-plugin/**/*'
     cmds:
       - claude plugin validate .
-
-  plugin:validate:marketplace:
-    desc: マーケットプレイスとプラグイン設定の統合検証
-    sources:
-      - '.claude-plugin/plugin.json'
-      - '.claude-plugin/marketplace.json'
-      - '.claude-plugin/agents/**/*'
-    cmds:
-      - claude plugin validate .
       - |
-        if [ -f .claude-plugin/marketplace.json ]; then
-          echo "Validating marketplace.json..."
-          cat .claude-plugin/marketplace.json | python3 -m json.tool > /dev/null && echo "✓ marketplace.json は有効なJSON形式です"
-          if grep -q '"name"' .claude-plugin/marketplace.json && \
-             grep -q '"owner"' .claude-plugin/marketplace.json && \
-             grep -q '"plugins"' .claude-plugin/marketplace.json; then
-            echo "✓ 必須フィールドが存在します"
-          else
-            echo "✗ 必須フィールドが不足しています (name, owner, plugins)"
-            exit 1
-          fi
+        echo "Validating marketplace.json..."
+        cat .claude-plugin/marketplace.json | python3 -m json.tool > /dev/null && echo "✓ marketplace.json は有効なJSON形式です"
+        if grep -q '"name"' .claude-plugin/marketplace.json && \
+           grep -q '"owner"' .claude-plugin/marketplace.json && \
+           grep -q '"plugins"' .claude-plugin/marketplace.json; then
+          echo "✓ 必須フィールドが存在します"
+        else
+          echo "✗ 必須フィールドが不足しています (name, owner, plugins)"
+          exit 1
         fi
 
   # === Composite Tasks ===
