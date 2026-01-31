@@ -13,7 +13,7 @@
   "license": "MIT",
   "agents": ["./plugins/agents/oreilly-researcher.md"],
   "mcpServers": {
-    "orm-discovery-mcp-go": {
+    "orm": {
       "command": "orm-discovery-mcp-go",
       "args": [],
       "transport": "stdio",
