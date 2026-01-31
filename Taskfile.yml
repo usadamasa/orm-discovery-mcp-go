@@ -163,19 +163,70 @@ tasks:
     desc: マーケットプレイスとプラグイン設定の統合検証
     sources:
       - '.claude-plugin/**/*'
+      - 'plugins/agents/**/*.md'
     cmds:
       - claude plugin validate .
       - |
-        echo "Validating marketplace.json..."
+        echo "=== JSON形式検証 ==="
         cat .claude-plugin/marketplace.json | python3 -m json.tool > /dev/null && echo "✓ marketplace.json は有効なJSON形式です"
+        cat .claude-plugin/plugin.json | python3 -m json.tool > /dev/null && echo "✓ plugin.json は有効なJSON形式です"
+
+        echo ""
+        echo "=== 必須フィールド検証 ==="
         if grep -q '"name"' .claude-plugin/marketplace.json && \
            grep -q '"owner"' .claude-plugin/marketplace.json && \
            grep -q '"plugins"' .claude-plugin/marketplace.json; then
-          echo "✓ 必須フィールドが存在します"
+          echo "✓ marketplace.json: 必須フィールドが存在します"
         else
-          echo "✗ 必須フィールドが不足しています (name, owner, plugins)"
+          echo "✗ marketplace.json: 必須フィールドが不足しています (name, owner, plugins)"
           exit 1
         fi
+
+        echo ""
+        echo "=== バージョン同期検証 ==="
+        MARKETPLACE_VER=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['metadata']['version'])")
+        PLUGIN_VER=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+        PLUGINS_VER=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['plugins'][0]['version'])")
+        if [ "$MARKETPLACE_VER" = "$PLUGIN_VER" ] && [ "$MARKETPLACE_VER" = "$PLUGINS_VER" ]; then
+          echo "✓ バージョンが同期しています: $MARKETPLACE_VER"
+        else
+          echo "✗ バージョン不一致: metadata=$MARKETPLACE_VER, plugin.json=$PLUGIN_VER, plugins[]=$PLUGINS_VER"
+          exit 1
+        fi
+
+        echo ""
+        echo "=== エージェント定義検証 ==="
+        for agent in $(python3 -c "import json; agents=json.load(open('.claude-plugin/plugin.json')).get('agents',[]); [print(a) for a in agents]"); do
+          if [ ! -f "$agent" ]; then
+            echo "✗ エージェントファイルが見つかりません: $agent"
+            exit 1
+          fi
+          if head -1 "$agent" | grep -q "^---"; then
+            echo "✓ エージェント Frontmatter 存在: $agent"
+          else
+            echo "✗ エージェント Frontmatter が不足: $agent"
+            exit 1
+          fi
+        done
+
+        echo ""
+        echo "=== MCP サーバー設定検証 ==="
+        if python3 -c "import json; servers=json.load(open('.claude-plugin/plugin.json')).get('mcpServers',{}); exit(0 if servers else 1)" 2>/dev/null; then
+          echo "⚠ MCP サーバーが設定されています。バイナリが PATH 上にあることを確認してください"
+          python3 -c "import json; servers=json.load(open('.claude-plugin/plugin.json')).get('mcpServers',{}); [print(f'  - {k}: {v.get(\"command\",\"\")}') for k,v in servers.items()]"
+        fi
+
+        echo ""
+        echo "=== セキュリティ検証 ==="
+        if grep -rE "(password|secret|api_key)\s*[=:]\s*['\"][^$]" .claude-plugin/ 2>/dev/null | grep -v '\${'; then
+          echo "✗ ハードコードされた認証情報が検出されました"
+          exit 1
+        else
+          echo "✓ ハードコードされた認証情報はありません"
+        fi
+
+        echo ""
+        echo "✓ マーケットプレイス検証が完了しました"
 
   # === Composite Tasks ===
   dev:
