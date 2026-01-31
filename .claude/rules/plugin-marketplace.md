@@ -165,6 +165,20 @@ color: blue
 2. `marketplace.json` の `plugins[].version`
 3. `plugin.json` の `version`
 
+### バージョン更新トリガー
+
+以下のファイルを変更した場合は、必ずバージョンを更新する:
+
+- `.claude-plugin/marketplace.json`
+- `.claude-plugin/plugin.json`
+- `plugins/agents/*.md` (エージェント定義)
+
+バージョン更新時は以下の3箇所を同時に更新:
+
+1. `marketplace.json` の `metadata.version`
+2. `marketplace.json` の `plugins[].version`
+3. `plugin.json` の `version`
+
 ### バージョン形式
 
 Semantic Versioning (semver) に従う:
