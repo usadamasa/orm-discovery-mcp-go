@@ -45,6 +45,17 @@ func (s *Server) registerHistoryResources() {
 		},
 		s.GetHistoryDetailResource,
 	)
+
+	// フルレスポンスリソーステンプレート
+	s.server.AddResourceTemplate(
+		&mcp.ResourceTemplate{
+			URITemplate: "orm-mcp://history/{id}/full",
+			Name:        "Research History Full Response",
+			Description: "Get the full API response data for a research entry. Use with BFS mode to access complete data later.",
+			MIMEType:    "application/json",
+		},
+		s.GetHistoryFullResponseResource,
+	)
 }
 
 // GetRecentHistoryResource は直近の調査履歴を取得する
@@ -208,6 +219,107 @@ func (s *Server) GetHistoryDetailResource(ctx context.Context, req *mcp.ReadReso
 			Text:     string(jsonBytes),
 		}},
 	}, nil
+}
+
+// GetHistoryFullResponseResource は特定の履歴のフルレスポンスを取得する
+func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+	slog.Debug("調査履歴フルレスポンスリソース取得リクエスト受信", "uri", req.Params.URI)
+
+	if s.historyManager == nil {
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{{
+				URI:      req.Params.URI,
+				MIMEType: "application/json",
+				Text:     `{"error": "research history manager is not available"}`,
+			}},
+		}, nil
+	}
+
+	// URIからIDを抽出（/full サフィックスを考慮）
+	id := extractHistoryIDFromFullURI(req.Params.URI)
+	if id == "" {
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{{
+				URI:      req.Params.URI,
+				MIMEType: "application/json",
+				Text:     `{"error": "id not found in URI"}`,
+			}},
+		}, nil
+	}
+
+	entry := s.historyManager.GetByID(id)
+	if entry == nil {
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{{
+				URI:      req.Params.URI,
+				MIMEType: "application/json",
+				Text:     fmt.Sprintf(`{"error": "entry not found: %s"}`, id),
+			}},
+		}, nil
+	}
+
+	// フルレスポンスがない場合
+	if entry.FullResponse == nil {
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{{
+				URI:      req.Params.URI,
+				MIMEType: "application/json",
+				Text:     fmt.Sprintf(`{"error": "full response not available for entry: %s"}`, id),
+			}},
+		}, nil
+	}
+
+	// フルレスポンスを返す
+	response := struct {
+		ID           string `json:"id"`
+		Query        string `json:"query"`
+		Type         string `json:"type"`
+		FullResponse any    `json:"full_response"`
+	}{
+		ID:           entry.ID,
+		Query:        entry.Query,
+		Type:         entry.Type,
+		FullResponse: entry.FullResponse,
+	}
+
+	jsonBytes, err := json.Marshal(response)
+	if err != nil {
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{{
+				URI:      req.Params.URI,
+				MIMEType: "application/json",
+				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
+			}},
+		}, nil
+	}
+
+	return &mcp.ReadResourceResult{
+		Contents: []*mcp.ResourceContents{{
+			URI:      req.Params.URI,
+			MIMEType: "application/json",
+			Text:     string(jsonBytes),
+		}},
+	}, nil
+}
+
+// extractHistoryIDFromFullURI は orm-mcp://history/{id}/full 形式のURIからIDを抽出する
+func extractHistoryIDFromFullURI(uri string) string {
+	// クエリパラメータがある場合は除去
+	if idx := strings.Index(uri, "?"); idx != -1 {
+		uri = uri[:idx]
+	}
+
+	// /full サフィックスを除去
+	uri = strings.TrimSuffix(uri, "/full")
+
+	parts := strings.Split(uri, "/")
+	if len(parts) >= 4 {
+		lastPart := parts[len(parts)-1]
+		if lastPart != "search" && lastPart != "recent" {
+			return lastPart
+		}
+	}
+	return ""
 }
 
 // extractHistorySearchParams はURIから検索パラメータを抽出する

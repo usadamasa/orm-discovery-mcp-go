@@ -1,0 +1,21 @@
+{
+  "name": "orm-discovery-mcp-go",
+  "version": "0.1.0",
+  "description": "O'Reilly Learning Platform research agent with MCP server",
+  "author": {
+    "name": "usadamasa"
+  },
+  "repository": "https://github.com/usadamasa/orm-discovery-mcp-go",
+  "license": "MIT",
+  "agents": ["./agents/oreilly-researcher.md"],
+  "mcpServers": {
+    "orm-discovery-mcp-go": {
+      "command": "orm-discovery-mcp-go",
+      "description": "O'Reilly content search and Q&A MCP server",
+      "env": {
+        "OREILLY_USER_ID": "${OREILLY_USER_ID}",
+        "OREILLY_PASSWORD": "${OREILLY_PASSWORD}"
+      }
+    }
+  }
+}

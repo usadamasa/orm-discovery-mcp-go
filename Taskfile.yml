@@ -158,14 +158,22 @@ tasks:
     desc: すべての生成ファイルを削除
     deps: [clean:generated, clean:build, clean:test]
 
+  # === Plugin Validation ===
+  plugin:validate:
+    desc: Claude Code プラグインの構造を検証
+    sources:
+      - '.claude-plugin/**/*'
+    cmds:
+      - claude plugin validate .
+
   # === Composite Tasks ===
   dev:
     desc: 開発用タスク（フォーマット + リント + テスト）
     deps: [format, lint, test]
 
   ci:
-    desc: CI用タスク（すべてのチェック + ビルド）
-    deps: [format, lint, test:coverage, build]
+    desc: CI用タスク（すべてのチェック + ビルド + プラグイン検証）
+    deps: [format, lint, test:coverage, build, plugin:validate]
 
   all:
     desc: すべてのタスクを実行

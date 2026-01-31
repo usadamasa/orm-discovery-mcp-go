@@ -2,6 +2,18 @@ package main
 
 import "github.com/usadamasa/orm-discovery-mcp-go/browser"
 
+// SearchMode defines the exploration mode for search_content tool.
+type SearchMode string
+
+const (
+	// SearchModeBFS is breadth-first search mode that returns lightweight results (id, title, authors only).
+	// This is the default mode for reduced context consumption.
+	SearchModeBFS SearchMode = "bfs"
+	// SearchModeDFS is depth-first search mode that returns full detailed results.
+	// Use this when you need complete information and are willing to consume more context.
+	SearchModeDFS SearchMode = "dfs"
+)
+
 // SearchContentArgs represents the parameters for the search_content tool.
 type SearchContentArgs struct {
 	Query        string   `json:"query" jsonschema:"2-5 focused keywords for specific technologies or frameworks. Avoid full sentences."`
@@ -12,6 +24,10 @@ type SearchContentArgs struct {
 	FeatureFlags string   `json:"feature_flags,omitempty" jsonschema:"Feature flags (default: improveSearchFilters)"`
 	Report       bool     `json:"report,omitempty" jsonschema:"Include reporting data (default: true)"`
 	IsTopics     bool     `json:"isTopics,omitempty" jsonschema:"Search topics only (default: false)"`
+
+	// Exploration mode parameters
+	Mode      SearchMode `json:"mode,omitempty" jsonschema:"Exploration mode: 'bfs' (default) returns lightweight results (id, title, authors), 'dfs' returns full detailed results"`
+	Summarize bool       `json:"summarize,omitempty" jsonschema:"In DFS mode, use MCP Sampling to generate a summary of results (reduces context consumption)"`
 }
 
 // AskQuestionArgs represents the parameters for the ask_question tool.
@@ -22,9 +38,22 @@ type AskQuestionArgs struct {
 
 // SearchContentResult represents the structured output for search_content tool.
 type SearchContentResult struct {
-	Count   int                      `json:"count"`
-	Total   int                      `json:"total"`
-	Results []map[string]interface{} `json:"results"`
+	Count   int              `json:"count"`
+	Total   int              `json:"total"`
+	Results []map[string]any `json:"results"`
+
+	// BFS/DFS mode specific fields
+	Mode      SearchMode `json:"mode,omitempty"`       // The mode used for this search
+	HistoryID string     `json:"history_id,omitempty"` // Research history ID for accessing full data later
+	Summary   string     `json:"summary,omitempty"`    // AI-generated summary (DFS mode with Summarize=true)
+	Note      string     `json:"note,omitempty"`       // Helpful note for the user (BFS mode)
+}
+
+// BFSResult represents a lightweight search result for BFS mode.
+type BFSResult struct {
+	ID      string   `json:"id"`                // product_id or ISBN
+	Title   string   `json:"title"`             // Book/content title
+	Authors []string `json:"authors,omitempty"` // Author names
 }
 
 // AskQuestionResult represents the structured output for ask_question tool.

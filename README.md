@@ -10,7 +10,27 @@ O'Reilly Learning PlatformのコンテンツをModel Context Protocol (MCP)経�
 
 ## クイックスタート
 
-### 1. ツールのインストール
+### Claude Code Pluginとしてインストール (推奨)
+
+Claude Codeのプラグインシステムを使って簡単にインストールできます。
+
+```bash
+# マーケットプレイスを追加
+/plugin marketplace add usadamasa/orm-discovery-mcp-go
+
+# プラグインをインストール
+/plugin install orm-discovery-mcp-go
+
+# 環境変数設定 (必須)
+export OREILLY_USER_ID="your_email@acm.org"
+export OREILLY_PASSWORD="your_password"
+```
+
+**注意**: MCP Serverバイナリは別途インストールが必要です。[Releases](https://github.com/usadamasa/orm-discovery-mcp-go/releases)からダウンロードするか、下記の手動ビルドを行ってください。
+
+### 手動インストール
+
+#### 1. ツールのインストール
 
 ```bash
 # aquaでツールをインストール

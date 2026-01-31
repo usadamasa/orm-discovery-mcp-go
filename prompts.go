@@ -114,6 +114,28 @@ func (s *Server) registerPrompts() {
 		},
 		s.DebugErrorPromptHandler,
 	)
+
+	// summarize-history prompt
+	s.server.AddPrompt(
+		&mcp.Prompt{
+			Name:        "summarize-history",
+			Title:       "Summarize Research History",
+			Description: "Summarize a specific research entry with full response data.\n\nExample: summarize-history(history_id=\"req_abc123\")\n\nWorkflow: Access full data via orm-mcp://history/{id}/full and generate a concise summary.",
+			Arguments: []*mcp.PromptArgument{
+				{
+					Name:        "history_id",
+					Description: "The ID of the research entry to summarize (e.g., req_abc123)",
+					Required:    true,
+				},
+				{
+					Name:        "focus",
+					Description: "Optional focus area for the summary (e.g., 'key concepts', 'practical examples')",
+					Required:    false,
+				},
+			},
+		},
+		s.SummarizeHistoryPromptHandler,
+	)
 }
 
 // LearnTechnologyPromptHandler handles the learn-technology prompt.
@@ -388,4 +410,62 @@ Continuation Guidelines:
 - Provide an updated summary combining old and new insights
 
 IMPORTANT: Reference the original research when presenting continued findings.`, researchID, researchID)
+}
+
+// SummarizeHistoryPromptHandler handles the summarize-history prompt.
+func (s *Server) SummarizeHistoryPromptHandler(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	slog.Debug("summarize-historyプロンプトリクエスト受信")
+
+	historyID := getStringArg(req.Params.Arguments, "history_id", "")
+	if historyID == "" {
+		return nil, fmt.Errorf("history_id argument is required")
+	}
+
+	focus := getStringArg(req.Params.Arguments, "focus", "")
+
+	slog.Info("summarize-historyプロンプト生成完了", "history_id", historyID, "focus", focus)
+
+	return &mcp.GetPromptResult{
+		Description: fmt.Sprintf("Summarize research entry %s", historyID),
+		Messages: []*mcp.PromptMessage{
+			{
+				Role: "user",
+				Content: &mcp.TextContent{
+					Text: buildSummarizeHistoryUserMessage(historyID, focus),
+				},
+			},
+		},
+	}, nil
+}
+
+// buildSummarizeHistoryUserMessage builds the user message for summarize-history prompt.
+func buildSummarizeHistoryUserMessage(historyID, focus string) string {
+	focusGuidance := ""
+	if focus != "" {
+		focusGuidance = fmt.Sprintf("\nFocus area: %s", focus)
+	}
+
+	return fmt.Sprintf(`You are summarizing a research entry from O'Reilly resources.
+
+Research entry ID: %s%s
+
+Workflow:
+1. Access full research data: orm-mcp://history/%s/full
+2. Review the complete response data
+3. Generate a concise summary highlighting key findings
+4. Identify actionable insights and recommendations
+
+Summary Guidelines:
+- Keep the summary to 3-5 key points
+- Focus on the most relevant and practical information
+- Include any notable books, authors, or resources
+- Suggest next steps or related topics to explore
+
+Output Format:
+- Brief overview of the research topic
+- Key findings (bullet points)
+- Notable resources with citations
+- Recommended next steps
+
+IMPORTANT: Use the full data from the resource to create an accurate summary. Cite sources properly.`, historyID, focusGuidance, historyID)
 }

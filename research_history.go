@@ -30,15 +30,20 @@ type ResearchHistoryIndex struct {
 
 // ResearchEntry は個々の調査エントリ
 type ResearchEntry struct {
-	ID            string                 `json:"id"`
-	Timestamp     time.Time              `json:"timestamp"`
-	Type          string                 `json:"type"` // "search" or "question"
-	Query         string                 `json:"query"`
-	Keywords      []string               `json:"keywords"`
-	ToolName      string                 `json:"tool_name"`
-	Parameters    map[string]interface{} `json:"parameters,omitempty"`
-	ResultSummary ResultSummary          `json:"result_summary"`
-	DurationMs    int64                  `json:"duration_ms"`
+	ID            string         `json:"id"`
+	Timestamp     time.Time      `json:"timestamp"`
+	Type          string         `json:"type"` // "search" or "question"
+	Query         string         `json:"query"`
+	Keywords      []string       `json:"keywords"`
+	ToolName      string         `json:"tool_name"`
+	Parameters    map[string]any `json:"parameters,omitempty"`
+	ResultSummary ResultSummary  `json:"result_summary"`
+	DurationMs    int64          `json:"duration_ms"`
+
+	// FullResponse stores the complete API response for later access via orm-mcp://history/{id}/full.
+	// This is used to enable BFS mode where lightweight results are returned immediately,
+	// but full data can be accessed later through the resource endpoint.
+	FullResponse any `json:"full_response,omitempty"`
 }
 
 // ResultSummary は結果のサマリー（タイプ別に異なる構造）
