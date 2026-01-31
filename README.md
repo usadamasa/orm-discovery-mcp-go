@@ -54,11 +54,16 @@ claude mcp add -s user orm-discovery-mcp-go \
 - **`oreilly://book-toc/{product_id}`**: 書籍目次
 - **`oreilly://book-chapter/{product_id}/{chapter_name}`**: チャプター内容
 - **`oreilly://answer/{question_id}`**: AI生成回答の取得
+- **`orm-mcp://history/recent`**: 直近20件の調査履歴
+- **`orm-mcp://history/search?keyword=xxx`**: キーワードで履歴検索
+- **`orm-mcp://history/{id}`**: 特定の調査履歴の詳細
 
 ### MCPプロンプト
 - **`learn-technology`**: 特定技術の学習パスを生成（例: Kubernetes、React）
 - **`research-topic`**: 技術トピックの多角的な調査（例: マイクロサービスアーキテクチャ）
 - **`debug-error`**: エラーメッセージのデバッグガイドを生成
+- **`review-history`**: 過去の調査履歴をレビューしてパターンや傾向を分析
+- **`continue-research`**: 過去の調査を継続して深掘りする
 
 ### 利用フロー
 
@@ -76,6 +81,12 @@ claude mcp add -s user orm-discovery-mcp-go \
 2. **技術調査**: `research-topic`で調査トピックを指定 → 多角的な調査結果を取得
 3. **エラー解決**: `debug-error`でエラーメッセージを指定 → デバッグガイドを取得
 
+#### 調査履歴の活用
+1. `orm-mcp://history/recent`で直近の調査履歴を確認
+2. `orm-mcp://history/search?keyword=docker`でキーワード検索
+3. `review-history`プロンプトで傾向分析
+4. `continue-research`プロンプトで過去の調査を深掘り
+
 ## ファイル保存先
 
 XDG Base Directory Specificationに準拠しています。
@@ -84,6 +95,7 @@ XDG Base Directory Specificationに準拠しています。
 |------|-------------|----------------|
 | ログ、Chrome一時データ、スクリーンショット | `$XDG_STATE_HOME` | `~/.local/state/orm-mcp-go/` |
 | Cookie | `$XDG_CACHE_HOME` | `~/.cache/orm-mcp-go/` |
+| 調査履歴 | `$XDG_DATA_HOME` | `~/.local/share/orm-mcp-go/research_history.json` |
 | 将来の設定ファイル | `$XDG_CONFIG_HOME` | `~/.config/orm-mcp-go/` |
 
 **デバッグ用**: `ORM_MCP_GO_DEBUG_DIR`を設定すると、全てのパスがその値で上書きされます。

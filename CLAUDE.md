@@ -157,13 +157,16 @@ The server exposes the following MCP capabilities:
 | `search_content`   | Content discovery and search - returns book/video/article listings with product IDs for use with resources |
 | `ask_question`     | Natural language Q&A using O'Reilly Answers AI - submit technical questions and receive comprehensive AI-generated answers with citations, sources, related resources, and follow-up suggestions |
 
-#### MCP Resources  
+#### MCP Resources
 | Resource URI Pattern | Description | Example |
 |---------------------|-------------|---------|
 | `oreilly://book-details/{product_id}` | Get comprehensive book information including title, authors, publication date, description, topics, and complete table of contents | `oreilly://book-details/9781098166298` |
 | `oreilly://book-toc/{product_id}` | Get detailed table of contents with chapter names, sections, and navigation structure | `oreilly://book-toc/9781098166298` |
 | `oreilly://book-chapter/{product_id}/{chapter_name}` | Extract full text content of a specific book chapter including headings, paragraphs, code examples, and structured elements | `oreilly://book-chapter/9781098166298/ch01` |
 | `oreilly://answer/{question_id}` | Retrieve answers from previously submitted questions to O'Reilly Answers service | `oreilly://answer/abc123-def456` |
+| `orm-mcp://history/recent` | Get recent 20 research entries (searches and questions) | `orm-mcp://history/recent` |
+| `orm-mcp://history/search{?keyword,type}` | Search past research by keyword or type (search/question) | `orm-mcp://history/search?keyword=docker` |
+| `orm-mcp://history/{id}` | Get details of a specific research entry by ID | `orm-mcp://history/req_abc12345` |
 
 #### MCP Resource Templates
 The server provides resource templates for dynamic discovery, allowing MCP clients to understand available resource patterns:
@@ -180,6 +183,8 @@ The server provides reusable prompt templates for common learning and research w
 | `learn-technology` | Learn a Technology | Generate a structured learning path for a specific technology | `technology` (required): Technology name to learn (e.g., "Kubernetes", "React") |
 | `research-topic` | Research a Topic | Conduct multi-perspective research on a technical topic | `topic` (required): Topic to research (e.g., "microservices architecture") |
 | `debug-error` | Debug an Error | Generate a debugging guide for a specific error message | `error_message` (required): The error message to debug |
+| `review-history` | Review Research History | Review past research activities and identify patterns, trends, and knowledge gaps | None |
+| `continue-research` | Continue Research | Continue and deepen a previous research topic | `topic` (required): Topic to continue researching |
 
 #### Usage Workflow
 
@@ -203,6 +208,15 @@ The server provides reusable prompt templates for common learning and research w
 1. **Learning Path Generation**: Use `learn-technology` prompt with a technology name to generate a structured learning path with recommended O'Reilly resources
 2. **Technical Research**: Use `research-topic` prompt to conduct comprehensive research on a topic, leveraging O'Reilly's content library
 3. **Error Debugging**: Use `debug-error` prompt with an error message to get a systematic debugging guide with relevant O'Reilly resources
+4. **History Review**: Use `review-history` prompt to analyze past research patterns and identify knowledge gaps
+5. **Research Continuation**: Use `continue-research` prompt with a topic to deepen previous research
+
+**Research History Workflow:**
+1. All `search_content` and `ask_question` tool calls are automatically recorded
+2. Access recent history via `orm-mcp://history/recent` resource
+3. Search past research by keyword via `orm-mcp://history/search?keyword=xxx`
+4. Filter by type (search/question) via `orm-mcp://history/search?type=search`
+5. Get specific entry details via `orm-mcp://history/{id}`
 
 #### Citation Requirements
 **IMPORTANT**: All content accessed through these resources must be properly cited with:
@@ -248,6 +262,8 @@ is used to:
 - `main.go` - Entry point with CLI interface
 - `server.go` - MCP server with tool and resource handlers
 - `config.go` - Configuration management and environment variable handling
+- `research_history.go` - Research history management (ResearchHistoryManager)
+- `history_resources.go` - MCP resources for history access (orm-mcp://history/*)
 
 **Browser Package** (`browser/`):
 - `auth.go` - Authentication logic with cookie caching and ACM IdP support
