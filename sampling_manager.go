@@ -27,6 +27,23 @@ func NewSamplingManager(config *Config) *SamplingManager {
 	}
 }
 
+// CanSample checks if the client supports sampling capability.
+func (sm *SamplingManager) CanSample(session *mcp.ServerSession) bool {
+	if session == nil {
+		return false
+	}
+	initParams := session.InitializeParams()
+	if initParams == nil || initParams.Capabilities == nil {
+		slog.Debug("Client capabilities not available")
+		return false
+	}
+	if initParams.Capabilities.Sampling == nil {
+		slog.Debug("Client does not support sampling capability")
+		return false
+	}
+	return true
+}
+
 // SummarizeSearchResults generates a summary of search results using MCP Sampling.
 // It sends a request to the client's LLM to summarize the results.
 func (sm *SamplingManager) SummarizeSearchResults(
@@ -42,6 +59,10 @@ func (sm *SamplingManager) SummarizeSearchResults(
 
 	if session == nil {
 		slog.Debug("ServerSession is nil, cannot perform sampling")
+		return "", nil
+	}
+
+	if !sm.CanSample(session) {
 		return "", nil
 	}
 
@@ -113,6 +134,10 @@ func (sm *SamplingManager) SummarizeQuestionAnswer(
 
 	if session == nil {
 		slog.Debug("ServerSession is nil, cannot perform sampling")
+		return "", nil
+	}
+
+	if !sm.CanSample(session) {
 		return "", nil
 	}
 
