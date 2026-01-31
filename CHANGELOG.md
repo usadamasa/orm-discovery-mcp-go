@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.0.9](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.8...v0.0.9) - 2026-01-31
+- feat: add MCP prompts support with three prompts by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/45
+- feat: add research history feature with MCP resources and prompts by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/49
+- feat: add MCP Sampling support with BFS/DFS search modes by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/50
+- feat: add marketplace.json for Claude Code plugin marketplace distribution by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/51
+- fix: relocate agent file to plugins/ directory for correct path resolution by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/52
+- refactor: split CLAUDE.md into 7 context-specific rule files by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/53
+- refactor: shorten MCP server name from orm-discovery-mcp-go to orm by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/54
+- docs: add version update trigger rules for plugin marketplace by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/55
+- fix: remove invalid plugin.json fields causing validation error by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/56
+- feat: add sampling capability check before MCP sampling calls by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/57
+
 ## [v0.0.8](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.7...v0.0.8) - 2026-01-25
 - feat: add XDG Base Directory support by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/32
 - fix: avoid context canceled error when saving cookies after login by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/34
