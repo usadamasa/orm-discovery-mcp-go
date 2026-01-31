@@ -60,7 +60,7 @@ func (s *Server) registerHistoryResources() {
 
 // GetRecentHistoryResource は直近の調査履歴を取得する
 func (s *Server) GetRecentHistoryResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	slog.Debug("直近の調査履歴リソース取得リクエスト受信", "uri", req.Params.URI)
+	slog.Info("直近の調査履歴リソース取得リクエスト受信", "uri", req.Params.URI)
 
 	if s.historyManager == nil {
 		return &mcp.ReadResourceResult{
@@ -73,6 +73,7 @@ func (s *Server) GetRecentHistoryResource(ctx context.Context, req *mcp.ReadReso
 	}
 
 	entries := s.historyManager.GetRecent(20)
+	slog.Info("直近の調査履歴取得完了", "count", len(entries))
 
 	response := struct {
 		Count   int             `json:"count"`
@@ -104,7 +105,7 @@ func (s *Server) GetRecentHistoryResource(ctx context.Context, req *mcp.ReadReso
 
 // SearchHistoryResource は履歴を検索する
 func (s *Server) SearchHistoryResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	slog.Debug("調査履歴検索リソース取得リクエスト受信", "uri", req.Params.URI)
+	slog.Info("調査履歴検索リソース取得リクエスト受信", "uri", req.Params.URI)
 
 	if s.historyManager == nil {
 		return &mcp.ReadResourceResult{
@@ -130,6 +131,7 @@ func (s *Server) SearchHistoryResource(ctx context.Context, req *mcp.ReadResourc
 	} else {
 		// パラメータがない場合は直近20件を返す
 		entries = s.historyManager.GetRecent(20)
+		slog.Info("パラメータなしで直近履歴取得", "count", len(entries))
 	}
 
 	response := struct {
@@ -166,7 +168,7 @@ func (s *Server) SearchHistoryResource(ctx context.Context, req *mcp.ReadResourc
 
 // GetHistoryDetailResource は特定の履歴詳細を取得する
 func (s *Server) GetHistoryDetailResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	slog.Debug("調査履歴詳細リソース取得リクエスト受信", "uri", req.Params.URI)
+	slog.Info("調査履歴詳細リソース取得リクエスト受信", "uri", req.Params.URI)
 
 	if s.historyManager == nil {
 		return &mcp.ReadResourceResult{
@@ -192,6 +194,7 @@ func (s *Server) GetHistoryDetailResource(ctx context.Context, req *mcp.ReadReso
 
 	entry := s.historyManager.GetByID(id)
 	if entry == nil {
+		slog.Info("調査履歴詳細取得完了", "id", id, "found", false)
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -200,6 +203,7 @@ func (s *Server) GetHistoryDetailResource(ctx context.Context, req *mcp.ReadReso
 			}},
 		}, nil
 	}
+	slog.Info("調査履歴詳細取得完了", "id", id, "found", true)
 
 	jsonBytes, err := json.Marshal(entry)
 	if err != nil {
@@ -223,7 +227,7 @@ func (s *Server) GetHistoryDetailResource(ctx context.Context, req *mcp.ReadReso
 
 // GetHistoryFullResponseResource は特定の履歴のフルレスポンスを取得する
 func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	slog.Debug("調査履歴フルレスポンスリソース取得リクエスト受信", "uri", req.Params.URI)
+	slog.Info("調査履歴フルレスポンスリソース取得リクエスト受信", "uri", req.Params.URI)
 
 	if s.historyManager == nil {
 		return &mcp.ReadResourceResult{
@@ -249,6 +253,7 @@ func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.Re
 
 	entry := s.historyManager.GetByID(id)
 	if entry == nil {
+		slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", false, "has_full_response", false)
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -257,6 +262,7 @@ func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.Re
 			}},
 		}, nil
 	}
+	slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", true, "has_full_response", entry.FullResponse != nil)
 
 	// フルレスポンスがない場合
 	if entry.FullResponse == nil {
