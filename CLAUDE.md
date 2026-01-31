@@ -154,8 +154,36 @@ The server exposes the following MCP capabilities:
 #### MCP Tools
 | Tool               | Description                                         |
 |--------------------|-----------------------------------------------------|
-| `search_content`   | Content discovery and search - returns book/video/article listings with product IDs for use with resources |
+| `search_content`   | Content discovery and search - returns book/video/article listings with product IDs for use with resources. **Supports BFS/DFS modes** for context optimization. |
 | `ask_question`     | Natural language Q&A using O'Reilly Answers AI - submit technical questions and receive comprehensive AI-generated answers with citations, sources, related resources, and follow-up suggestions |
+
+##### search_content Exploration Modes
+
+The `search_content` tool supports two exploration modes to optimize context consumption:
+
+| Mode | Description | Response Size | Use Case |
+|------|-------------|---------------|----------|
+| `bfs` (default) | Breadth-First Search - Returns lightweight results (id, title, authors only) | ~2-5KB | Quick discovery, minimal context usage |
+| `dfs` | Depth-First Search - Returns full detailed results | ~50-100KB | Comprehensive research, detailed analysis |
+
+**BFS Mode (Recommended for most uses)**:
+```json
+{
+  "query": "Docker",
+  "mode": "bfs"
+}
+```
+Returns: `{ "count": 100, "results": [{"id": "123", "title": "...", "authors": [...]}], "history_id": "req_abc123", "note": "Use oreilly://book-details/{id} for full details..." }`
+
+**DFS Mode with Sampling**:
+```json
+{
+  "query": "Docker",
+  "mode": "dfs",
+  "summarize": true
+}
+```
+Returns full results with AI-generated summary via MCP Sampling.
 
 #### MCP Resources
 | Resource URI Pattern | Description | Example |
@@ -167,6 +195,7 @@ The server exposes the following MCP capabilities:
 | `orm-mcp://history/recent` | Get recent 20 research entries (searches and questions) | `orm-mcp://history/recent` |
 | `orm-mcp://history/search{?keyword,type}` | Search past research by keyword or type (search/question) | `orm-mcp://history/search?keyword=docker` |
 | `orm-mcp://history/{id}` | Get details of a specific research entry by ID | `orm-mcp://history/req_abc12345` |
+| `orm-mcp://history/{id}/full` | Get full API response data for a research entry (used with BFS mode to access complete data later) | `orm-mcp://history/req_abc12345/full` |
 
 #### MCP Resource Templates
 The server provides resource templates for dynamic discovery, allowing MCP clients to understand available resource patterns:
@@ -185,6 +214,7 @@ The server provides reusable prompt templates for common learning and research w
 | `debug-error` | Debug an Error | Generate a debugging guide for a specific error message | `error_message` (required): The error message to debug |
 | `review-history` | Review Research History | Review past research activities and identify patterns, trends, and knowledge gaps | None |
 | `continue-research` | Continue Research | Continue and deepen a previous research topic | `topic` (required): Topic to continue researching |
+| `summarize-history` | Summarize Research History | Summarize a specific research entry with full response data | `history_id` (required): Research entry ID, `focus` (optional): Focus area for summary |
 
 #### Usage Workflow
 
@@ -234,6 +264,13 @@ OREILLY_USER_ID=your_email@example.com    # Your O'Reilly account email
 OREILLY_PASSWORD=your_password             # Your O'Reilly password
 PORT=8080                                  # HTTP server port (optional)
 TRANSPORT=stdio                            # Transport mode: stdio or http
+
+# Search Mode 設定
+ORM_MCP_GO_DEFAULT_MODE=bfs               # Default search mode: bfs | dfs
+
+# Sampling 設定
+ORM_MCP_GO_ENABLE_SAMPLING=true           # Enable MCP Sampling for summarization (default: true)
+ORM_MCP_GO_SAMPLING_MAX_TOKENS=500        # Max tokens for sampling responses (default: 500)
 ```
 
 ### .env File Support
@@ -618,6 +655,70 @@ This project uses a hierarchical memory system:
 - User-specific content access (playlists, bookmarks)
 - In-book search functionality
 - Content summarization features
+
+## Claude Code Plugin Distribution
+
+### Plugin Installation
+
+This project is distributed as a Claude Code Plugin for easy installation:
+
+```bash
+# Add the marketplace
+/plugin marketplace add usadamasa/orm-discovery-mcp-go
+
+# Install the plugin
+/plugin install orm-discovery-mcp-go
+
+# Required environment variables
+export OREILLY_USER_ID="your_email@acm.org"
+export OREILLY_PASSWORD="your_password"
+```
+
+**Note:** The MCP Server binary must be installed separately via [Releases](https://github.com/usadamasa/orm-discovery-mcp-go/releases) or built from source.
+
+### Plugin Structure
+
+```
+.claude-plugin/
+├── plugin.json          # Plugin definition
+└── agents/
+    └── oreilly-researcher.md  # Agent definition
+```
+
+### What the Plugin Provides
+
+- **Agent**: `oreilly-researcher` - Research technical topics using O'Reilly Learning Platform
+- **MCP Server Configuration**: Pre-configured `orm-discovery-mcp-go` MCP server settings
+
+## Claude Code Agent Integration
+
+### O'Reilly Researcher Agent
+
+This project provides a specialized Claude Code agent for efficient O'Reilly content research:
+
+**Agent Location (Plugin):** `agents/oreilly-researcher.md`
+
+**When to Use:**
+- Researching technical topics using O'Reilly resources
+- Finding learning materials for specific technologies
+- Technical Q&A leveraging O'Reilly Answers AI
+
+**Usage Example:**
+```
+User: "Dockerについて調べてほしい"
+Claude Code: Uses oreilly-researcher agent for comprehensive O'Reilly search
+```
+
+**Agent Workflow:**
+1. Uses `search_content` with BFS mode for lightweight discovery
+2. Leverages `ask_question` for technical Q&A
+3. Accesses `book-details` and `book-chapter` for deep dives
+4. Returns structured findings with citations
+
+**Benefits:**
+- **Context Efficiency**: Agent runs in independent context (subagent)
+- **BFS/DFS Support**: Optimized for minimal parent context consumption
+- **Research History**: Integrates with `orm-mcp://history/*` resources
 
 ## Security Considerations
 

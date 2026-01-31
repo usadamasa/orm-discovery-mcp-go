@@ -15,10 +15,11 @@ import (
 
 // Server is the MCP server implementation.
 type Server struct {
-	browserClient  *browser.BrowserClient
-	server         *mcp.Server
-	config         *Config
-	historyManager *ResearchHistoryManager
+	browserClient   *browser.BrowserClient
+	server          *mcp.Server
+	config          *Config
+	historyManager  *ResearchHistoryManager
+	samplingManager *SamplingManager
 }
 
 // NewServer creates a new server instance.
@@ -41,11 +42,15 @@ func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
 		slog.Warn("調査履歴の読み込みに失敗しました", "error", err)
 	}
 
+	// Initialize sampling manager
+	samplingManager := NewSamplingManager(config)
+
 	srv := &Server{
-		browserClient:  browserClient,
-		server:         mcpServer,
-		config:         config,
-		historyManager: historyManager,
+		browserClient:   browserClient,
+		server:          mcpServer,
+		config:          config,
+		historyManager:  historyManager,
+		samplingManager: samplingManager,
 	}
 
 	// Add middleware for logging
@@ -261,8 +266,14 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		args.Languages = []string{"en", "ja"}
 	}
 
+	// Set default mode to BFS
+	mode := args.Mode
+	if mode == "" {
+		mode = SearchModeBFS
+	}
+
 	// Prepare options for BrowserClient
-	options := map[string]interface{}{
+	options := map[string]any{
 		"rows":          args.Rows,
 		"languages":     args.Languages,
 		"tzOffset":      args.TzOffset,
@@ -273,7 +284,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	// Execute search using BrowserClient
-	slog.Debug("BrowserClient検索開始", "query", args.Query)
+	slog.Debug("BrowserClient検索開始", "query", args.Query, "mode", mode)
 	results, err := s.browserClient.SearchContent(args.Query, options)
 	if err != nil && isAuthError(err) {
 		// Attempt re-authentication
@@ -291,20 +302,98 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		slog.Error("BrowserClient検索失敗", "error", err, "query", args.Query)
 		return newToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil, nil
 	}
-	slog.Info("検索完了", "query", args.Query, "result_count", len(results))
+	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "mode", mode)
 
-	// Convert results to StructuredContent
-	resultMaps := make([]map[string]interface{}, len(results))
-	copy(resultMaps, results)
+	// Record to research history and get the history ID
+	historyID := s.recordSearchHistoryWithFullResponse(args.Query, options, results, time.Since(start))
 
-	// Record to research history
-	s.recordSearchHistory(args.Query, options, results, time.Since(start))
+	// Build response based on mode
+	switch mode {
+	case SearchModeBFS:
+		return s.buildBFSResponse(results, historyID)
+	case SearchModeDFS:
+		return s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize)
+	default:
+		// Default to BFS for unknown modes
+		return s.buildBFSResponse(results, historyID)
+	}
+}
+
+// buildBFSResponse builds a lightweight response for BFS mode.
+func (s *Server) buildBFSResponse(results []map[string]any, historyID string) (*mcp.CallToolResult, *SearchContentResult, error) {
+	// Extract only essential fields: id, title, authors
+	lightweightResults := make([]map[string]any, 0, len(results))
+	for _, result := range results {
+		lightweight := make(map[string]any)
+
+		// Extract product_id or ISBN
+		if productID, ok := result["product_id"].(string); ok {
+			lightweight["id"] = productID
+		} else if isbn, ok := result["isbn"].(string); ok {
+			lightweight["id"] = isbn
+		} else if id, ok := result["id"].(string); ok {
+			lightweight["id"] = id
+		}
+
+		// Extract title
+		if title, ok := result["title"].(string); ok {
+			lightweight["title"] = title
+		}
+
+		// Extract authors
+		if authors, ok := result["authors"].([]any); ok && len(authors) > 0 {
+			lightweight["authors"] = authors
+		} else if authors, ok := result["authors"].([]string); ok && len(authors) > 0 {
+			lightweight["authors"] = authors
+		}
+
+		lightweightResults = append(lightweightResults, lightweight)
+	}
 
 	return nil, &SearchContentResult{
-		Count:   len(results),
-		Total:   len(results),
-		Results: resultMaps,
+		Count:     len(results),
+		Total:     len(results),
+		Results:   lightweightResults,
+		Mode:      SearchModeBFS,
+		HistoryID: historyID,
+		Note:      "Use oreilly://book-details/{id} for full details. Full data available at orm-mcp://history/" + historyID + "/full",
 	}, nil
+}
+
+// buildDFSResponse builds a detailed response for DFS mode.
+func (s *Server) buildDFSResponse(
+	ctx context.Context,
+	session *mcp.ServerSession,
+	query string,
+	results []map[string]any,
+	historyID string,
+	summarize bool,
+) (*mcp.CallToolResult, *SearchContentResult, error) {
+	resultMaps := make([]map[string]any, len(results))
+	copy(resultMaps, results)
+
+	response := &SearchContentResult{
+		Count:     len(results),
+		Total:     len(results),
+		Results:   resultMaps,
+		Mode:      SearchModeDFS,
+		HistoryID: historyID,
+	}
+
+	// Generate summary using MCP Sampling if requested
+	if summarize && s.samplingManager != nil {
+		summary, err := s.samplingManager.SummarizeSearchResults(ctx, session, query, results)
+		if err != nil {
+			slog.Warn("Sampling summarization failed", "error", err)
+			response.Note = "Summarization failed. Full results are included."
+		} else if summary != "" {
+			response.Summary = summary
+		} else {
+			response.Note = "Summarization not available. Full results are included."
+		}
+	}
+
+	return nil, response, nil
 }
 
 // AskQuestionHandler processes question requests for O'Reilly Answers.
@@ -654,10 +743,11 @@ func extractQuestionIDFromURI(uri string) string {
 	return ""
 }
 
-// recordSearchHistory records a search to the research history.
-func (s *Server) recordSearchHistory(query string, options map[string]interface{}, results []map[string]interface{}, duration time.Duration) {
+// recordSearchHistoryWithFullResponse records a search to the research history with full response data.
+// Returns the history entry ID.
+func (s *Server) recordSearchHistoryWithFullResponse(query string, options map[string]any, results []map[string]any, duration time.Duration) string {
 	if s.historyManager == nil {
-		return
+		return ""
 	}
 
 	// Build top results summary
@@ -670,7 +760,7 @@ func (s *Server) recordSearchHistory(query string, options map[string]interface{
 		if title, ok := result["title"].(string); ok {
 			summary.Title = title
 		}
-		if authors, ok := result["authors"].([]interface{}); ok && len(authors) > 0 {
+		if authors, ok := result["authors"].([]any); ok && len(authors) > 0 {
 			if author, ok := authors[0].(string); ok {
 				summary.Author = author
 			}
@@ -683,7 +773,11 @@ func (s *Server) recordSearchHistory(query string, options map[string]interface{
 		topResults = append(topResults, summary)
 	}
 
+	// Generate entry ID
+	entryID := GenerateRequestID()
+
 	entry := ResearchEntry{
+		ID:         entryID,
 		Type:       "search",
 		Query:      query,
 		ToolName:   "search_content",
@@ -692,17 +786,20 @@ func (s *Server) recordSearchHistory(query string, options map[string]interface{
 			Count:      len(results),
 			TopResults: topResults,
 		},
-		DurationMs: duration.Milliseconds(),
+		DurationMs:   duration.Milliseconds(),
+		FullResponse: results, // Store full response for later access
 	}
 
 	if err := s.historyManager.AddEntry(entry); err != nil {
 		slog.Warn("調査履歴の追加に失敗しました", "error", err)
-		return
+		return ""
 	}
 
 	if err := s.historyManager.Save(); err != nil {
 		slog.Warn("調査履歴の保存に失敗しました", "error", err)
 	}
+
+	return entryID
 }
 
 // recordQuestionHistory records a question to the research history.

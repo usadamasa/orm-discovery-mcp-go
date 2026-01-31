@@ -30,6 +30,13 @@ type Config struct {
 
 	// Research History 設定
 	HistoryMaxEntries int // 保持する最大エントリ数、デフォルト: 1000
+
+	// Search Mode 設定
+	DefaultSearchMode string // デフォルトの探索モード: "bfs" | "dfs"、デフォルト: "bfs"
+
+	// Sampling 設定
+	EnableSampling    bool // Sampling機能を有効にするか、デフォルト: true
+	SamplingMaxTokens int  // Sampling時の最大トークン数、デフォルト: 500
 }
 
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
@@ -125,6 +132,29 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	// Search Mode 設定
+	defaultSearchMode := "bfs"
+	if modeStr := getEnv("ORM_MCP_GO_DEFAULT_MODE"); modeStr != "" {
+		if modeStr == "bfs" || modeStr == "dfs" {
+			defaultSearchMode = modeStr
+		}
+	}
+
+	// Sampling 設定
+	enableSampling := true
+	if samplingStr := getEnv("ORM_MCP_GO_ENABLE_SAMPLING"); samplingStr != "" {
+		if enabled, err := strconv.ParseBool(samplingStr); err == nil {
+			enableSampling = enabled
+		}
+	}
+
+	samplingMaxTokens := 500
+	if tokensStr := getEnv("ORM_MCP_GO_SAMPLING_MAX_TOKENS"); tokensStr != "" {
+		if tokens, err := strconv.Atoi(tokensStr); err == nil && tokens > 0 {
+			samplingMaxTokens = tokens
+		}
+	}
+
 	config := &Config{
 		Port:              port,
 		Debug:             debug,
@@ -138,6 +168,9 @@ func LoadConfig() (*Config, error) {
 		LogMaxBackups:     logMaxBackups,
 		LogMaxAgeDays:     logMaxAgeDays,
 		HistoryMaxEntries: historyMaxEntries,
+		DefaultSearchMode: defaultSearchMode,
+		EnableSampling:    enableSampling,
+		SamplingMaxTokens: samplingMaxTokens,
 	}
 
 	// slogの設定
