@@ -166,6 +166,28 @@ tasks:
     cmds:
       - claude plugin validate .
 
+  plugin:validate:marketplace:
+    desc: マーケットプレイスとプラグイン設定の統合検証
+    sources:
+      - '.claude-plugin/plugin.json'
+      - '.claude-plugin/marketplace.json'
+      - '.claude-plugin/agents/**/*'
+    cmds:
+      - claude plugin validate .
+      - |
+        if [ -f .claude-plugin/marketplace.json ]; then
+          echo "Validating marketplace.json..."
+          cat .claude-plugin/marketplace.json | python3 -m json.tool > /dev/null && echo "✓ marketplace.json は有効なJSON形式です"
+          if grep -q '"name"' .claude-plugin/marketplace.json && \
+             grep -q '"owner"' .claude-plugin/marketplace.json && \
+             grep -q '"plugins"' .claude-plugin/marketplace.json; then
+            echo "✓ 必須フィールドが存在します"
+          else
+            echo "✗ 必須フィールドが不足しています (name, owner, plugins)"
+            exit 1
+          fi
+        fi
+
   # === Composite Tasks ===
   dev:
     desc: 開発用タスク（フォーマット + リント + テスト）
@@ -173,7 +195,7 @@ tasks:
 
   ci:
     desc: CI用タスク（すべてのチェック + ビルド + プラグイン検証）
-    deps: [format, lint, test:coverage, build, plugin:validate]
+    deps: [format, lint, test:coverage, build, plugin:validate:marketplace]
 
   all:
     desc: すべてのタスクを実行

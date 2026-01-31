@@ -660,7 +660,7 @@ This project uses a hierarchical memory system:
 
 ### Plugin Installation
 
-This project is distributed as a Claude Code Plugin for easy installation:
+This project is distributed as a Claude Code Plugin Marketplace:
 
 ```bash
 # Add the marketplace
@@ -676,13 +676,24 @@ export OREILLY_PASSWORD="your_password"
 
 **Note:** The MCP Server binary must be installed separately via [Releases](https://github.com/usadamasa/orm-discovery-mcp-go/releases) or built from source.
 
-### Plugin Structure
+### Marketplace Structure
 
 ```
 .claude-plugin/
+├── marketplace.json     # Marketplace definition
 ├── plugin.json          # Plugin definition
 └── agents/
     └── oreilly-researcher.md  # Agent definition
+```
+
+### Validation
+
+```bash
+# Validate marketplace and plugin configuration
+task plugin:validate:marketplace
+
+# Full CI validation (includes marketplace validation)
+task ci
 ```
 
 ### What the Plugin Provides
