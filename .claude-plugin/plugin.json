@@ -7,7 +7,7 @@
   },
   "repository": "https://github.com/usadamasa/orm-discovery-mcp-go",
   "license": "MIT",
-  "agents": ["./agents/oreilly-researcher.md"],
+  "agents": ["./plugins/agents/oreilly-researcher.md"],
   "mcpServers": {
     "orm-discovery-mcp-go": {
       "command": "orm-discovery-mcp-go",

@@ -679,11 +679,13 @@ export OREILLY_PASSWORD="your_password"
 ### Marketplace Structure
 
 ```
-.claude-plugin/
-├── marketplace.json     # Marketplace definition
-├── plugin.json          # Plugin definition
-└── agents/
-    └── oreilly-researcher.md  # Agent definition
+orm-discovery-mcp-go/
+├── .claude-plugin/
+│   ├── marketplace.json     # Marketplace definition
+│   └── plugin.json          # Plugin definition
+└── plugins/
+    └── agents/
+        └── oreilly-researcher.md  # Agent definition
 ```
 
 ### Validation
@@ -707,7 +709,7 @@ task ci
 
 This project provides a specialized Claude Code agent for efficient O'Reilly content research:
 
-**Agent Location (Plugin):** `agents/oreilly-researcher.md`
+**Agent Location (Plugin):** `plugins/agents/oreilly-researcher.md`
 
 **When to Use:**
 - Researching technical topics using O'Reilly resources
