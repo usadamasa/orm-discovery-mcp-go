@@ -1,6 +1,6 @@
 {
   "name": "orm-discovery-mcp-go",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "O'Reilly Learning Platform research agent with MCP server",
   "author": {
     "name": "usadamasa"
