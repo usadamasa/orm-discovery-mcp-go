@@ -10,6 +10,7 @@ import (
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	versionpkg "github.com/usadamasa/orm-discovery-mcp-go/internal/version"
 )
 
 // Version information embedded by GoReleaser.
@@ -22,7 +23,8 @@ var (
 func main() {
 	// Handle --version flag
 	if len(os.Args) > 1 && os.Args[1] == "--version" {
-		fmt.Printf("orm-discovery-mcp-go %s (commit: %s, built: %s)\n", version, commit, date)
+		info := versionpkg.Resolve(version, commit, date)
+		fmt.Printf("orm-discovery-mcp-go %s\n", info.DisplayString())
 		os.Exit(0)
 	}
 
