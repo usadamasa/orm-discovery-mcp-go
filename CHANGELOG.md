@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.0.10](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.9...v0.0.10) - 2026-02-08
+- feat: HistoryResource系のログレベルをDebugからInfoに変更 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/58
+- feat: oreilly-researcherエージェントにagent memory (userスコープ) を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/62
+- feat: go install時にもReadBuildInfoでバージョン情報を表示する by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/63
+- build(deps): bump github.com/stretchr/testify from 1.10.0 to 1.11.1 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/60
+
 ## [v0.0.9](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.8...v0.0.9) - 2026-01-31
 - feat: add MCP prompts support with three prompts by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/45
 - feat: add research history feature with MCP resources and prompts by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/49
