@@ -274,7 +274,13 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 
 	// Set default values
 	if args.Rows <= 0 {
+		args.Rows = 25
+	}
+	if args.Rows > 100 {
 		args.Rows = 100
+	}
+	if args.Offset < 0 {
+		args.Offset = 0
 	}
 	if len(args.Languages) == 0 {
 		args.Languages = []string{"en", "ja"}
@@ -289,6 +295,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	// Prepare options for BrowserClient
 	options := map[string]any{
 		"rows":          args.Rows,
+		"offset":        args.Offset,
 		"languages":     args.Languages,
 		"tzOffset":      args.TzOffset,
 		"aia_only":      args.AiaOnly,
@@ -298,8 +305,8 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	// Execute search using BrowserClient
-	slog.Debug("BrowserClient検索開始", "query", args.Query, "mode", mode)
-	results, err := s.browserClient.SearchContent(args.Query, options)
+	slog.Debug("BrowserClient検索開始", "query", args.Query, "mode", mode, "offset", args.Offset, "rows", args.Rows)
+	results, totalResults, err := s.browserClient.SearchContent(args.Query, options)
 	if err != nil && isAuthError(err) {
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
@@ -309,14 +316,14 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		}
 
 		// Retry
-		results, err = s.browserClient.SearchContent(args.Query, options)
+		results, totalResults, err = s.browserClient.SearchContent(args.Query, options)
 	}
 
 	if err != nil {
 		slog.Error("BrowserClient検索失敗", "error", err, "query", args.Query)
 		return newToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil, nil
 	}
-	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "mode", mode)
+	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
 
 	// Record to research history and get the history ID
 	historyID := s.recordSearchHistoryWithFullResponse(args.Query, options, results, time.Since(start))
@@ -324,17 +331,17 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	// Build response based on mode
 	switch mode {
 	case SearchModeBFS:
-		return s.buildBFSResponse(results, historyID)
+		return s.buildBFSResponse(results, historyID, args.Offset, totalResults)
 	case SearchModeDFS:
-		return s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize)
+		return s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize, args.Offset, totalResults)
 	default:
 		// Default to BFS for unknown modes
-		return s.buildBFSResponse(results, historyID)
+		return s.buildBFSResponse(results, historyID, args.Offset, totalResults)
 	}
 }
 
 // buildBFSResponse builds a lightweight response for BFS mode.
-func (s *Server) buildBFSResponse(results []map[string]any, historyID string) (*mcp.CallToolResult, *SearchContentResult, error) {
+func (s *Server) buildBFSResponse(results []map[string]any, historyID string, offset, totalResults int) (*mcp.CallToolResult, *SearchContentResult, error) {
 	// Extract only essential fields: id, title, authors
 	lightweightResults := make([]map[string]any, 0, len(results))
 	for _, result := range results {
@@ -364,13 +371,23 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string) (*
 		lightweightResults = append(lightweightResults, lightweight)
 	}
 
+	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
+
+	note := "Use oreilly://book-details/{id} for full details. Full data available at orm-mcp://history/" + historyID + "/full"
+	if hasMore {
+		note += fmt.Sprintf(". More results available: use offset=%d to get next page.", nextOffset)
+	}
+
 	return nil, &SearchContentResult{
-		Count:     len(results),
-		Total:     len(results),
-		Results:   lightweightResults,
-		Mode:      SearchModeBFS,
-		HistoryID: historyID,
-		Note:      "Use oreilly://book-details/{id} for full details. Full data available at orm-mcp://history/" + historyID + "/full",
+		Count:        len(results),
+		Total:        len(results),
+		TotalResults: totalResults,
+		HasMore:      hasMore,
+		NextOffset:   nextOffset,
+		Results:      lightweightResults,
+		Mode:         SearchModeBFS,
+		HistoryID:    historyID,
+		Note:         note,
 	}, nil
 }
 
@@ -382,16 +399,26 @@ func (s *Server) buildDFSResponse(
 	results []map[string]any,
 	historyID string,
 	summarize bool,
+	offset, totalResults int,
 ) (*mcp.CallToolResult, *SearchContentResult, error) {
 	resultMaps := make([]map[string]any, len(results))
 	copy(resultMaps, results)
 
+	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
+
 	response := &SearchContentResult{
-		Count:     len(results),
-		Total:     len(results),
-		Results:   resultMaps,
-		Mode:      SearchModeDFS,
-		HistoryID: historyID,
+		Count:        len(results),
+		Total:        len(results),
+		TotalResults: totalResults,
+		HasMore:      hasMore,
+		NextOffset:   nextOffset,
+		Results:      resultMaps,
+		Mode:         SearchModeDFS,
+		HistoryID:    historyID,
+	}
+
+	if hasMore {
+		response.Note = fmt.Sprintf("More results available: use offset=%d to get next page.", nextOffset)
 	}
 
 	// Generate summary using MCP Sampling if requested
@@ -399,11 +426,17 @@ func (s *Server) buildDFSResponse(
 		summary, err := s.samplingManager.SummarizeSearchResults(ctx, session, query, results)
 		if err != nil {
 			slog.Warn("Sampling summarization failed", "error", err)
-			response.Note = "Summarization failed. Full results are included."
+			if response.Note != "" {
+				response.Note += " "
+			}
+			response.Note += "Summarization failed. Full results are included."
 		} else if summary != "" {
 			response.Summary = summary
 		} else {
-			response.Note = "Summarization not available. Full results are included."
+			if response.Note != "" {
+				response.Note += " "
+			}
+			response.Note += "Summarization not available. Full results are included."
 		}
 	}
 

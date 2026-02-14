@@ -17,13 +17,16 @@ const (
 // SearchContentArgs represents the parameters for the oreilly_search_content tool.
 type SearchContentArgs struct {
 	Query        string   `json:"query" jsonschema:"2-5 focused keywords for specific technologies or frameworks. Avoid full sentences."`
-	Rows         int      `json:"rows,omitempty" jsonschema:"Number of results to return (default: 100)"`
+	Rows         int      `json:"rows,omitempty" jsonschema:"Number of results per page (default: 25, max: 100)"`
 	Languages    []string `json:"languages,omitempty" jsonschema:"Languages to search in (default: en and ja)"`
 	TzOffset     int      `json:"tzOffset,omitempty" jsonschema:"Timezone offset (default: -9 for JST)"`
 	AiaOnly      bool     `json:"aia_only,omitempty" jsonschema:"Search only AI-assisted content (default: false)"`
 	FeatureFlags string   `json:"feature_flags,omitempty" jsonschema:"Feature flags (default: improveSearchFilters)"`
 	Report       bool     `json:"report,omitempty" jsonschema:"Include reporting data (default: true)"`
 	IsTopics     bool     `json:"isTopics,omitempty" jsonschema:"Search topics only (default: false)"`
+
+	// Pagination parameters
+	Offset int `json:"offset,omitempty" jsonschema:"Pagination offset (0-based, default: 0)"`
 
 	// Exploration mode parameters
 	Mode      SearchMode `json:"mode,omitempty" jsonschema:"Exploration mode: 'bfs' (default) returns lightweight results (id, title, authors), 'dfs' returns full detailed results"`
@@ -42,11 +45,27 @@ type SearchContentResult struct {
 	Total   int              `json:"total"`
 	Results []map[string]any `json:"results"`
 
+	// Pagination fields
+	TotalResults int  `json:"total_results"`         // Total number of matching results from API
+	HasMore      bool `json:"has_more"`              // Whether more results are available
+	NextOffset   int  `json:"next_offset,omitempty"` // Next page offset (only set when HasMore=true)
+
 	// BFS/DFS mode specific fields
 	Mode      SearchMode `json:"mode,omitempty"`       // The mode used for this search
 	HistoryID string     `json:"history_id,omitempty"` // Research history ID for accessing full data later
 	Summary   string     `json:"summary,omitempty"`    // AI-generated summary (DFS mode with Summarize=true)
 	Note      string     `json:"note,omitempty"`       // Helpful note for the user (BFS mode)
+}
+
+// calcPagination computes pagination state from offset, result count, and total results.
+func calcPagination(offset, resultCount, totalResults int) (hasMore bool, nextOffset int) {
+	if totalResults <= 0 {
+		return false, 0
+	}
+	if (offset + resultCount) < totalResults {
+		return true, offset + resultCount
+	}
+	return false, 0
 }
 
 // BFSResult represents a lightweight search result for BFS mode.
