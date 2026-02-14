@@ -392,6 +392,9 @@ type SearchAPIResponse struct {
 	Hits    *[]RawSearchResult   `json:"hits,omitempty"`
 	Items   *[]RawSearchResult   `json:"items,omitempty"`
 	Results *[]RawSearchResult   `json:"results,omitempty"`
+
+	// TotalCount Total number of matching results
+	TotalCount *int `json:"total_count,omitempty"`
 }
 
 // SearchDataContainer Container for search data
@@ -465,6 +468,9 @@ type SearchContentV2Params struct {
 
 	// Report Include report data in response
 	Report *bool `form:"report,omitempty" json:"report,omitempty"`
+
+	// Offset Pagination offset (0-based)
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 
 	// IsTopics Search only in topics
 	IsTopics *bool `form:"isTopics,omitempty" json:"isTopics,omitempty"`
@@ -1013,6 +1019,22 @@ func NewSearchContentV2Request(server string, params *SearchContentV2Params) (*h
 		if params.Report != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "report", runtime.ParamLocationQuery, *params.Report); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

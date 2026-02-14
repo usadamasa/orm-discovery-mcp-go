@@ -181,8 +181,9 @@ func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interf
 	}
 }
 
-// makeHTTPSearchRequest performs the O'Reilly search API call using generated OpenAPI client
-func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int, aiaOnly bool, featureFlags string, report, isTopics bool) (*api.SearchAPIResponse, error) {
+// makeHTTPSearchRequest performs the O'Reilly search API call using generated OpenAPI client.
+// Returns the API response and total count of matching results.
+func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, offset, tzOffset int, aiaOnly bool, featureFlags string, report, isTopics bool) (*api.SearchAPIResponse, int, error) {
 	// Create OpenAPI client
 	client := &api.ClientWithResponses{
 		ClientInterface: &api.Client{
@@ -196,6 +197,7 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int,
 	params := &api.SearchContentV2Params{
 		Query:        query,
 		Rows:         &rows,
+		Offset:       &offset,
 		TzOffset:     &tzOffset,
 		AiaOnly:      &aiaOnly,
 		FeatureFlags: &featureFlags,
@@ -206,34 +208,46 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, tzOffset int,
 	// OpenAPI検索リクエスト (タイムアウト付き)
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
 	defer apiCancel()
-	slog.Debug("OpenAPI検索リクエスト開始", "query", query, "rows", rows)
+	slog.Debug("OpenAPI検索リクエスト開始", "query", query, "rows", rows, "offset", offset)
 
 	// Make the API call
 	resp, err := client.SearchContentV2WithResponse(apiCtx, params)
 	if err != nil {
-		return nil, fmt.Errorf("OpenAPI request failed: %w", err)
+		return nil, 0, fmt.Errorf("OpenAPI request failed: %w", err)
 	}
 
 	// Check response status
 	if resp.HTTPResponse.StatusCode != 200 {
-		return nil, fmt.Errorf("API request failed with status %d", resp.HTTPResponse.StatusCode)
+		return nil, 0, fmt.Errorf("API request failed with status %d", resp.HTTPResponse.StatusCode)
 	}
 
 	if resp.JSON200 == nil {
-		return nil, fmt.Errorf("no valid JSON response received")
+		return nil, 0, fmt.Errorf("no valid JSON response received")
 	}
 
-	return resp.JSON200, nil
+	// Extract total count
+	totalCount := 0
+	if resp.JSON200.TotalCount != nil {
+		totalCount = *resp.JSON200.TotalCount
+	}
+
+	return resp.JSON200, totalCount, nil
 }
 
-// SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します
-func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, error) {
+// SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します。
+// Returns normalized results and total count of matching results.
+func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, int, error) {
 	slog.Info("API検索を開始します", "query", query)
 
 	// オプションのデフォルト値を設定
 	rows := 100
 	if r, ok := options["rows"].(int); ok && r > 0 {
 		rows = r
+	}
+
+	offset := 0
+	if o, ok := options["offset"].(int); ok && o > 0 {
+		offset = o
 	}
 
 	// 言語オプションは現在使用していないため、将来の拡張用として保持
@@ -267,10 +281,10 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 	// Use OpenAPI generated client for search
 	var results []map[string]interface{}
 
-	apiResponse, err := bc.makeHTTPSearchRequest(query, rows, tzOffset, aiaOnly, featureFlags, report, isTopics)
+	apiResponse, totalCount, err := bc.makeHTTPSearchRequest(query, rows, offset, tzOffset, aiaOnly, featureFlags, report, isTopics)
 	if err != nil {
 		slog.Error("API検索に失敗しました", "error", err, "query", query)
-		return nil, fmt.Errorf("API search failed: %w", err)
+		return nil, 0, fmt.Errorf("API search failed: %w", err)
 	}
 
 	// Extract results from API response
@@ -285,7 +299,7 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 		rawResults = *apiResponse.Hits
 	}
 
-	slog.Debug("API検索レスポンス取得", "result_count", len(rawResults))
+	slog.Debug("API検索レスポンス取得", "result_count", len(rawResults), "total_count", totalCount)
 
 	// Normalize results using Go instead of JavaScript
 	for i, rawResult := range rawResults {
@@ -296,6 +310,6 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 		results = append(results, normalized)
 	}
 
-	slog.Info("API検索が完了しました", "query", query, "result_count", len(results))
-	return results, nil
+	slog.Info("API検索が完了しました", "query", query, "result_count", len(results), "total_count", totalCount)
+	return results, totalCount, nil
 }

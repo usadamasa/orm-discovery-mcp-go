@@ -63,6 +63,14 @@ paths:
           schema:
             type: boolean
             default: true
+        - name: offset
+          in: query
+          required: false
+          description: Pagination offset (0-based)
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
         - name: isTopics
           in: query
           required: false
@@ -338,6 +346,9 @@ components:
       type: object
       description: Response from O'Reilly search API
       properties:
+        total_count:
+          type: integer
+          description: Total number of matching results
         data:
           $ref: '#/components/schemas/SearchDataContainer'
         results:
