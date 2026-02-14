@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.0.11](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.10...v0.0.11) - 2026-02-14
+- feat: MCPツール名にoreilly_プレフィックスを追加しToolAnnotationsを設定 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/64
+
 ## [v0.0.10](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.9...v0.0.10) - 2026-02-08
 - feat: HistoryResource系のログレベルをDebugからInfoに変更 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/58
 - feat: oreilly-researcherエージェントにagent memory (userスコープ) を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/62
