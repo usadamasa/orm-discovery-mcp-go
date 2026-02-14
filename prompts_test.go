@@ -382,19 +382,19 @@ func TestBuildLearnTechnologyUserMessage(t *testing.T) {
 			name:            "Docker beginner",
 			technology:      "Docker",
 			experienceLevel: "beginner",
-			wantContains:    []string{"Docker", "beginner", "search_content", "oreilly://"},
+			wantContains:    []string{"Docker", "beginner", "oreilly_search_content", "oreilly://"},
 		},
 		{
 			name:            "Kubernetes advanced",
 			technology:      "Kubernetes",
 			experienceLevel: "advanced",
-			wantContains:    []string{"Kubernetes", "advanced", "search_content", "oreilly://"},
+			wantContains:    []string{"Kubernetes", "advanced", "oreilly_search_content", "oreilly://"},
 		},
 		{
 			name:            "React intermediate",
 			technology:      "React",
 			experienceLevel: "intermediate",
-			wantContains:    []string{"React", "intermediate", "ask_question"},
+			wantContains:    []string{"React", "intermediate", "oreilly_ask_question"},
 		},
 	}
 
@@ -478,7 +478,7 @@ func TestBuildDebugErrorUserMessage(t *testing.T) {
 			errorMessage: "NullPointerException",
 			technology:   "Java",
 			errorContext: "",
-			wantContains: []string{"NullPointerException", "Java", "ask_question", "search_content"},
+			wantContains: []string{"NullPointerException", "Java", "oreilly_ask_question", "oreilly_search_content"},
 		},
 		{
 			name:         "error with context",

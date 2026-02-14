@@ -57,10 +57,10 @@ O'Reilly Learning Platform へのプログラマティックアクセスを提�
 
 | Tool | Description | Mode |
 |------|-------------|------|
-| `search_content` | コンテンツ検索 - 書籍/動画/記事のリスト取得 | BFS/DFS |
-| `ask_question` | O'Reilly Answers AI での技術 Q&A | - |
+| `oreilly_search_content` | コンテンツ検索 - 書籍/動画/記事のリスト取得 | BFS/DFS |
+| `oreilly_ask_question` | O'Reilly Answers AI での技術 Q&A | - |
 
-### search_content 探索モード
+### oreilly_search_content 探索モード
 
 | Mode | 説明 | レスポンスサイズ | 用途 |
 |------|------|----------------|------|
@@ -102,20 +102,20 @@ O'Reilly Learning Platform へのプログラマティックアクセスを提�
 
 ### Content Discovery and Access
 
-1. `search_content` ツールでコンテンツを発見
+1. `oreilly_search_content` ツールでコンテンツを発見
 2. 検索結果から `product_id` を抽出
 3. `oreilly://book-details/{product_id}` で書籍詳細にアクセス
 4. `oreilly://book-chapter/{product_id}/{chapter_name}` で章コンテンツにアクセス
 
 ### Natural Language Q&A
 
-1. `ask_question` ツールで技術的質問を送信
+1. `oreilly_ask_question` ツールで技術的質問を送信
 2. AI 生成回答、引用、関連リソースを受信
 3. `oreilly://answer/{question_id}` で保存済み回答にアクセス可能
 
 ### Research History
 
-1. すべての `search_content` と `ask_question` 呼び出しは自動記録
+1. すべての `oreilly_search_content` と `oreilly_ask_question` 呼び出しは自動記録
 2. `orm-mcp://history/recent` で最近の履歴にアクセス
 3. `orm-mcp://history/search?keyword=xxx` でキーワード検索
 

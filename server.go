@@ -127,7 +127,7 @@ func isAuthError(err error) bool {
 func (s *Server) registerHandlers() {
 	// Add search tool
 	searchTool := &mcp.Tool{
-		Name: "search_content",
+		Name: "oreilly_search_content",
 		Description: `Search O'Reilly content and return books/videos/articles with product_id for resource access.
 
 Example: "Docker containers" (Good) / "How to use Docker" (Poor)
@@ -135,12 +135,19 @@ Example: "Docker containers" (Good) / "How to use Docker" (Poor)
 Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}
 
 IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Search O'Reilly Content",
+			ReadOnlyHint:    true,
+			DestructiveHint: ptrBool(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   ptrBool(true),
+		},
 	}
 	mcp.AddTool(s.server, searchTool, s.SearchContentHandler)
 
 	// Add ask question tool
 	askQuestionTool := &mcp.Tool{
-		Name: "ask_question",
+		Name: "oreilly_ask_question",
 		Description: `Ask technical questions to O'Reilly Answers AI and get sourced responses.
 
 Example: "How to optimize React performance?" (Good) / "Explain everything about React" (Poor)
@@ -148,6 +155,13 @@ Example: "How to optimize React performance?" (Good) / "Explain everything about
 Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id})
 
 IMPORTANT: Cite sources provided in the response.`,
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Ask O'Reilly Answers AI",
+			ReadOnlyHint:    true,
+			DestructiveHint: ptrBool(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   ptrBool(true),
+		},
 	}
 	mcp.AddTool(s.server, askQuestionTool, s.AskQuestionHandler)
 
@@ -212,7 +226,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-details/{product_id}",
 			Name:        "O'Reilly Book Details Template",
-			Description: "Use product_id from search_content to get book details.",
+			Description: "Use product_id from oreilly_search_content to get book details.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookDetailsResource,
@@ -222,7 +236,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-toc/{product_id}",
 			Name:        "O'Reilly Book TOC Template",
-			Description: "Use product_id from search_content to get table of contents.",
+			Description: "Use product_id from oreilly_search_content to get table of contents.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookTOCResource,
@@ -242,7 +256,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://answer/{question_id}",
 			Name:        "O'Reilly Answers Template",
-			Description: "Use question_id from ask_question to retrieve the answer.",
+			Description: "Use question_id from oreilly_ask_question to retrieve the answer.",
 			MIMEType:    "application/json",
 		},
 		s.GetAnswerResource,
@@ -780,7 +794,7 @@ func (s *Server) recordSearchHistoryWithFullResponse(query string, options map[s
 		ID:         entryID,
 		Type:       "search",
 		Query:      query,
-		ToolName:   "search_content",
+		ToolName:   "oreilly_search_content",
 		Parameters: options,
 		ResultSummary: ResultSummary{
 			Count:      len(results),
@@ -802,6 +816,8 @@ func (s *Server) recordSearchHistoryWithFullResponse(query string, options map[s
 	return entryID
 }
 
+func ptrBool(b bool) *bool { return &b }
+
 // recordQuestionHistory records a question to the research history.
 func (s *Server) recordQuestionHistory(question string, answer *browser.AnswerResponse, duration time.Duration) {
 	if s.historyManager == nil {
@@ -817,7 +833,7 @@ func (s *Server) recordQuestionHistory(question string, answer *browser.AnswerRe
 	entry := ResearchEntry{
 		Type:     "question",
 		Query:    question,
-		ToolName: "ask_question",
+		ToolName: "oreilly_ask_question",
 		ResultSummary: ResultSummary{
 			AnswerPreview: answerPreview,
 			SourcesCount:  len(answer.MisoResponse.Data.Sources),

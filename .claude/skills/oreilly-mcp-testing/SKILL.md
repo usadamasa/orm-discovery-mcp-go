@@ -15,7 +15,7 @@ MCPサーバーのテストは、標準入出力(stdio)モードまたはHTTPモ
 
 | カテゴリ | エンドポイント |
 |---------|---------------|
-| ツール | `search_content`, `ask_question` |
+| ツール | `oreilly_search_content`, `oreilly_ask_question` |
 | リソース | `book-details`, `book-toc`, `book-chapter`, `answer` |
 | プロンプト | `learn-technology`, `research-topic`, `debug-error` |
 
@@ -87,7 +87,7 @@ TRANSPORT=http PORT=8080 ./bin/orm-discovery-mcp-go
 
 stdioモードのサーバーに対してJSON-RPCリクエストを送信します。
 
-#### search_content ツールのテスト
+#### oreilly_search_content ツールのテスト
 
 ```json
 {
@@ -95,7 +95,7 @@ stdioモードのサーバーに対してJSON-RPCリクエストを送信しま�
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "search_content",
+    "name": "oreilly_search_content",
     "arguments": {
       "query": "Docker containers"
     }
@@ -103,7 +103,7 @@ stdioモードのサーバーに対してJSON-RPCリクエストを送信しま�
 }
 ```
 
-#### ask_question ツールのテスト
+#### oreilly_ask_question ツールのテスト
 
 ```json
 {
@@ -111,7 +111,7 @@ stdioモードのサーバーに対してJSON-RPCリクエストを送信しま�
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "ask_question",
+    "name": "oreilly_ask_question",
     "arguments": {
       "question": "What career paths are available for software engineers in their late 30s?",
       "max_wait_minutes": 5
@@ -228,7 +228,7 @@ ORM_MCP_GO_LOG_LEVEL=DEBUG \
 **ログ出力例(LOG_LEVEL=DEBUG)**:
 ```
 time=2026-01-24T12:00:00.000+09:00 level=DEBUG source=server.go:25 msg="MCP受信" method=tools/call id=1 payload="{...}"
-time=2026-01-24T12:00:00.100+09:00 level=DEBUG source=server.go:85 msg="ツール呼び出し開始" tool=search_content id=1 arguments="{\"query\":\"Docker\"}"
+time=2026-01-24T12:00:00.100+09:00 level=DEBUG source=server.go:85 msg="ツール呼び出し開始" tool=oreilly_search_content id=1 arguments="{\"query\":\"Docker\"}"
 time=2026-01-24T12:00:01.000+09:00 level=DEBUG source=server.go:49 msg="MCP成功" method=tools/call id=1 result_size=5432
 ```
 
@@ -284,8 +284,8 @@ ls -la ~/.config/google-chrome/Default/  # 変更なし
 
 | ツール | 説明 |
 |--------|------|
-| `search_content` | コンテンツ検索 - 書籍/ビデオ/記事を検索 |
-| `ask_question` | O'Reilly Answers AIへの質問 |
+| `oreilly_search_content` | コンテンツ検索 - 書籍/ビデオ/記事を検索 |
+| `oreilly_ask_question` | O'Reilly Answers AIへの質問 |
 
 ### リソース
 

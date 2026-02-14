@@ -15,7 +15,7 @@ func (s *Server) registerPrompts() {
 		&mcp.Prompt{
 			Name:        "learn-technology",
 			Title:       "Learn a Technology",
-			Description: "Generate a structured learning path for a specific technology.\n\nExample: learn-technology(technology=\"Docker\", experience_level=\"beginner\")\n\nIMPORTANT: Uses search_content and book-details resources for learning.",
+			Description: "Generate a structured learning path for a specific technology.\n\nExample: learn-technology(technology=\"Docker\", experience_level=\"beginner\")\n\nIMPORTANT: Uses oreilly_search_content and book-details resources for learning.",
 			Arguments: []*mcp.PromptArgument{
 				{
 					Name:        "technology",
@@ -71,7 +71,7 @@ func (s *Server) registerPrompts() {
 		&mcp.Prompt{
 			Name:        "research-topic",
 			Title:       "Research a Topic",
-			Description: "Conduct multi-perspective research on a technical topic.\n\nExample: research-topic(topic=\"microservices\", depth=\"detailed\")\n\nIMPORTANT: Combines ask_question and search_content for comprehensive research.",
+			Description: "Conduct multi-perspective research on a technical topic.\n\nExample: research-topic(topic=\"microservices\", depth=\"detailed\")\n\nIMPORTANT: Combines oreilly_ask_question and oreilly_search_content for comprehensive research.",
 			Arguments: []*mcp.PromptArgument{
 				{
 					Name:        "topic",
@@ -239,11 +239,11 @@ func buildLearnTechnologyUserMessage(technology, experienceLevel string) string 
 User's experience level: %s
 
 Learning Strategy:
-1. Use search_content to find foundational materials
+1. Use oreilly_search_content to find foundational materials
    - Recommended query: "%s fundamentals"
 2. Access book details via oreilly://book-details/{product_id}
 3. Read key chapters via oreilly://book-chapter/{product_id}/{chapter}
-4. For questions, use ask_question tool
+4. For questions, use oreilly_ask_question tool
 
 Workflow:
 - Start by searching for beginner-friendly content
@@ -274,8 +274,8 @@ Research depth: %s
 %s
 
 Workflow:
-1. Start with ask_question for overview: "%s overview and key concepts"
-2. Search for related content: search_content("%s")
+1. Start with oreilly_ask_question for overview: "%s overview and key concepts"
+2. Search for related content: oreilly_search_content("%s")
 3. Deep dive into relevant books and chapters
 4. Synthesize findings with proper citations
 
@@ -300,8 +300,8 @@ func buildDebugErrorUserMessage(errorMessage, technology, errorContext string) s
 Error message: %s%s
 
 Debug Strategy:
-1. Use ask_question to understand the error: "What causes %s in %s?"
-2. Search for related solutions: search_content("%s error handling")
+1. Use oreilly_ask_question to understand the error: "What causes %s in %s?"
+2. Search for related solutions: oreilly_search_content("%s error handling")
 3. Check relevant documentation chapters for proper patterns
 4. Provide step-by-step resolution with explanations
 

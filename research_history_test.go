@@ -70,7 +70,7 @@ func TestResearchHistoryManager_AddAndSearch(t *testing.T) {
 	entry1 := ResearchEntry{
 		Type:     "search",
 		Query:    "Docker containers",
-		ToolName: "search_content",
+		ToolName: "oreilly_search_content",
 		ResultSummary: ResultSummary{
 			Count: 10,
 			TopResults: []TopResultSummary{
@@ -87,7 +87,7 @@ func TestResearchHistoryManager_AddAndSearch(t *testing.T) {
 	entry2 := ResearchEntry{
 		Type:     "question",
 		Query:    "How to optimize React performance?",
-		ToolName: "ask_question",
+		ToolName: "oreilly_ask_question",
 		ResultSummary: ResultSummary{
 			AnswerPreview: "React performance can be optimized by...",
 			SourcesCount:  5,
@@ -156,7 +156,7 @@ func TestResearchHistoryManager_Prune(t *testing.T) {
 		entry := ResearchEntry{
 			Type:       "search",
 			Query:      "Query " + string(rune('A'+i)),
-			ToolName:   "search_content",
+			ToolName:   "oreilly_search_content",
 			DurationMs: int64(i * 100),
 		}
 		if err := manager.AddEntry(entry); err != nil {
@@ -184,7 +184,7 @@ func TestResearchHistoryManager_Persistence(t *testing.T) {
 	entry := ResearchEntry{
 		Type:       "search",
 		Query:      "Kubernetes",
-		ToolName:   "search_content",
+		ToolName:   "oreilly_search_content",
 		Timestamp:  time.Now(),
 		DurationMs: 1500,
 	}
@@ -258,7 +258,7 @@ func TestResearchEntry_FullResponse(t *testing.T) {
 		ID:       "req_test123",
 		Type:     "search",
 		Query:    "Docker containers",
-		ToolName: "search_content",
+		ToolName: "oreilly_search_content",
 		ResultSummary: ResultSummary{
 			Count: 2,
 			TopResults: []TopResultSummary{
@@ -314,7 +314,7 @@ func TestResearchEntry_FullResponsePersistence(t *testing.T) {
 		ID:           "req_persist",
 		Type:         "search",
 		Query:        "Test query",
-		ToolName:     "search_content",
+		ToolName:     "oreilly_search_content",
 		FullResponse: fullResponse,
 		DurationMs:   500,
 	}

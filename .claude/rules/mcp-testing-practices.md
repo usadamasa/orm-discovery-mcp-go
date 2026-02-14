@@ -37,7 +37,7 @@ MCP 互換クライアントを使用してテスト:
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "search_content",
+    "name": "oreilly_search_content",
     "arguments": {
       "query": "Docker containers"
     }
@@ -53,7 +53,7 @@ MCP 互換クライアントを使用してテスト:
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "ask_question",
+    "name": "oreilly_ask_question",
     "arguments": {
       "question": "What career paths are available for software engineers in their late 30s?",
       "max_wait_minutes": 5

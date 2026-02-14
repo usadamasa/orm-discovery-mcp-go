@@ -169,7 +169,7 @@ IMPORTANT: このツールを3回以上呼び出さないでください
 
 ## orm-discovery-mcp-go 改善例
 
-### search_content: Before (878文字)
+### oreilly_search_content: Before (878文字)
 
 ```
 Search O'Reilly Learning Platform content efficiently.
@@ -192,7 +192,7 @@ Results include product_id for accessing detailed content via MCP resources:
 IMPORTANT: Always cite sources with title, author(s), and O'Reilly Media as publisher.
 ```
 
-### search_content: After (約350文字)
+### oreilly_search_content: After (約350文字)
 
 ```
 O'Reillyコンテンツを検索し、書籍/動画/記事のproduct_idを取得する。
@@ -206,7 +206,7 @@ O'Reillyコンテンツを検索し、書籍/動画/記事のproduct_idを取得
 IMPORTANT: ソース情報(タイトル、著者、O'Reilly Media)を引用すること。
 ```
 
-### ask_question: Before (1,008文字)
+### oreilly_ask_question: Before (1,008文字)
 
 ```
 Ask focused technical questions to O'Reilly Answers AI for comprehensive, well-sourced responses.
@@ -233,7 +233,7 @@ Covers: programming, data science, cloud computing, DevOps, machine learning, an
 IMPORTANT: Always cite the sources provided in the response when referencing the information.
 ```
 
-### ask_question: After (約400文字)
+### oreilly_ask_question: After (約400文字)
 
 ```
 O'Reilly Answers AIに技術的な質問を送信し、ソース付きの回答を取得する。
@@ -255,7 +255,7 @@ IMPORTANT: 回答内のソース情報を必ず引用すること。
 
 MCPツール説明を英語で記述する場合の段階的開示パターンです。
 
-### search_content (English)
+### oreilly_search_content (English)
 
 ```
 Search O'Reilly content and return books/videos/articles with product_id for resource access.
@@ -268,7 +268,7 @@ IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.
 ```
 約270文字
 
-### ask_question (English)
+### oreilly_ask_question (English)
 
 ```
 Ask technical questions to O'Reilly Answers AI and get sourced responses.
@@ -294,7 +294,7 @@ MCPリソースとリソーステンプレートは類似した説明を持つ�
 ```
 # Poor: 重複した説明
 Resource Description: "Get comprehensive book information including title, authors, publication date, description, topics, and table of contents."
-Template Description: "Template for accessing O'Reilly book details. Use product_id from search_content results to get comprehensive book information including title, authors, publication date, description, topics, and table of contents."
+Template Description: "Template for accessing O'Reilly book details. Use product_id from oreilly_search_content results to get comprehensive book information including title, authors, publication date, description, topics, and table of contents."
 ```
 
 ### 解決策
@@ -304,7 +304,7 @@ Template Description: "Template for accessing O'Reilly book details. Use product
 ```
 # Good: 役割分担した説明
 Resource Description: "Get book info (title, authors, date, description, topics, TOC). Cite sources when referencing."
-Template Description: "Use product_id from search_content to get book details."
+Template Description: "Use product_id from oreilly_search_content to get book details."
 ```
 
 ### 実装例 (orm-discovery-mcp-go)
@@ -357,7 +357,7 @@ Generate a structured learning path for a specific technology.
 
 Example: learn-technology(technology="Docker", experience_level="beginner")
 
-IMPORTANT: Uses search_content and book-details resources for learning.
+IMPORTANT: Uses oreilly_search_content and book-details resources for learning.
 
 # Poor (冗長)
 Generate a comprehensive, structured learning path for any specific technology you want to learn.
@@ -418,7 +418,7 @@ Generate a structured learning path for a specific technology.
 
 Example: learn-technology(technology="Docker", experience_level="beginner")
 
-IMPORTANT: Uses search_content and book-details resources for learning.
+IMPORTANT: Uses oreilly_search_content and book-details resources for learning.
 
 Arguments:
   technology (必須): 学習対象の技術名 (e.g., Docker, Kubernetes, React)
@@ -460,8 +460,8 @@ Arguments:
 
 | ツール | Before | After | 削減率 |
 |--------|--------|-------|--------|
-| search_content | 600文字 | 270文字 | 55% |
-| ask_question | 800文字 | 280文字 | 65% |
+| oreilly_search_content | 600文字 | 270文字 | 55% |
+| oreilly_ask_question | 800文字 | 280文字 | 65% |
 | **ツール合計** | 1,400文字 | 550文字 | **61%** |
 
 #### リソース/テンプレート説明
