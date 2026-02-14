@@ -37,6 +37,10 @@ type Config struct {
 	// Sampling 設定
 	EnableSampling    bool // Sampling機能を有効にするか、デフォルト: true
 	SamplingMaxTokens int  // Sampling時の最大トークン数、デフォルト: 500
+
+	// HTTP サーバー設定
+	BindAddress    string   // バインドアドレス、デフォルト: "127.0.0.1"
+	AllowedOrigins []string // 許可する Origin のリスト (ALLOWED_ORIGINS 環境変数、カンマ区切り)
 }
 
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
@@ -155,6 +159,21 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	// HTTP サーバー設定
+	bindAddress := "127.0.0.1"
+	if addr := getEnv("BIND_ADDRESS"); addr != "" {
+		bindAddress = addr
+	}
+
+	var allowedOrigins []string
+	if origins := getEnv("ALLOWED_ORIGINS"); origins != "" {
+		for o := range strings.SplitSeq(origins, ",") {
+			if trimmed := strings.TrimSpace(o); trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
+	}
+
 	config := &Config{
 		Port:              port,
 		Debug:             debug,
@@ -171,6 +190,8 @@ func LoadConfig() (*Config, error) {
 		DefaultSearchMode: defaultSearchMode,
 		EnableSampling:    enableSampling,
 		SamplingMaxTokens: samplingMaxTokens,
+		BindAddress:       bindAddress,
+		AllowedOrigins:    allowedOrigins,
 	}
 
 	// slogの設定

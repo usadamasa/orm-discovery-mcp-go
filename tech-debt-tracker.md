@@ -8,109 +8,10 @@
 
 | 優先度 | 件数 | 内容 |
 |--------|------|------|
-| P0 (Critical) | 3 | ツール命名/アノテーション、ページネーション、HTTPセキュリティ |
 | P1 (High) | 2 | URIパース、レスポンス形式 |
-| P2 (Medium) | 3 | エラーメッセージ、デフォルト値、入力バリデーション |
+| P2 (Medium) | 2 | エラーメッセージ、入力バリデーション |
 | P3 (Low) | 5 | ドキュメント、命名、i18n |
-| **合計** | **13** | |
-
----
-
-## P0: Critical
-
-### P0-001: ツール名にサービスプレフィックスがない + アノテーション未設定
-
-**カテゴリ**: Tool Naming / Tool Annotations
-**対象ファイル**: `server.go:129-152`
-**ベストプラクティス参照**: [MCP Spec - Tool Annotations](https://modelcontextprotocol.io/specification/2025-03-26/server/tools#annotations)
-
-**現状**:
-
-```go
-searchTool := &mcp.Tool{
-    Name: "search_content",
-    // ...
-}
-askQuestionTool := &mcp.Tool{
-    Name: "ask_question",
-    // ...
-}
-```
-
-- ツール名にサービスプレフィックスがない (`search_content` → `oreilly_search_content`)
-- `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint` が未設定
-
-**推奨対応**:
-
-```go
-searchTool := &mcp.Tool{
-    Name: "oreilly_search_content",
-    Annotations: &mcp.ToolAnnotations{
-        ReadOnlyHint:    boolPtr(true),
-        DestructiveHint: boolPtr(false),
-        IdempotentHint:  boolPtr(true),
-        OpenWorldHint:   boolPtr(true),
-    },
-    // ...
-}
-```
-
-**影響**: 他の MCP サーバーとツール名が衝突するリスク。LLM がツールの副作用を正しく推測できない。
-
----
-
-### P0-002: ページネーション未対応
-
-**カテゴリ**: Pagination
-**対象ファイル**: `server.go:252-320`, `tools_args.go:17-31`
-**ベストプラクティス参照**: [MCP Spec - Pagination](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/pagination)
-
-**現状**:
-
-- `search_content` に `offset` / `cursor` パラメータがない
-- レスポンスに `has_more`, `next_offset`, `nextCursor` がない
-- デフォルト `rows=100` で全件を一括返却 (line 262-263)
-
-**推奨対応**:
-
-1. `SearchContentArgs` に `offset int` と `limit int` を追加
-2. `SearchContentResult` に `HasMore bool` と `NextOffset int` を追加
-3. デフォルト limit を 20-50 に変更
-4. BFS モードでもページネーションをサポート
-
-**影響**: 大量結果時のコンテキストウィンドウ圧迫。LLM が必要以上のトークンを消費する。
-
----
-
-### P0-003: HTTP サーバーが全インターフェースにバインド
-
-**カテゴリ**: Security / Network Binding
-**対象ファイル**: `main.go:74`, `server.go:71-104`
-**ベストプラクティス参照**: [MCP Spec - Security Best Practices](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#security)
-
-**現状**:
-
-```go
-// main.go:74
-s.StartStreamableHTTPServer(ctx, fmt.Sprintf(":%s", cfg.Port))
-
-// server.go:84
-httpServer := &http.Server{
-    Addr:    port, // ":8080" = 全インターフェース
-    Handler: handler,
-}
-```
-
-- `:8080` は `0.0.0.0:8080` と同等で、外部からアクセス可能
-- Origin ヘッダー検証なし (DNS rebinding 対策未実装)
-
-**推奨対応**:
-
-1. ローカル用途の場合: `127.0.0.1:8080` にバインド
-2. Origin ヘッダー検証ミドルウェアを追加
-3. 環境変数 `BIND_ADDRESS` で設定可能にする
-
-**影響**: ローカルマシンの認証情報が外部ネットワークに露出する可能性。
+| **合計** | **9** | |
 
 ---
 
@@ -209,38 +110,6 @@ Text: fmt.Sprintf(`{"error": "failed to get book details: %v"}`, err),
 3. 内部詳細は `slog.Error` にのみ出力
 
 **影響**: 内部実装の詳細がクライアントに漏洩。セキュリティリスクは低いが、ベストプラクティスに反する。
-
----
-
-### P2-002: デフォルト rows=100 が大きすぎる
-
-**カテゴリ**: Performance / Context Window
-**対象ファイル**: `server.go:262-263`
-**ベストプラクティス参照**: MCP Best Practices - Pagination Default Size
-
-**現状**:
-
-```go
-if args.Rows <= 0 {
-    args.Rows = 100
-}
-```
-
-- ベストプラクティスでは 20-50 が推奨
-- BFS モードでも 100 件のメタデータを返すとコンテキストを圧迫
-
-**推奨対応**:
-
-```go
-if args.Rows <= 0 {
-    args.Rows = 25 // ベストプラクティス推奨値
-}
-if args.Rows > 100 {
-    args.Rows = 100 // 上限
-}
-```
-
-**影響**: LLM のコンテキストウィンドウを不必要に消費。
 
 ---
 
@@ -387,11 +256,11 @@ Version: version, // GoReleaser から注入される値を使用
 
 ## 改善ロードマップ
 
-### Phase 1: セキュリティ/安定性 (P0)
+### Phase 1: セキュリティ/安定性 (P0) - 完了
 
 - [x] P0-001: ツール名プレフィックス追加 + アノテーション設定
-- [ ] P0-002: ページネーション実装
-- [ ] P0-003: HTTP バインドアドレス修正 + Origin 検証
+- [x] P0-002: ページネーション実装
+- [x] P0-003: HTTP バインドアドレス修正 + Origin 検証
 
 ### Phase 2: 堅牢性 (P1)
 
@@ -401,7 +270,7 @@ Version: version, // GoReleaser から注入される値を使用
 ### Phase 3: 品質改善 (P2)
 
 - [ ] P2-001: エラーメッセージの分離
-- [ ] P2-002: デフォルト rows 値の変更
+- [x] P2-002: デフォルト rows 値の変更
 - [ ] P2-003: 入力バリデーション強化
 
 ### Phase 4: ドキュメント/仕上げ (P3)

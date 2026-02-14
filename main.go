@@ -71,8 +71,8 @@ func runMCPServer() {
 	s := NewServer(browserClient, cfg)
 
 	if cfg.Transport == "http" {
-		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf(":%s", cfg.Port)); err != nil {
-			slog.Error("HTTPサーバーの起動に失敗しました", "error", err, "port", cfg.Port)
+		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.BindAddress, cfg.Port)); err != nil {
+			slog.Error("HTTPサーバーの起動に失敗しました", "error", err, "addr", cfg.BindAddress, "port", cfg.Port)
 			os.Exit(1)
 		}
 	} else {
