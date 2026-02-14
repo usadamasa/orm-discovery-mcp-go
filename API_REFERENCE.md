@@ -2,7 +2,7 @@
 
 ## MCPツール
 
-### search_content
+### oreilly_search_content
 
 O'Reilly Learning Platformでコンテンツを検索し、書籍、動画、記事の詳細情報を取得します。検索結果にはproduct_idが含まれ、これを使用してMCPリソース経由で詳細情報にアクセスできます。
 
@@ -26,7 +26,7 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "search_content",
+    "name": "oreilly_search_content",
     "arguments": {
       "query": "Docker containers",
       "rows": 50,
@@ -58,7 +58,7 @@ curl -X POST "http://localhost:8080/mcp" -H "Content-Type: application/json" -d 
 
 ## MCPリソース
 
-MCPリソースを使用して書籍の詳細情報にアクセスします。リソースURIは`search_content`の結果から取得したproduct_idを使用して構築します。
+MCPリソースを使用して書籍の詳細情報にアクセスします。リソースURIは`oreilly_search_content`の結果から取得したproduct_idを使用して構築します。
 
 ### 1. oreilly://book-details/{product_id}
 
@@ -126,7 +126,7 @@ MCPクライアントは以下のリソーステンプレートを使用して�
 
 ### 利用ワークフロー
 
-1. `search_content`ツールで関心のある技術や概念を検索
+1. `oreilly_search_content`ツールで関心のある技術や概念を検索
 2. 検索結果から`product_id`を取得
 3. `oreilly://book-details/{product_id}`リソースで書籍詳細と目次を確認
 4. `oreilly://book-chapter/{product_id}/{chapter_name}`リソースで必要なチャプターの詳細を取得

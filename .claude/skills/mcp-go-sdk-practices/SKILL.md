@@ -232,7 +232,7 @@ func (s *Server) SearchContentHandler(
 
 ```bash
 # MCP Inspector でツールを呼び出し
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_content","arguments":{"query":"Go"}}}' \
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"oreilly_search_content","arguments":{"query":"Go"}}}' \
 | ./bin/orm-discovery-mcp-go 2>&1 | jq '.result.structuredContent'
 ```
 

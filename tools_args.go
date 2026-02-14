@@ -2,7 +2,7 @@ package main
 
 import "github.com/usadamasa/orm-discovery-mcp-go/browser"
 
-// SearchMode defines the exploration mode for search_content tool.
+// SearchMode defines the exploration mode for oreilly_search_content tool.
 type SearchMode string
 
 const (
@@ -14,7 +14,7 @@ const (
 	SearchModeDFS SearchMode = "dfs"
 )
 
-// SearchContentArgs represents the parameters for the search_content tool.
+// SearchContentArgs represents the parameters for the oreilly_search_content tool.
 type SearchContentArgs struct {
 	Query        string   `json:"query" jsonschema:"2-5 focused keywords for specific technologies or frameworks. Avoid full sentences."`
 	Rows         int      `json:"rows,omitempty" jsonschema:"Number of results to return (default: 100)"`
@@ -30,13 +30,13 @@ type SearchContentArgs struct {
 	Summarize bool       `json:"summarize,omitempty" jsonschema:"In DFS mode, use MCP Sampling to generate a summary of results (reduces context consumption)"`
 }
 
-// AskQuestionArgs represents the parameters for the ask_question tool.
+// AskQuestionArgs represents the parameters for the oreilly_ask_question tool.
 type AskQuestionArgs struct {
 	Question           string `json:"question" jsonschema:"Focused technical question in English (under 100 characters preferred)"`
 	MaxWaitTimeSeconds int    `json:"max_wait_time_seconds,omitempty" jsonschema:"Maximum time to wait for answer generation in seconds (default: 300, max: 600)"`
 }
 
-// SearchContentResult represents the structured output for search_content tool.
+// SearchContentResult represents the structured output for oreilly_search_content tool.
 type SearchContentResult struct {
 	Count   int              `json:"count"`
 	Total   int              `json:"total"`
@@ -56,7 +56,7 @@ type BFSResult struct {
 	Authors []string `json:"authors,omitempty"` // Author names
 }
 
-// AskQuestionResult represents the structured output for ask_question tool.
+// AskQuestionResult represents the structured output for oreilly_ask_question tool.
 type AskQuestionResult struct {
 	QuestionID          string                       `json:"question_id"`
 	Question            string                       `json:"question"`
