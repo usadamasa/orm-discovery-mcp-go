@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.0.12](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.11...v0.0.12) - 2026-02-15
+- feat: oreilly_search_content にページネーション対応を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/66
+- fix: HTTPバインドアドレスを127.0.0.1に修正しOrigin検証を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/68
+- introduce agent workflow by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/69
+
 ## [v0.0.11](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.10...v0.0.11) - 2026-02-14
 - feat: MCPツール名にoreilly_プレフィックスを追加しToolAnnotationsを設定 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/64
 
