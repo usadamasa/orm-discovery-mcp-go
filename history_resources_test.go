@@ -40,6 +40,11 @@ func TestExtractHistoryIDFromFullURI(t *testing.T) {
 			uri:      "orm-mcp://history/",
 			expected: "",
 		},
+		{
+			name:     "URL-encoded underscore in ID",
+			uri:      "orm-mcp://history/req%5Fabc123/full",
+			expected: "req_abc123",
+		},
 	}
 
 	for _, tt := range tests {
@@ -77,6 +82,16 @@ func TestExtractHistoryIDFromURI(t *testing.T) {
 			name:     "search is not an ID",
 			uri:      "orm-mcp://history/search",
 			expected: "",
+		},
+		{
+			name:     "URL-encoded underscore in ID",
+			uri:      "orm-mcp://history/req%5Fabc123",
+			expected: "req_abc123",
+		},
+		{
+			name:     "URL-encoded ID with query params",
+			uri:      "orm-mcp://history/req%5Fabc123?foo=bar",
+			expected: "req_abc123",
 		},
 	}
 
@@ -125,6 +140,18 @@ func TestExtractHistorySearchParams(t *testing.T) {
 			name:            "empty params",
 			uri:             "orm-mcp://history/search?",
 			expectedKeyword: "",
+			expectedType:    "",
+		},
+		{
+			name:            "URL-encoded C++ keyword",
+			uri:             "orm-mcp://history/search?keyword=C%2B%2B&type=search",
+			expectedKeyword: "C++",
+			expectedType:    "search",
+		},
+		{
+			name:            "URL-encoded Japanese keyword",
+			uri:             "orm-mcp://history/search?keyword=%E3%83%86%E3%82%B9%E3%83%88",
+			expectedKeyword: "テスト",
 			expectedType:    "",
 		},
 	}

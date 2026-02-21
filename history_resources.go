@@ -310,53 +310,51 @@ func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.Re
 
 // extractHistoryIDFromFullURI は orm-mcp://history/{id}/full 形式のURIからIDを抽出する
 func extractHistoryIDFromFullURI(uri string) string {
-	// クエリパラメータがある場合は除去
-	if idx := strings.Index(uri, "?"); idx != -1 {
-		uri = uri[:idx]
+	if uri == "" {
+		return ""
 	}
-
-	// /full サフィックスを除去
-	uri = strings.TrimSuffix(uri, "/full")
-
-	parts := strings.Split(uri, "/")
-	if len(parts) >= 4 {
-		lastPart := parts[len(parts)-1]
-		if lastPart != "search" && lastPart != "recent" {
-			return lastPart
-		}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
 	}
-	return ""
+	// Path: "/{id}/full"
+	p := strings.TrimPrefix(u.Path, "/")
+	p = strings.TrimSuffix(p, "/full")
+	if p == "" || p == "search" || p == "recent" {
+		return ""
+	}
+	return p
 }
 
 // extractHistorySearchParams はURIから検索パラメータを抽出する
 func extractHistorySearchParams(uri string) (keyword, entryType string) {
 	// orm-mcp://history/search?keyword=xxx&type=yyy の形式
-	if idx := strings.Index(uri, "?"); idx != -1 {
-		queryStr := uri[idx+1:]
-		values, err := url.ParseQuery(queryStr)
-		if err == nil {
-			keyword = values.Get("keyword")
-			entryType = values.Get("type")
-		}
+	if uri == "" {
+		return
 	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return
+	}
+	values := u.Query()
+	keyword = values.Get("keyword")
+	entryType = values.Get("type")
 	return
 }
 
 // extractHistoryIDFromURI はURIからIDを抽出する
 func extractHistoryIDFromURI(uri string) string {
 	// orm-mcp://history/{id} の形式
-	// クエリパラメータがある場合は除去
-	if idx := strings.Index(uri, "?"); idx != -1 {
-		uri = uri[:idx]
+	if uri == "" {
+		return ""
 	}
-
-	parts := strings.Split(uri, "/")
-	if len(parts) >= 4 {
-		lastPart := parts[len(parts)-1]
-		// "search" の場合はIDではない
-		if lastPart != "search" && lastPart != "recent" {
-			return lastPart
-		}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
 	}
-	return ""
+	id := strings.TrimPrefix(u.Path, "/")
+	if id == "" || id == "search" || id == "recent" {
+		return ""
+	}
+	return id
 }
