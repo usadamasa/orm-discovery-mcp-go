@@ -264,7 +264,7 @@ Version: version, // GoReleaser から注入される値を使用
 
 ### Phase 2: 堅牢性 (P1)
 
-- [ ] P1-001: URI パースを `url.Parse()` ベースに統一
+- [x] P1-001: URI パースを `url.Parse()` ベースに統一
 - [ ] P1-002: Markdown レスポンス形式サポート
 
 ### Phase 3: 品質改善 (P2)
