@@ -9,9 +9,10 @@
 | 優先度 | 件数 | 内容 |
 |--------|------|------|
 | P1 (High) | 2 | URIパース、レスポンス形式 |
-| P2 (Medium) | 2 | エラーメッセージ、入力バリデーション |
-| P3 (Low) | 5 | ドキュメント、命名、i18n |
-| **合計** | **9** | |
+| P2 (Medium) | 4 | エラーメッセージ、入力バリデーション、エラー判定、timeout |
+| P3 (Low) | 6 | ドキュメント、命名、i18n、magic string |
+| Testing | 3 | cookie、middleware、testify移行 |
+| **合計** | **15** | |
 
 ---
 
@@ -137,6 +138,65 @@ Text: fmt.Sprintf(`{"error": "failed to get book details: %v"}`, err),
 
 ---
 
+### P2-004: `os.IsNotExist` が非推奨パターン
+
+**カテゴリ**: Error Handling / Correctness
+**対象ファイル**: `research_history.go:92`
+**ベストプラクティス参照**: Go 1.13+ errors パッケージ
+
+**現状**:
+
+```go
+if os.IsNotExist(err) {
+```
+
+- `os.IsNotExist()` はラップされたエラーを検出できない
+- Go 1.13 以降は `errors.Is(err, os.ErrNotExist)` が推奨
+
+**推奨対応**:
+
+```go
+if errors.Is(err, os.ErrNotExist) {
+```
+
+**影響**: 現時点では `os.ReadFile` が直接返すため実害なし。ただしリファクタリングでエラーラップが導入された場合にバグになる。
+
+---
+
+### P2-005: Hardcoded timeout magic numbers
+
+**カテゴリ**: Code Quality / Readability
+**対象ファイル**: `server.go:133-135,143`
+**ベストプラクティス参照**: Go Code Review Comments - Magic Numbers
+
+**現状**:
+
+```go
+ReadTimeout:  30 * time.Second,
+WriteTimeout: 60 * time.Second,
+IdleTimeout:  120 * time.Second,
+// ...
+shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+```
+
+- timeout 値が意図の説明なくリテラルとして埋め込まれている
+- 変更時に複数箇所を確認する必要がある
+
+**推奨対応**:
+
+```go
+const (
+    httpReadTimeout     = 30 * time.Second
+    httpWriteTimeout    = 60 * time.Second
+    httpIdleTimeout     = 120 * time.Second
+    httpShutdownTimeout = 5 * time.Second
+)
+```
+
+**影響**: 可読性と保守性の改善。
+
+---
+
 ## P3: Low
 
 ### P3-001: ツール説明にワーキングサンプルが不足
@@ -237,6 +297,106 @@ Version: version, // GoReleaser から注入される値を使用
 
 ---
 
+### P3-006: Magic string constants in middleware
+
+**カテゴリ**: Code Quality / Readability
+**対象ファイル**: `middleware.go:73,86`
+**ベストプラクティス参照**: Go Code Review Comments - Constants
+
+**現状**:
+
+```go
+if method == "tools/call" {
+// ...
+if method == "resources/read" {
+```
+
+- MCP メソッド名がリテラル文字列として埋め込まれている
+- タイポや不整合のリスク
+
+**推奨対応**:
+
+```go
+const (
+    mcpMethodToolsCall     = "tools/call"
+    mcpMethodResourcesRead = "resources/read"
+)
+```
+
+**影響**: 可読性の改善、タイポ防止。
+
+---
+
+## Testing Debt
+
+### T1: browser/cookie テストなし
+
+**カテゴリ**: Test Coverage
+**対象ファイル**: `browser/cookie/cookie.go` (~150行)
+**優先度**: High
+
+**現状**:
+
+- Cookie 管理ロジック (保存、読み込み、有効期限チェック) にユニットテストがない
+- セキュリティ関連コード (パーミッション `0600`) の検証がない
+
+**推奨対応**:
+
+- Cookie の保存/読み込みラウンドトリップテスト
+- 有効期限切れ Cookie の処理テスト
+- ファイルパーミッションの検証テスト
+
+---
+
+### T2: middleware テストなし
+
+**カテゴリ**: Test Coverage
+**対象ファイル**: `middleware.go` (95行)
+**優先度**: Medium
+
+**現状**:
+
+- ロギングミドルウェアにユニットテストがない
+- ログ出力の条件分岐 (LogLevel による分岐) が未検証
+
+**推奨対応**:
+
+- Debug/Info レベルでの出力切り替えテスト
+- ツール呼び出し/リソース読み込みの識別テスト
+
+---
+
+### T3: browser テストの testify 移行
+
+**カテゴリ**: Test Consistency
+**対象ファイル**: `browser/auth_test.go`, `browser/answers_test.go`
+**優先度**: Low
+
+**現状**:
+
+- プロジェクト全体では `testify` を使用しているが、browser パッケージの一部テストは標準の `testing` パッケージのみ
+- アサーション形式の不統一
+
+**推奨対応**:
+
+- `assert` / `require` パッケージへの段階的移行
+- プロジェクト全体での一貫性確保
+
+---
+
+## 対応不要と判定した項目
+
+以下の項目は分析で検討したが、対応不要と判定した:
+
+| 問題 | 判定理由 |
+|------|----------|
+| bare error returns (server.go:151, browser/auth.go:290,376) | server.go:151 は `ListenAndServe` のトップレベルエラー。browser/auth.go は `chromedp.ActionFunc` 内でラップ不適切 |
+| `_ = options["languages"]` 未使用 (server.go) | コメントで「将来の拡張用」と明示。意図的な保持 |
+| server.go が大きい (965行) | 機能追加に支障なし。分割のリスク > メリット |
+| browser/book.go, search.go テストなし | E2E でカバー済み。ユニットテスト追加は大工数で別フェーズ |
+
+---
+
 ## 準拠している項目 (Good Practices)
 
 以下の項目はベストプラクティスに準拠していることを確認:
@@ -272,6 +432,8 @@ Version: version, // GoReleaser から注入される値を使用
 - [ ] P2-001: エラーメッセージの分離
 - [x] P2-002: デフォルト rows 値の変更
 - [ ] P2-003: 入力バリデーション強化
+- [x] P2-004: `os.IsNotExist` → `errors.Is` 修正
+- [x] P2-005: Timeout magic numbers の定数化
 
 ### Phase 4: ドキュメント/仕上げ (P3)
 
@@ -280,3 +442,10 @@ Version: version, // GoReleaser から注入される値を使用
 - [ ] P3-003: パフォーマンス特性ドキュメント追加
 - [ ] P3-004: サーバー実装名の修正
 - [ ] P3-005: 日本語ストップワード対応
+- [x] P3-006: Middleware の magic string 定数化
+
+### Phase 5: テストカバレッジ改善
+
+- [ ] T1: browser/cookie テスト追加
+- [ ] T2: middleware テスト追加
+- [ ] T3: browser テストの testify 移行
