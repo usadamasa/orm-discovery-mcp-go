@@ -58,13 +58,18 @@ func NewManager(cacheDir string, debug bool) (*Manager, error) {
 	// ChromeDPオプションの設定
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.UserDataDir(chromeDataDir),
-		chromedp.Flag("headless", true),
+		// 新 headless モード (Chrome 109+): CDN のボット検出を回避
+		chromedp.Flag("headless", "new"),
 		chromedp.Flag("disable-gpu", true),
-		chromedp.Flag("disable-dev-shm-usage", true),
+		// 自動化マーカーを隠蔽 (navigator.webdriver を無効化)
+		chromedp.Flag("enable-automation", false),
+		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-web-security", true),
-		chromedp.Flag("disable-features", "VizDisplayCompositor"),
-		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
+		// デフォルトの disable-features とマージ (上書きではなく)
+		chromedp.Flag("disable-features", "site-per-process,Translate,BlinkGenPropertyTrees,VizDisplayCompositor"),
+		// システム Chrome に合わせた User-Agent
+		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
 	)
 
 	// タイムアウト付きコンテキストでブラウザを起動
