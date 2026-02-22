@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -89,7 +90,7 @@ func (m *ResearchHistoryManager) Load() error {
 
 	data, err := os.ReadFile(m.filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			// ファイルが存在しない場合は新規作成
 			m.history = &ResearchHistory{
 				Version:     1,

@@ -65,12 +65,18 @@ func createLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
 	}
 }
 
+// MCP method constants used in middleware routing.
+const (
+	mcpMethodToolsCall     = "tools/call"
+	mcpMethodResourcesRead = "resources/read"
+)
+
 // createToolLoggingMiddleware creates middleware for logging tool calls.
 func createToolLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			// Only log for tool calls
-			if method == "tools/call" {
+			if method == mcpMethodToolsCall {
 				if logLevel <= slog.LevelDebug {
 					reqJSON, _ := json.Marshal(req)
 					slog.Debug("ツール呼び出し開始",
@@ -83,7 +89,7 @@ func createToolLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
 			}
 
 			// Only log for resource reads
-			if method == "resources/read" {
+			if method == mcpMethodResourcesRead {
 				slog.Debug("リソース読み込み開始",
 					"method", method)
 			}

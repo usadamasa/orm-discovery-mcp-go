@@ -15,6 +15,14 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
+// HTTP server timeout constants.
+const (
+	httpReadTimeout     = 30 * time.Second
+	httpWriteTimeout    = 60 * time.Second
+	httpIdleTimeout     = 120 * time.Second
+	httpShutdownTimeout = 5 * time.Second
+)
+
 // Server is the MCP server implementation.
 type Server struct {
 	browserClient   *browser.BrowserClient
@@ -130,9 +138,9 @@ func (s *Server) StartStreamableHTTPServer(ctx context.Context, addr string) err
 	httpServer := &http.Server{
 		Addr:         addr,
 		Handler:      handler,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  httpReadTimeout,
+		WriteTimeout: httpWriteTimeout,
+		IdleTimeout:  httpIdleTimeout,
 	}
 
 	slog.Info("HTTPサーバーを作成しました")
@@ -140,7 +148,7 @@ func (s *Server) StartStreamableHTTPServer(ctx context.Context, addr string) err
 	// Handle graceful shutdown
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			slog.Error("HTTPサーバーのシャットダウンに失敗しました", "error", err)
