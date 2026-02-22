@@ -75,6 +75,41 @@ type BFSResult struct {
 	Authors []string `json:"authors,omitempty"` // Author names
 }
 
+// ReviewPRArgs represents the parameters for the review_pr tool.
+type ReviewPRArgs struct {
+	RepoPath   string `json:"repo_path" jsonschema:"Absolute path to the git repository to review"`
+	BaseBranch string `json:"base_branch,omitempty" jsonschema:"Base branch for diff comparison (default: main)"`
+}
+
+// ReviewPRResult represents the structured output for the review_pr tool.
+type ReviewPRResult struct {
+	Summary    ReviewPRSummary   `json:"summary"`
+	Findings   []ReviewPRFinding `json:"findings"`
+	BaseBranch string            `json:"base_branch"`
+	TotalFiles int               `json:"total_files"`
+	Errors     []string          `json:"errors,omitempty"`
+}
+
+// ReviewPRSummary holds counts of findings by severity.
+type ReviewPRSummary struct {
+	CriticalCount int `json:"critical_count"`
+	WarningCount  int `json:"warning_count"`
+	InfoCount     int `json:"info_count"`
+}
+
+// ReviewPRFinding is a JSON-friendly representation of a Finding for MCP responses.
+type ReviewPRFinding struct {
+	ID         string         `json:"id"`
+	Severity   string         `json:"severity"`
+	Category   string         `json:"category"`
+	Message    string         `json:"message"`
+	CriticName string         `json:"critic_name"`
+	FilePath   string         `json:"file_path,omitempty"`
+	Suggestion string         `json:"suggestion,omitempty"`
+	Confidence float64        `json:"confidence"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
 // AskQuestionResult represents the structured output for oreilly_ask_question tool.
 type AskQuestionResult struct {
 	QuestionID          string                       `json:"question_id"`
