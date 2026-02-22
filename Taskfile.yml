@@ -48,7 +48,7 @@ tasks:
   # === Testing ===
   test:
     desc: Goのテストを実行
-    deps: [generate:api:oreilly]
+    deps: [lint]
     sources:
       - '**/*.go'
       - 'go.mod'
@@ -58,7 +58,7 @@ tasks:
 
   test:unit:
     desc: Unitテストのみを実行（E2Eを除く）
-    deps: [generate:api:oreilly]
+    deps: [lint]
     sources:
       - '**/*.go'
       - 'go.mod'
@@ -79,7 +79,7 @@ tasks:
 
   test:coverage:
     desc: カバレッジ付きでテストを実行
-    deps: [generate:api:oreilly]
+    deps: [lint]
     sources:
       - '**/*.go'
       - 'go.mod'
@@ -93,7 +93,7 @@ tasks:
   # === Building ===
   build:
     desc: Goのビルドを実行
-    deps: [generate:api:oreilly, lint]
+    deps: [lint]
     sources:
       - '**/*.go'
       - 'go.mod'
@@ -102,11 +102,11 @@ tasks:
       - '{{.BIN_DIR}}/{{.BINARY_NAME}}'
     cmds:
       - mkdir -p {{.BIN_DIR}}
-      - go build -trimpath -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
+      - go build -trimpath -buildvcs=false -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
 
   build:release:
     desc: リリース用ビルド（最適化あり）
-    deps: [generate:api:oreilly, lint, test]
+    deps: [lint, test]
     sources:
       - '**/*.go'
       - 'go.mod'
@@ -116,13 +116,13 @@ tasks:
     cmds:
       - mkdir -p {{.BIN_DIR}}
       - |
-        go build -trimpath \
+        go build -trimpath -buildvcs=false \
           -ldflags="-s -w -X main.version=dev -X main.commit=local -X main.date={{now | date \"2006-01-02T15:04:05Z07:00\"}}" \
           -o {{.BIN_DIR}}/{{.BINARY_NAME}} .
 
   install:
     desc: Go バイナリをGOPATH/binにインストール（常にクリーンビルド）
-    deps: [generate:api:oreilly, lint]
+    deps: [lint]
     vars:
       GIT_VERSION:
         sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
@@ -133,7 +133,7 @@ tasks:
     cmds:
       - go clean -i .
       - |
-        go install -trimpath -v \
+        go install -trimpath -buildvcs=false -v \
           -ldflags="-X main.version={{.GIT_VERSION}} -X main.commit={{.GIT_COMMIT}} -X main.date={{.BUILD_DATE}}" \
           .
 
@@ -231,11 +231,19 @@ tasks:
   # === Composite Tasks ===
   dev:
     desc: 開発用タスク（フォーマット + リント + テスト）
-    deps: [format, lint, test]
+    cmds:
+      - task: lint
+      - task: test
 
   ci:
     desc: CI用タスク（すべてのチェック + ビルド + プラグイン検証）
-    deps: [format, lint, test:coverage, build, plugin:validate:marketplace]
+    cmds:
+      - task: lint
+      - task: ci:verify
+
+  ci:verify:
+    internal: true
+    deps: [test:coverage, build, plugin:validate:marketplace]
 
   all:
     desc: すべてのタスクを実行
