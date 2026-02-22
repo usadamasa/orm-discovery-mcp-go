@@ -57,9 +57,9 @@ which orm-discovery-mcp-go
 > 「Go」で1件だけ検索して、結果が返るか確認してください
 
 - **成功** → Phase 4 へ
-- **失敗** → 以下を案内して停止:
+- **失敗** → ユーザーに以下を案内し、**このスキルの実行を停止する**:
   - `task install` でバイナリは更新されたが、Claude Code セッション中の MCP サーバープロセスは古いまま
-  - `/mcp` コマンドで MCP サーバーを再起動してから再実行してください
+  - ユーザーが `/mcp` コマンドで MCP サーバーを再起動した後、`/dogfood-verify` を再実行する
 
 ### Phase 4: 全 MCP ツールのスモークテスト
 
@@ -149,7 +149,7 @@ gh pr view --json number,title,headRefName,baseRefName
 - book-details chain: ✅/❌/⏭️
 ### MCP Prompts:
 - learn-technology: ✅/❌/⏭️
-### review_pr: ✅/❌/⏭️ (未実装)
+### review_pr: ✅/❌/⏭️
 
 ### Self PR Review (PR #XXX): Critical X / Warning Y / Info Z
 ### Recommendation: finalize-pr 推奨 or 修正必要
@@ -176,5 +176,6 @@ gh pr view --json number,title,headRefName,baseRefName
 - MCP サーバーの再起動が必要な場合がある (`/mcp` コマンド案内)
 - O'Reilly 認証情報 (OREILLY_USER_ID, OREILLY_PASSWORD) が環境変数に設定されていること
 - `oreilly_ask_question` のタイムアウトは警告のみ (ネットワーク依存のため)
-- review_pr ツールは main に未マージの場合がある → 未登録時はスキップ
+- review_pr ツールが未登録の場合はスキップ
+- Resources/Prompts は代表的な項目のみスモークテスト (全件は dogfood-improve で追跡)
 - このスキルの実行中にエラーが発生した場合は、その時点で停止して報告する

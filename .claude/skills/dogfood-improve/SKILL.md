@@ -25,19 +25,21 @@ dogfood-verify スキルの自己改善ループ。MCP サーバーの登録状�
 
 ### Step 1: MCP 登録状態の収集
 
-server.go から現在登録されている MCP ケイパビリティを抽出する。
+全 Go ソースファイルから現在登録されている MCP ケイパビリティを抽出する。
+
+**注意**: これらの grep コマンドはエージェントへのガイドラインであり、Grep ツールを使用して実行する。
 
 ```bash
-# ツール登録
-grep -n 'AddTool\|mcp.AddTool' server.go
+# ツール登録 (server.go)
+grep -n 'mcp.AddTool' server.go
 
-# リソース登録
-grep -n 'AddResource\b' server.go
+# リソース登録 (server.go + history_resources.go)
+grep -n 'AddResource[^T]' server.go history_resources.go
 
-# リソーステンプレート登録
-grep -n 'AddResourceTemplate' server.go
+# リソーステンプレート登録 (server.go + history_resources.go)
+grep -n 'AddResourceTemplate' server.go history_resources.go
 
-# プロンプト登録
+# プロンプト登録 (prompts.go, server.go)
 grep -n 'AddPrompt' prompts.go server.go
 ```
 
@@ -59,8 +61,8 @@ Step 1 と Step 2 の結果を比較し、以下の差分を検出する:
 |-----------|------|---------- |
 | **新規ツール** | server.go に登録されているがスキルに未記載 | Phase 4 にスモークテスト追加 |
 | **削除ツール** | スキルに記載されているが server.go から削除 | Phase 4 からテスト削除 |
-| **新規リソース** | server.go に登録されているがスキルに未記載 | 必要に応じて Phase 4 に追加 |
-| **新規プロンプト** | prompts.go に登録されているがスキルに未記載 | 情報を更新 |
+| **新規リソース** | server.go / history_resources.go に登録されているがスキルに未記載 | 必要に応じて Phase 4 に追加 |
+| **新規プロンプト** | prompts.go / server.go に登録されているがスキルに未記載 | 情報を更新 |
 
 ### Step 4: スキルファイル自動更新
 
@@ -128,8 +130,8 @@ chore: update dogfood-verify skill to match current MCP capabilities
 
 ## 注意事項
 
-- server.go / prompts.go の解析は grep ベース (AST 解析ではない)
+- ソースファイルの解析は Grep ツールベース (AST 解析ではない)
+- 検索対象: server.go, history_resources.go, prompts.go (MCP 登録を含む全ファイル)
 - ツール名は `mcp.AddTool` の引数から推定する
 - 自動更新後は差分を表示してユーザーに確認を取る
-- plugin.json の agents 定義も参照対象とする
 - このスキルは dogfood-verify のみを対象とする (他スキルは改善しない)
