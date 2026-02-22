@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // Severity is the severity level of a Finding.
 type Severity string
@@ -44,4 +48,37 @@ type Finding struct {
 	Suggestion string         `json:"suggestion,omitempty"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
 	CreatedAt  time.Time      `json:"created_at"`
+}
+
+// Valid reports whether s is a recognized Severity value.
+func (s Severity) Valid() bool {
+	switch s {
+	case SeverityCritical, SeverityWarning, SeverityInfo:
+		return true
+	}
+	return false
+}
+
+// Valid reports whether c is a recognized Category value.
+func (c Category) Valid() bool {
+	switch c {
+	case CategoryMissingTest, CategoryInfraChange, CategoryLargeDiff,
+		CategoryBuildFailure, CategoryLintError, CategorySecurityVulnerability,
+		CategoryBreakingChange, CategoryStyleIssue:
+		return true
+	}
+	return false
+}
+
+// NewFinding creates a new Finding with auto-generated ID, CreatedAt, and default Confidence.
+func NewFinding(severity Severity, category Category, message string, location Location) Finding {
+	return Finding{
+		ID:         "find_" + uuid.New().String()[:8],
+		Severity:   severity,
+		Category:   category,
+		Message:    message,
+		Location:   location,
+		Confidence: 0.5,
+		CreatedAt:  time.Now(),
+	}
 }
