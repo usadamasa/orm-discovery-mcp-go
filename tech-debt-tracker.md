@@ -461,6 +461,9 @@ exclusion を削除してメトリクスを改善することが目標。
 - [ ] M4: `config.go` の gocognit/gocyclo/funlen 削減
 - [ ] M5: `prompts.go` の funlen 削減
 - [ ] M6: `internal/git/diff.go` の gocognit 削減
+- [ ] M7: `browser/search.go` SearchContent の gocognit/gocyclo 削減
+- [ ] M8: `browser/book.go` convertAPIFlatTOCToLocal の gocognit 削減
+- [ ] M9: `browser/book.go` parseHTMLNode の gocognit 削減
 
 ---
 
@@ -536,3 +539,42 @@ exclusion を削除してメトリクスを改善することが目標。
 
 **推奨対応**:
 - オプションビルダーパターンに変更してネストを削減
+
+---
+
+### M7: browser/search.go SearchContent の複雑度
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/search.go:239`
+**除外リンター**: gocognit (22 > 20), gocyclo (23 > 20)
+
+**背景**: PR #120 Copilot レビュー対応で exclusion ルールのスコープを `normalizeSearchResult` に絞り込んだ際に顕在化。
+
+**推奨対応**:
+- 検索オプションのビルド処理を分離した関数に切り出す
+
+---
+
+### M8: browser/book.go convertAPIFlatTOCToLocal の gocognit
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/book.go:295`
+**除外リンター**: gocognit (25 > 20)
+
+**背景**: PR #120 Copilot レビュー対応で exclusion ルールのスコープを `convertAPIBookDetailToLocal` に絞り込んだ際に顕在化。
+
+**推奨対応**:
+- TOC エントリの変換ロジックを小さな関数に分解する
+
+---
+
+### M9: browser/book.go parseHTMLNode の gocognit
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/book.go:483`
+**除外リンター**: gocognit (26 > 20)
+
+**背景**: PR #120 Copilot レビュー対応で exclusion ルールのスコープを `convertAPIBookDetailToLocal` に絞り込んだ際に顕在化。
+
+**推奨対応**:
+- HTML ノードタイプ別の処理を個別関数に分離する

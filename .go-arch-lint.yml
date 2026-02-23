@@ -3,7 +3,7 @@ version: 3
 excludeFiles:
   - "browser/generated/.*\\.go$"  # OpenAPI 生成コードはチェック対象外
   - "e2e/.*\\.go$"                # E2E テストはチェック対象外
-  - ".*_test\\.go$"               # テストファイルの vendor 依存はスキップ
+  - ".*_test\\.go$"               # テストファイルはアーキテクチャチェック対象外
 
 vendors:
   chromedp:
@@ -89,10 +89,10 @@ deps:
       - git
 
   git:
-    anyVendorDeps: true  # 標準ライブラリのみ使用。内部コンポーネントへの依存は不可
+    anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可
 
   model:
-    anyVendorDeps: true  # 標準ライブラリのみ使用。内部コンポーネントへの依存は不可
+    anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可
 
   version:
-    anyVendorDeps: true  # 標準ライブラリのみ使用。内部コンポーネントへの依存は不可
+    anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可
