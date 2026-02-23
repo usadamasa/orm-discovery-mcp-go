@@ -47,6 +47,14 @@ tasks:
     cmds:
       - golangci-lint run --timeout=5m
 
+  arch-lint:
+    desc: パッケージ依存方向のアーキテクチャリントを実行
+    sources:
+      - '**/*.go'
+      - '.go-arch-lint.yml'
+    cmds:
+      - go-arch-lint check --project-path .
+
   # === Testing ===
   test:
     desc: Goのテストを実行
@@ -241,6 +249,7 @@ tasks:
     desc: CI用タスク（すべてのチェック + ビルド + プラグイン検証）
     cmds:
       - task: lint
+      - task: arch-lint
       - task: ci:verify
 
   ci:verify:

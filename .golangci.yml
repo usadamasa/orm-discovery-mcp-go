@@ -1,6 +1,14 @@
 version: "2"
 
 linters:
+  enable:
+    - gocognit   # 認知的複雑度
+    - gocyclo    # 循環的複雑度
+    - funlen     # 関数長
+    - nestif     # ネスト深さ
+    - maintidx   # 保守性指数
+    # deadcode は golangci-lint v2 では利用不可。staticcheck (SA4000系) でカバー
+
   settings:
     errcheck:
       # fmt.Fprintln/Fprintf/Fprint are the io.Writer variants of fmt.Println/Printf/Print.
@@ -10,3 +18,89 @@ linters:
         - fmt.Fprintln
         - fmt.Fprintf
         - fmt.Fprint
+
+    gocognit:
+      min-complexity: 20  # 目標値
+
+    gocyclo:
+      min-complexity: 20  # 目標値
+
+    funlen:
+      lines: 100
+      statements: 60
+      ignore-comments: true
+
+    nestif:
+      min-complexity: 8  # middleware.go(6), server.go(7) を通過させるために調整
+
+    maintidx:
+      under: 20
+
+  exclusions:
+    rules:
+      # 生成コードはすべての複雑度チェック対象外
+      - path: "browser/generated/"
+        linters:
+          - gocognit
+          - gocyclo
+          - funlen
+          - nestif
+          - maintidx
+
+      # runVisibleLogin (goroutine管理) は構造上の必然
+      - path: "browser/login\\.go"
+        linters:
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+
+      # normalizeSearchResult (~170行) は API nil-safe 正規化の性質上
+      # TODO: リファクタリング後に削除する
+      - path: "browser/search\\.go"
+        linters:
+          - funlen
+          - gocognit
+          - gocyclo
+          - maintidx
+
+      # convertAPIBookDetailToLocal は API 変換の性質上、認知的複雑度が高い
+      # TODO: リファクタリング後に削除する
+      - path: "browser/book\\.go"
+        linters:
+          - gocognit
+          - gocyclo
+
+      # LoadConfig は環境変数ロードの性質上、複雑度・文ステートメント数が高い
+      # TODO: リファクタリング後に削除する
+      - path: "config\\.go"
+        linters:
+          - gocognit
+          - gocyclo
+          - funlen
+
+      # registerPrompts はプロンプト登録の構造上、自然に長くなる
+      # TODO: リファクタリング後に削除する
+      - path: "prompts\\.go"
+        linters:
+          - funlen
+
+      # GetDiff は git diff オプション処理の性質上、認知的複雑度が高い
+      # TODO: リファクタリング後に削除する
+      - path: "internal/git/diff\\.go"
+        linters:
+          - gocognit
+
+      # E2Eテストは複雑度制限を緩和
+      - path: "e2e/"
+        linters:
+          - funlen
+          - gocognit
+          - gocyclo
+          - nestif
+
+      # テストファイルはテーブル駆動テストで自然に長くなる・複雑度が上がる
+      - path: "_test\\.go$"
+        linters:
+          - funlen
+          - gocognit

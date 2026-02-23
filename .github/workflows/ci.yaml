@@ -16,6 +16,7 @@ jobs:
     needs:
       - test
       - lint
+      - arch-lint
     steps:
       - run: exit 1
 
@@ -69,3 +70,20 @@ jobs:
 
       - name: Run lint
         run: task lint
+
+  arch-lint:
+    name: Architecture Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Aqua
+        uses: ./.github/actions/setup-aqua
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Run architecture lint
+        run: go-arch-lint check --project-path .
