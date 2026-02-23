@@ -259,6 +259,28 @@ func (bc *BrowserClient) login(userID, password string) ([]*http.Cookie, error) 
 		chromedp.Navigate("https://www.oreilly.com/member/login/"),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			slog.Debug("ログインページに移動しました")
+			// ナビゲーション直後にスクリーンショット (Access Denied 検出のため WaitVisible より前)
+			bc.debugScreenshot(ctx, "orm_login_page_initial")
+			return nil
+		}),
+		// Access Denied チェック: タイトルを確認してブロックを早期検出
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var title string
+			if err := chromedp.Title(&title).Do(ctx); err != nil {
+				slog.Debug("ページタイトル取得失敗", "error", err)
+				return nil // タイトル取得失敗は継続
+			}
+			slog.Debug("ログインページタイトル", "title", title)
+			if strings.Contains(strings.ToLower(title), "access denied") {
+				bc.debugScreenshot(ctx, "orm_access_denied")
+				slog.Error("Akamai Bot Manager によりアクセスがブロックされました",
+					"title", title,
+					"hint", "Cookie-first 運用を推奨: 手動ログインしてCookieを保存してください",
+				)
+				return fmt.Errorf("akamai bot manager によりブロックされました (title: %q)\n"+
+					"対処方法: 通常のChrome/Safariブラウザで https://www.oreilly.com/member/login/ にログインし、\n"+
+					"ブラウザの開発者ツールからCookieを取得して保存してください", title)
+			}
 			return nil
 		}),
 		// メールアドレスの入力

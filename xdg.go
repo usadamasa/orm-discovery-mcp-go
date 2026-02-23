@@ -96,6 +96,12 @@ func (x *XDGDirs) ChromeDataDir() string {
 	return x.StateHome
 }
 
+// ChromeSetupDataDir はCookieセットアップ用の一時Chromeデータディレクトリを返す
+// セットアップ完了後に削除される
+func (x *XDGDirs) ChromeSetupDataDir() string {
+	return filepath.Join(x.StateHome, fmt.Sprintf("chrome-setup-data-%d", os.Getpid()))
+}
+
 // ScreenshotDir はスクリーンショット保存ディレクトリのパスを返す
 // StateHomeに保存（セッション状態のため）
 func (x *XDGDirs) ScreenshotDir() string {
