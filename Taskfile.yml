@@ -39,6 +39,8 @@ tasks:
   lint:
     desc: Goコードのリントを実行
     deps: [format]
+    env:
+      GOFLAGS: "-buildvcs=false"
     sources:
       - '**/*.go'
       - '.golangci.yml'
