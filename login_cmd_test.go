@@ -1,7 +1,9 @@
 package main
 
 import (
+	"net"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -22,9 +24,17 @@ func TestFindSystemChrome(t *testing.T) {
 }
 
 func TestWaitForCDPWithTimeout_Timeout(t *testing.T) {
-	// 使用されていないポートに接続を試み、タイムアウトすることを確認
-	// ポート 59998 は通常使用されていない
-	wsURL, err := waitForCDPWithTimeout("59998", 2*time.Second)
+	// 動的に未使用ポートを取得してすぐに解放する
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("未使用ポートの取得に失敗: %v", err)
+	}
+	port := strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+	if err := ln.Close(); err != nil { // ポートを解放してから waitForCDPWithTimeout に渡す
+		t.Fatalf("リスナーのクローズに失敗: %v", err)
+	}
+
+	wsURL, err := waitForCDPWithTimeout(port, 2*time.Second)
 	if err == nil {
 		t.Error("waitForCDPWithTimeout() should return error when port is not available")
 	}

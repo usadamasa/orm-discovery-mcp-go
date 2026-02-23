@@ -20,6 +20,10 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+// errUnauthenticated は HTTP 401/403 による認証失敗を表すセンチネルエラー。
+// ネットワークエラーとは区別され、Cookie の削除判断に使用される。
+var errUnauthenticated = errors.New("認証されていません (401/403)")
+
 const ormHome = "https://learning.oreilly.com/home/"
 
 // GzipTransport is a custom transport that automatically handles gzip decompression
@@ -109,7 +113,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 			client.cookieManager = cookieManager
 
 			// HTTPリクエストでCookieが有効かどうか検証（chromedp不要）
-			if client.validateAuthenticationViaHTTP() {
+			if client.validateAuthenticationViaHTTP() == nil {
 				slog.Info("Cookieを使用してログインが完了しました")
 
 				// デバッグモードでなければ、ブラウザをクローズ
@@ -424,16 +428,19 @@ func (bc *BrowserClient) login(userID, password string) ([]*http.Cookie, error) 
 	return cookies, nil
 }
 
-// validateAuthenticationViaHTTP はHTTPリクエストでCookieの有効性を検証します
-// chromedpを使用せずにHTTPクライアントで認証を検証する
-func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
+// validateAuthenticationViaHTTP はHTTPリクエストでCookieの有効性を検証します。
+// chromedpを使用せずにHTTPクライアントで認証を検証する。
+// 戻り値:
+//   - nil: 認証成功 (200)
+//   - errUnauthenticated: 401/403 による認証失敗 (Cookie を削除すべき)
+//   - その他エラー: ネットワーク障害や予期しないレスポンス (Cookie は保持すべき)
+func (bc *BrowserClient) validateAuthenticationViaHTTP() error {
 	ctx, cancel := context.WithTimeout(context.Background(), AuthValidationTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", ormHome, nil)
 	if err != nil {
-		slog.Warn("認証検証リクエスト作成に失敗", "error", err)
-		return false
+		return fmt.Errorf("認証検証リクエスト作成に失敗: %w", err)
 	}
 
 	// ヘッダー設定
@@ -452,8 +459,7 @@ func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
 
 	resp, err := bc.httpClient.Do(req)
 	if err != nil {
-		slog.Warn("認証検証リクエストに失敗", "error", err)
-		return false
+		return fmt.Errorf("認証検証リクエストに失敗: %w", err)
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
@@ -461,33 +467,40 @@ func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
 		}
 	}()
 
-	// 401/403 は認証失敗
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+	// 401/403 は認証失敗 (Cookie が無効)
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		slog.Info("認証が無効です", "status", resp.StatusCode)
-		return false
+		return errUnauthenticated
 	}
 
 	// 200 は認証成功
-	if resp.StatusCode == 200 {
+	if resp.StatusCode == http.StatusOK {
 		slog.Info("HTTP認証検証成功", "status", resp.StatusCode)
-		return true
+		return nil
 	}
 
-	// それ以外のステータスコード（302リダイレクトなど）は認証失敗として扱う
+	// それ以外のステータスコード（302リダイレクトなど）はネットワーク的な問題として扱う
 	slog.Warn("予期しないステータスコード", "status", resp.StatusCode)
-	return false
+	return fmt.Errorf("予期しないステータスコード: %d", resp.StatusCode)
 }
 
 // CheckAndResetAuth はCookieの有効性を検証し、期限切れの場合はCookieファイルを削除します。
-// 認証済みの場合は nil を返します。未認証の場合は stale Cookie を削除してエラーを返します。
+// 認証済みの場合は nil を返します。
+// 401/403 が確定した場合のみ stale Cookie を削除してエラーを返します。
+// ネットワークエラーの場合は Cookie を保持したままエラーを返します。
 func (bc *BrowserClient) CheckAndResetAuth() error {
-	if bc.validateAuthenticationViaHTTP() {
+	err := bc.validateAuthenticationViaHTTP()
+	if err == nil {
 		return nil
 	}
-	if delErr := bc.cookieManager.DeleteCookieFile(); delErr != nil {
-		slog.Warn("期限切れCookieの削除に失敗", "error", delErr)
+	if errors.Is(err, errUnauthenticated) {
+		// 401/403 が確定した場合のみ Cookie を削除
+		if delErr := bc.cookieManager.DeleteCookieFile(); delErr != nil {
+			slog.Warn("期限切れCookieの削除に失敗", "error", delErr)
+		}
 	}
-	return fmt.Errorf("cookieが無効です。再認証が必要です")
+	// ネットワークエラーの場合は Cookie を保持したままエラーを返す
+	return fmt.Errorf("cookieが無効です。再認証が必要です: %w", err)
 }
 
 // ReloadCookies はCookieファイルを再読み込みして認証を検証します。
@@ -496,8 +509,8 @@ func (bc *BrowserClient) ReloadCookies() error {
 	if err := bc.cookieManager.LoadCookies(); err != nil {
 		return fmt.Errorf("cookieの読み込みに失敗しました: %w", err)
 	}
-	if !bc.validateAuthenticationViaHTTP() {
-		return fmt.Errorf("cookie読み込み後の認証検証に失敗しました")
+	if err := bc.validateAuthenticationViaHTTP(); err != nil {
+		return fmt.Errorf("cookie読み込み後の認証検証に失敗しました: %w", err)
 	}
 	return nil
 }

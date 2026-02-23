@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -484,10 +485,11 @@ func TestGzipTransport_RoundTrip(t *testing.T) {
 
 func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 	tests := []struct {
-		name            string
-		setupHTTPClient func() *MockHTTPClient
-		cookies         []*http.Cookie
-		wantResult      bool
+		name                string
+		setupHTTPClient     func() *MockHTTPClient
+		cookies             []*http.Cookie
+		wantErr             bool
+		wantUnauthenticated bool // 401/403 による errUnauthenticated を期待するか
 	}{
 		{
 			name: "正常系: 200レスポンスで認証成功",
@@ -500,10 +502,10 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 				{Name: "orm-jwt", Value: "valid-token", Domain: ".oreilly.com"},
 				{Name: "groot_sessionid", Value: "session-123", Domain: ".oreilly.com"},
 			},
-			wantResult: true,
+			wantErr: false,
 		},
 		{
-			name: "異常系: 401レスポンスで認証失敗",
+			name: "異常系: 401レスポンスで認証失敗 (errUnauthenticated)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithResponse(
 					createMockHTTPResponse(401, "Unauthorized", nil),
@@ -512,10 +514,11 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 			cookies: []*http.Cookie{
 				{Name: "orm-jwt", Value: "expired-token", Domain: ".oreilly.com"},
 			},
-			wantResult: false,
+			wantErr:             true,
+			wantUnauthenticated: true,
 		},
 		{
-			name: "異常系: 403レスポンスで認証失敗",
+			name: "異常系: 403レスポンスで認証失敗 (errUnauthenticated)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithResponse(
 					createMockHTTPResponse(403, "Forbidden", nil),
@@ -524,25 +527,28 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 			cookies: []*http.Cookie{
 				{Name: "orm-jwt", Value: "invalid-token", Domain: ".oreilly.com"},
 			},
-			wantResult: false,
+			wantErr:             true,
+			wantUnauthenticated: true,
 		},
 		{
-			name: "異常系: HTTPリクエストエラーで認証失敗",
+			name: "異常系: HTTPリクエストエラーで認証失敗 (ネットワークエラー)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithError(io.EOF)
 			},
-			cookies:    []*http.Cookie{},
-			wantResult: false,
+			cookies:             []*http.Cookie{},
+			wantErr:             true,
+			wantUnauthenticated: false, // ネットワークエラーは errUnauthenticated ではない
 		},
 		{
-			name: "異常系: 500レスポンスで認証失敗",
+			name: "異常系: 500レスポンスで認証失敗 (予期しないステータス)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithResponse(
 					createMockHTTPResponse(500, "Internal Server Error", nil),
 				)
 			},
-			cookies:    []*http.Cookie{},
-			wantResult: false,
+			cookies:             []*http.Cookie{},
+			wantErr:             true,
+			wantUnauthenticated: false,
 		},
 		{
 			name: "正常系: リダイレクト（302）は認証失敗として扱う",
@@ -551,8 +557,9 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 					createMockHTTPResponse(302, "", map[string]string{"Location": "https://www.oreilly.com/member/login/"}),
 				)
 			},
-			cookies:    []*http.Cookie{},
-			wantResult: false,
+			cookies:             []*http.Cookie{},
+			wantErr:             true,
+			wantUnauthenticated: false,
 		},
 	}
 
@@ -567,10 +574,16 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 				userAgent:     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			}
 
-			result := client.validateAuthenticationViaHTTP()
+			err := client.validateAuthenticationViaHTTP()
 
-			if result != tt.wantResult {
-				t.Errorf("validateAuthenticationViaHTTP() = %v, want %v", result, tt.wantResult)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateAuthenticationViaHTTP() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantUnauthenticated && !errors.Is(err, errUnauthenticated) {
+				t.Errorf("validateAuthenticationViaHTTP() error = %v, want errUnauthenticated", err)
+			}
+			if !tt.wantUnauthenticated && errors.Is(err, errUnauthenticated) {
+				t.Errorf("validateAuthenticationViaHTTP() got errUnauthenticated but wanted different error type")
 			}
 		})
 	}

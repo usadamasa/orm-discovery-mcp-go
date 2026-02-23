@@ -76,9 +76,9 @@ func runMCPServer() {
 			"oreilly_reauthenticate ツールで再認証してください。", "error", err)
 	} else {
 		slog.Info("ブラウザクライアントの初期化が完了しました")
-		defer browserClient.Close() // Clean up browser on process exit
 	}
 	s := NewServer(browserClient, cfg, cookieManager)
+	defer s.Close() // Clean up browser on process exit (includes clients created in degraded mode)
 
 	if cfg.Transport == "http" {
 		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.BindAddress, cfg.Port)); err != nil {

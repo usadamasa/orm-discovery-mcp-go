@@ -10,6 +10,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,6 +31,7 @@ const (
 
 // Server is the MCP server implementation.
 type Server struct {
+	clientMu        sync.RWMutex
 	browserClient   *browser.BrowserClient
 	server          *mcp.Server
 	config          *Config
@@ -82,6 +84,28 @@ func NewServer(browserClient *browser.BrowserClient, config *Config, cookieManag
 	slog.Info("ハンドラーを登録しました")
 
 	return srv
+}
+
+// getBrowserClient は browserClient を mutex で保護して返します。
+func (s *Server) getBrowserClient() *browser.BrowserClient {
+	s.clientMu.RLock()
+	defer s.clientMu.RUnlock()
+	return s.browserClient
+}
+
+// setBrowserClient は browserClient を mutex で保護して設定します。
+func (s *Server) setBrowserClient(client *browser.BrowserClient) {
+	s.clientMu.Lock()
+	defer s.clientMu.Unlock()
+	s.browserClient = client
+}
+
+// Close はサーバーが保持する BrowserClient をクリーンアップします。
+// degraded モードで後から設定された BrowserClient も確実に Close されます。
+func (s *Server) Close() {
+	if client := s.getBrowserClient(); client != nil {
+		client.Close()
+	}
 }
 
 // originValidationMiddleware は Origin ヘッダーを検証して DNS rebinding 攻撃を防ぐミドルウェア。
@@ -370,7 +394,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	slog.Debug("検索リクエスト受信")
 	start := time.Now()
 
-	if s.browserClient == nil {
+	if s.getBrowserClient() == nil {
 		return newToolResultError("O'Reilly セッションが認証されていません。" +
 			"oreilly_reauthenticate ツールを呼び出してログインしてください。"), nil, nil
 	}
@@ -413,17 +437,17 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 
 	// Execute search using BrowserClient
 	slog.Debug("BrowserClient検索開始", "query", args.Query, "mode", mode, "offset", args.Offset, "rows", args.Rows)
-	results, totalResults, err := s.browserClient.SearchContent(args.Query, options)
+	results, totalResults, err := s.getBrowserClient().SearchContent(args.Query, options)
 	if err != nil && isAuthError(err) {
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
-		if reauthErr := s.browserClient.ReauthenticateIfNeeded(s.config.OReillyUserID, s.config.OReillyPassword); reauthErr != nil {
+		if reauthErr := s.getBrowserClient().ReauthenticateIfNeeded(s.config.OReillyUserID, s.config.OReillyPassword); reauthErr != nil {
 			slog.Error("再認証失敗", "error", reauthErr)
 			return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil, nil
 		}
 
 		// Retry
-		results, totalResults, err = s.browserClient.SearchContent(args.Query, options)
+		results, totalResults, err = s.getBrowserClient().SearchContent(args.Query, options)
 	}
 
 	if err != nil {
@@ -569,14 +593,14 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	// Check browser client
-	if s.browserClient == nil {
+	if s.getBrowserClient() == nil {
 		return newToolResultError("browser client is not available"), nil, nil
 	}
 
 	slog.Info("質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
 
 	// Execute question (with polling)
-	answer, err := s.browserClient.AskQuestion(args.Question, maxWaitTime)
+	answer, err := s.getBrowserClient().AskQuestion(args.Question, maxWaitTime)
 	if err != nil {
 		slog.Error("質問処理失敗", "error", err, "question", args.Question)
 		return newToolResultError(fmt.Sprintf("failed to ask question: %v", err)), nil, nil
@@ -618,7 +642,7 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, req *mcp.ReadResour
 	}
 
 	// Check browser client
-	if s.browserClient == nil {
+	if s.getBrowserClient() == nil {
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -628,7 +652,7 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, req *mcp.ReadResour
 		}, nil
 	}
 
-	bookOverview, err := s.browserClient.GetBookDetails(productID)
+	bookOverview, err := s.getBrowserClient().GetBookDetails(productID)
 	if err != nil {
 		slog.Error("書籍詳細取得失敗", "error", err, "product_id", productID)
 		return &mcp.ReadResourceResult{
@@ -677,7 +701,7 @@ func (s *Server) GetBookTOCResource(ctx context.Context, req *mcp.ReadResourceRe
 	}
 
 	// Check browser client
-	if s.browserClient == nil {
+	if s.getBrowserClient() == nil {
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -687,7 +711,7 @@ func (s *Server) GetBookTOCResource(ctx context.Context, req *mcp.ReadResourceRe
 		}, nil
 	}
 
-	tocResponse, err := s.browserClient.GetBookTOC(productID)
+	tocResponse, err := s.getBrowserClient().GetBookTOC(productID)
 	if err != nil {
 		slog.Error("書籍目次取得失敗", "error", err, "product_id", productID)
 		return &mcp.ReadResourceResult{
@@ -736,7 +760,7 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, req *mcp.Rea
 	}
 
 	// Check browser client
-	if s.browserClient == nil {
+	if s.getBrowserClient() == nil {
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -746,7 +770,7 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, req *mcp.Rea
 		}, nil
 	}
 
-	chapterResponse, err := s.browserClient.GetBookChapterContent(productID, chapterName)
+	chapterResponse, err := s.getBrowserClient().GetBookChapterContent(productID, chapterName)
 	if err != nil {
 		slog.Error("書籍チャプター本文取得失敗", "error", err, "product_id", productID, "chapter_name", chapterName)
 		return &mcp.ReadResourceResult{
@@ -795,7 +819,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 	}
 
 	// Check browser client
-	if s.browserClient == nil {
+	if s.getBrowserClient() == nil {
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -806,7 +830,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 	}
 
 	// Get answer
-	answer, err := s.browserClient.GetQuestionByID(questionID)
+	answer, err := s.getBrowserClient().GetQuestionByID(questionID)
 	if err != nil {
 		slog.Error("回答取得失敗", "error", err, "question_id", questionID)
 		return &mcp.ReadResourceResult{
@@ -870,7 +894,7 @@ func (s *Server) ReauthenticateHandler(
 	_ struct{},
 ) (*mcp.CallToolResult, *ReauthResult, error) {
 	// degraded モード: browserClient が nil = サーバーが認証なしで起動した状態
-	if s.browserClient == nil {
+	if s.getBrowserClient() == nil {
 		slog.Info("oreilly_reauthenticate: degraded モード - --login フローを開始します")
 		if err := runLoginWithOutput(os.Stderr); err != nil {
 			return newToolResultError(fmt.Sprintf("セットアップに失敗しました: %v", err)), nil, nil
@@ -886,7 +910,7 @@ func (s *Server) ReauthenticateHandler(
 		if err != nil {
 			return newToolResultError(fmt.Sprintf("BrowserClient の生成に失敗しました: %v", err)), nil, nil
 		}
-		s.browserClient = client
+		s.setBrowserClient(client)
 		return nil, &ReauthResult{
 			Status:  "setup_completed",
 			Message: "再認証が完了しました。O'Reilly セッションが更新されました。",
@@ -894,7 +918,7 @@ func (s *Server) ReauthenticateHandler(
 	}
 
 	// 通常モード: 1. 現在の Cookie で認証チェック
-	if err := s.browserClient.CheckAndResetAuth(); err == nil {
+	if err := s.getBrowserClient().CheckAndResetAuth(); err == nil {
 		return nil, &ReauthResult{
 			Status:  "authenticated",
 			Message: "O'Reilly セッションは有効です。",
@@ -909,7 +933,7 @@ func (s *Server) ReauthenticateHandler(
 	}
 
 	// 3. 新しい Cookie をサーバーにリロード
-	if err := s.browserClient.ReloadCookies(); err != nil {
+	if err := s.getBrowserClient().ReloadCookies(); err != nil {
 		return newToolResultError(fmt.Sprintf("Cookieの再読み込みに失敗しました: %v", err)), nil, nil
 	}
 
