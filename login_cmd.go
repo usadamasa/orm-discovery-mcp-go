@@ -1,31 +1,12 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
-	"net/http"
 	"os"
-	"os/exec"
-	"strings"
-	"time"
 
-	"github.com/chromedp/chromedp"
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
-)
-
-const (
-	cdpDebugPort       = "9222"
-	cdpWaitTimeout     = 30 * time.Second
-	loginWaitTimeout   = 5 * time.Minute
-	loginPollInterval  = 2 * time.Second
-	loginPrintInterval = 15 * time.Second // ステータスメッセージの最小表示間隔
-	cdpPollInterval    = 1 * time.Second
-	cdpRequestTimeout  = 3 * time.Second
-	ormLoginURL        = "https://www.oreilly.com/member/login/"
-	ormLearningURLPart = "learning.oreilly.com"
 )
 
 // runLogin は手動ログインからCookieを保存するフローを実行します
@@ -51,226 +32,15 @@ func runLoginWithOutput(out io.Writer) error {
 		return fmt.Errorf("XDGディレクトリの作成に失敗しました: %w", err)
 	}
 
-	chromePath, err := findSystemChrome()
-	if err != nil {
-		return fmt.Errorf("%w\nGoogle Chrome をインストールしてください: https://www.google.com/chrome/", err)
-	}
-	slog.Info("Chromeを発見しました", "path", chromePath)
-
-	// 一時プロファイルで Chrome を起動する
-	// ログイン後に Chrome を終了し一時ディレクトリを削除する
-	tempDir := xdgDirs.ChromeSetupDataDir()
 	fmt.Fprintln(out, "Chrome を起動してログインページを開きます。ログインするとCookieを自動保存します。")
 
-	cmd := exec.Command(
-		chromePath,
-		"--remote-debugging-port="+cdpDebugPort,
-		"--user-data-dir="+tempDir,
-		"--no-first-run",
-		"--no-default-browser-check",
-	)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("chrome の起動に失敗しました: %w", err)
-	}
-	fmt.Fprintf(out, "Chrome を起動しました (PID: %d)\n", cmd.Process.Pid)
-	defer func() {
-		if killErr := cmd.Process.Kill(); killErr != nil {
-			slog.Warn("Chrome プロセスの終了に失敗", "error", killErr)
-		}
-		// Kill後にWaitを呼んでゾンビプロセスを回収する
-		// Kill後のWait失敗 (例: "signal: killed") は正常なため Debug レベルで記録
-		if waitErr := cmd.Wait(); waitErr != nil {
-			slog.Debug("Chromeプロセスのwait結果", "error", waitErr)
-		}
-		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-			slog.Warn("一時ディレクトリの削除に失敗", "path", tempDir, "error", rmErr)
-		}
-	}()
-
-	// CDP 接続待機
-	fmt.Fprintln(out, "CDP サーバーへの接続を待機中...")
-	wsURL, err := waitForCDP(cdpDebugPort)
-	if err != nil {
-		return fmt.Errorf("CDP 接続に失敗しました: %w", err)
-	}
-	slog.Info("CDP 接続確立", "ws_url", wsURL)
-
-	allocCtx, allocCancel := chromedp.NewRemoteAllocator(context.Background(), wsURL)
-	defer allocCancel()
-
-	// chromedp.NewContext はブラウザ内に新しいタブを作成する。
-	// このタブを直接ログインページにナビゲートすることで、
-	// 監視対象タブ = ユーザーが操作するタブ が一致する。
-	ctx, ctxCancel := chromedp.NewContext(allocCtx)
-	defer ctxCancel()
-
-	// ログインページへナビゲート
-	fmt.Fprintf(out, "ログインページを開いています: %s\n\n", ormLoginURL)
-	if err := chromedp.Run(ctx, chromedp.Navigate(ormLoginURL)); err != nil {
-		return fmt.Errorf("ログインページへのナビゲートに失敗しました: %w", err)
-	}
-
-	// ログイン完了を待機
-	fmt.Fprintf(out, "ログイン完了を待機中... (最大 %.0f 分)\n", loginWaitTimeout.Minutes())
-	fmt.Fprintln(out, "ブラウザで O'Reilly にログインしてください。")
-	if err := waitForLoginCompletion(ctx, out); err != nil {
-		return fmt.Errorf("ログイン完了の待機に失敗しました: %w", err)
-	}
-
-	// Cookie を保存
-	cookieManager := cookie.NewCookieManager(xdgDirs.CacheHome)
-	if err := cookieManager.SaveCookies(&ctx); err != nil {
-		return fmt.Errorf("cookieの保存に失敗しました: %w", err)
+	cm := cookie.NewCookieManager(xdgDirs.CacheHome)
+	if err := browser.RunVisibleLogin(xdgDirs.ChromeSetupDataDir(), cm); err != nil {
+		return err
 	}
 
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "✓ Cookieを保存しました: %s\n", xdgDirs.CookiePath())
 	fmt.Fprintln(out, "次回から `orm-discovery-mcp-go` を実行すると、Cookieでログインできます。")
 	return nil
-}
-
-// findSystemChrome はシステムにインストールされている Chrome の実行ファイルパスを返します
-func findSystemChrome() (string, error) {
-	// macOS
-	macOSPath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-	if _, err := os.Stat(macOSPath); err == nil {
-		return macOSPath, nil
-	}
-
-	// Linux (PATH 検索)
-	for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium-browser", "chromium"} {
-		if path, err := exec.LookPath(name); err == nil {
-			return path, nil
-		}
-	}
-
-	// Windows - 複数のインストール先を確認
-	for _, windowsPath := range []string{
-		`C:\Program Files\Google\Chrome\Application\chrome.exe`,
-		`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
-	} {
-		if _, err := os.Stat(windowsPath); err == nil {
-			return windowsPath, nil
-		}
-	}
-	// Windows 環境変数ベースのパス (カスタムインストール先対応)
-	if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
-		p := localAppData + `\Google\Chrome\Application\chrome.exe`
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-	}
-
-	return "", fmt.Errorf("このシステムにGoogle Chromeが見つかりませんでした (macOS/Linux/Windows を検索しましたが見つかりません)")
-}
-
-// waitForCDP はデフォルト30秒タイムアウトで CDP WebSocket URL が利用可能になるまで待機します
-func waitForCDP(port string) (string, error) {
-	return waitForCDPWithTimeout(port, cdpWaitTimeout)
-}
-
-// waitForCDPWithTimeout は指定したタイムアウトで CDP WebSocket URL が利用可能になるまで待機します
-func waitForCDPWithTimeout(port string, timeout time.Duration) (string, error) {
-	deadline := time.Now().Add(timeout)
-	// Chrome は IPv4 127.0.0.1 でリッスンするため localhost (IPv6 [::1]) ではなく明示的に指定する
-	cdpVersionURL := fmt.Sprintf("http://127.0.0.1:%s/json/version", port)
-	var lastErr error
-
-	for time.Now().Before(deadline) {
-		wsURL, err := fetchCDPWebSocketURL(cdpVersionURL)
-		if err == nil && wsURL != "" {
-			return wsURL, nil
-		}
-		lastErr = err
-		time.Sleep(cdpPollInterval)
-	}
-
-	if lastErr != nil {
-		return "", fmt.Errorf("CDP サーバーへの接続がタイムアウトしました (ポート %s): %w", port, lastErr)
-	}
-	return "", fmt.Errorf("CDP サーバーへの接続がタイムアウトしました (ポート %s)", port)
-}
-
-// fetchCDPWebSocketURL は CDP エンドポイントから WebSocket URL を取得します
-func fetchCDPWebSocketURL(cdpVersionURL string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), cdpRequestTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cdpVersionURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("リクエスト作成に失敗: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("CDP エンドポイントへの接続に失敗: %w", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			slog.Warn("CDP レスポンスボディのクローズに失敗", "error", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("CDP エンドポイントが予期しないステータスを返しました: %d", resp.StatusCode)
-	}
-
-	var result struct {
-		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("CDP レスポンスのパースに失敗: %w", err)
-	}
-
-	return result.WebSocketDebuggerURL, nil
-}
-
-// waitForLoginCompletion は learning.oreilly.com への遷移を検出してログイン完了を判定します
-func waitForLoginCompletion(ctx context.Context, out io.Writer) error {
-	deadline := time.Now().Add(loginWaitTimeout)
-	lastPrintedURL := ""
-	lastPrintTime := time.Now().Add(-loginPrintInterval) // 最初のループで即時表示
-
-	for time.Now().Before(deadline) {
-		// コンテキストキャンセルをチェック (Chrome クラッシュなど)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		var currentURL string
-		if err := chromedp.Run(ctx, chromedp.Location(&currentURL)); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			slog.Debug("URL取得エラー (継続)", "error", err)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(loginPollInterval):
-			}
-			continue
-		}
-
-		if strings.Contains(currentURL, ormLearningURLPart) {
-			fmt.Fprintln(out, "✓ ログイン完了を確認しました")
-			return nil
-		}
-
-		// URLが変化したか、loginPrintInterval 以上経過した場合のみ表示
-		if currentURL != lastPrintedURL || time.Since(lastPrintTime) >= loginPrintInterval {
-			fmt.Fprintf(out, "ログイン待機中... (現在のURL: %s)\n", currentURL)
-			lastPrintedURL = currentURL
-			lastPrintTime = time.Now()
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(loginPollInterval):
-		}
-	}
-
-	return fmt.Errorf("ログイン完了の待機がタイムアウトしました (%.0f 分)", loginWaitTimeout.Minutes())
 }

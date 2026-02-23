@@ -41,8 +41,9 @@ type Manager struct {
 
 // NewManager creates a new ChromeDP lifecycle manager.
 // cacheDir: XDG CacheHome ディレクトリ（例: ~/.cache/orm-mcp-go）
+// headless: true でヘッドレスモード、false でビジブルモード（手動ログイン用）
 // It automatically cleans up old Chrome data directories from previous processes.
-func NewManager(cacheDir string, debug bool) (*Manager, error) {
+func NewManager(cacheDir string, headless bool) (*Manager, error) {
 	// 古いChromeデータディレクトリのクリーンアップ
 	// クリーンアップ失敗は致命的ではないが、ログに記録する
 	if err := cleanupOldChromeDataDirs(cacheDir); err != nil {
@@ -60,8 +61,6 @@ func NewManager(cacheDir string, debug bool) (*Manager, error) {
 	// 代わりに必要最小限のフラグのみを設定する
 	opts := []chromedp.ExecAllocatorOption{
 		chromedp.UserDataDir(chromeDataDir),
-		// 新 headless モード (Chrome 112+)
-		chromedp.Flag("headless", "new"),
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("no-sandbox", true),
 		// /dev/shm が小さい環境 (Docker/CI) でのクラッシュを防ぐ安定性フラグ
@@ -73,6 +72,15 @@ func NewManager(cacheDir string, debug bool) (*Manager, error) {
 		chromedp.Flag("disable-crash-reporter", true),
 		// システム Chrome に合わせた User-Agent
 		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
+	}
+
+	if headless {
+		// 新 headless モード (Chrome 109+)
+		opts = append(opts, chromedp.Flag("headless", "new"))
+	} else {
+		// ビジブルモード: DefaultExecAllocatorOptions の headless フラグを明示的に上書き
+		opts = append(opts, chromedp.Flag("headless", false))
+		opts = append(opts, chromedp.Flag("window-size", "1280,800"))
 	}
 
 	// タイムアウト付きコンテキストでブラウザを起動

@@ -12,11 +12,13 @@ import (
 // ChromeDP operation timeouts (all under 1 minute)
 const (
 	ChromeDPExecAllocatorTimeout = 45 * time.Second
-	LoginTimeout                 = 30 * time.Second
 	AuthValidationTimeout        = 15 * time.Second
 	CookieOperationTimeout       = 10 * time.Second
 	WaitVisibleTimeout           = 10 * time.Second
 	APIOperationTimeout          = 30 * time.Second
+
+	// VisibleLoginTimeout はビジブルブラウザでの手動ログイン待機タイムアウト
+	VisibleLoginTimeout = 5 * time.Minute
 )
 
 // APIEndpointBase O'Reilly API endpoints

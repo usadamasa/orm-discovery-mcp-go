@@ -441,7 +441,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	if err != nil && isAuthError(err) {
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
-		if reauthErr := s.getBrowserClient().ReauthenticateIfNeeded(s.config.OReillyUserID, s.config.OReillyPassword); reauthErr != nil {
+		if reauthErr := s.getBrowserClient().Reauthenticate(); reauthErr != nil {
 			slog.Error("再認証失敗", "error", reauthErr)
 			return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil, nil
 		}
@@ -901,8 +901,6 @@ func (s *Server) ReauthenticateHandler(
 		}
 		// 保存された Cookie で新しい BrowserClient を生成 (Cookie-first で成功するはず)
 		client, err := browser.NewBrowserClient(
-			s.config.OReillyUserID,
-			s.config.OReillyPassword,
 			s.cookieManager,
 			s.config.Debug,
 			s.config.XDGDirs.StateHome,

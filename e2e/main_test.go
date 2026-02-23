@@ -16,17 +16,11 @@ var sharedConfig *TestConfig
 
 func TestMain(m *testing.M) {
 	cfg := LoadTestConfig()
-	if cfg == nil {
-		log.Println("E2E test config not available, skipping setup")
-		os.Exit(0)
-	}
 	sharedConfig = cfg
 
 	// Create shared client (only once for all tests)
 	cookieManager := cookie.NewCookieManager(cfg.TmpDir)
 	client, err := browser.NewBrowserClient(
-		cfg.OReillyUserID,
-		cfg.OReillyPassword,
 		cookieManager,
 		cfg.Debug,
 		cfg.TmpDir,

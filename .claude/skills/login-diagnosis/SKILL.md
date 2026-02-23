@@ -13,12 +13,13 @@ description: O'Reillyログイン失敗時の診断と対処ガイド。CDN (Aka
 
 ```
 Cookie復元 → HTTP検証 → [成功: Cookie有効]
-                      → [失敗: ChromeDP起動 → ブラウザログイン → Cookie保存]
+                      → [失敗: ビジブルChrome起動 → ユーザーが手動ログイン → Cookie保存]
 ```
 
 - **Cookie-first**: 保存済みCookieで認証を試行 (ChromeDP不要)
-- **フォールバック**: Cookie無効時のみChromeDPでブラウザログインを実行
-- **認証後クローズ**: 非デバッグモードではブラウザを即座にクローズ
+- **フォールバック**: Cookie無効時はビジブルブラウザでユーザーが手動ログイン
+- **自動検知**: `learning.oreilly.com` へのURL遷移でログイン完了を検知
+- **環境変数不要**: `OREILLY_USER_ID` / `OREILLY_PASSWORD` は不要
 
 ### Akamai Bot Manager
 
@@ -162,7 +163,8 @@ opts := append(chromedp.DefaultExecAllocatorOptions[:],
 
 | 問題 | 最速の対処 |
 |------|-----------|
-| 初回ログインが通らない | 手動ブラウザでログイン → Cookie保存 |
-| Cookie期限切れ | Cookie削除 → 手動ログイン → Cookie保存 |
-| CDNブロック | 時間を置く or ネットワーク変更 |
+| 初回ログイン (ビジブルブラウザが起動しない) | Chrome インストール確認、stateDir のパーミッション確認 |
+| ビジブルブラウザでログインしてもタイムアウト | 5分以内にログインを完了する |
+| Cookie期限切れ | `oreilly_reauthenticate` ツール呼び出し → ビジブルブラウザで再ログイン |
+| CDNブロック | ビジブルブラウザは手動ログインのため CDN ブロックされない |
 | `DefaultExecAllocatorOptions` 問題 | Cookie-first 運用で回避 |

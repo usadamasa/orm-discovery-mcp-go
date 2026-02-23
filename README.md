@@ -20,10 +20,6 @@ Claude Codeのプラグインシステムを使って簡単にインストール
 
 # プラグインをインストール
 /plugin install orm-discovery-mcp-go
-
-# 環境変数設定 (必須)
-export OREILLY_USER_ID="your_email@acm.org"
-export OREILLY_PASSWORD="your_password"
 ```
 
 **注意**: MCP Serverバイナリは別途インストールが必要です。[Releases](https://github.com/usadamasa/orm-discovery-mcp-go/releases)からダウンロードするか、下記の手動ビルドを行ってください。
@@ -42,13 +38,22 @@ task build
 
 ### 2. 認証設定
 
-プロジェクトディレクトリに`.env`ファイルを作成：
+#### Cookie ライフサイクル
+
+| タイミング | 動作 |
+|-----------|------|
+| 初回起動 / Cookie なし | Chrome が自動起動 → ブラウザで手動ログイン → Cookie を自動保存 |
+| 2回目以降 | 保存済み Cookie を自動読み込み・認証 |
+| Cookie 期限切れ | `oreilly_reauthenticate` ツールで Chrome 再起動 → 手動ログイン |
+
+#### 明示的にログインする場合
 
 ```bash
-# .env
-OREILLY_USER_ID=your_email@acm.org
-OREILLY_PASSWORD=your_password
+# --login フラグで Chrome を起動してログイン → Cookie 保存
+./bin/orm-discovery-mcp-go --login
 ```
+
+Cookie は `~/.cache/orm-mcp-go/` に自動保存されます。
 
 ### 3. 起動
 
@@ -58,8 +63,6 @@ go run .
 
 # Claude Code MCP設定
 claude mcp add -s user orm-discovery-mcp-go \
-  -e OREILLY_USER_ID="your_email@acm.org" \
-  -e OREILLY_PASSWORD="your_password" \
   -- /your/path/to/orm-discovery-mcp-go
 ```
 
@@ -68,6 +71,7 @@ claude mcp add -s user orm-discovery-mcp-go \
 ### MCPツール
 - **`oreilly_search_content`**: O'Reillyコンテンツの検索（書籍、動画、記事の発見）
 - **`oreilly_ask_question`**: O'Reilly Answers AIへの自然言語での質問
+- **`oreilly_reauthenticate`**: Cookie 期限切れ時の再認証（Chrome 自動起動 → 手動ログイン → Cookie 更新）
 
 ### MCPリソース
 - **`oreilly://book-details/{product_id}`**: 書籍詳細情報

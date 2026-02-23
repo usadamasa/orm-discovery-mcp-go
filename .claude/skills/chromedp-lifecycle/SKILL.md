@@ -38,7 +38,9 @@ manager.Close()
 
 ### 主要メソッド
 
-- `NewManager(tmpDir, debug)` - 新しいマネージャーを作成(古いディレクトリを自動クリーンアップ)
+- `NewManager(cacheDir, headless)` - 新しいマネージャーを作成(古いディレクトリを自動クリーンアップ)
+  - `headless=true`: ヘッドレスモード (Cookie検証など非対話処理用)
+  - `headless=false`: ビジブルモード (手動ログインなど対話処理用)
 - `Context()` - ブラウザ操作用のコンテキストを返す
 - `Close()` - ブラウザを閉じてユーザーデータディレクトリを削除
 
@@ -83,29 +85,61 @@ manager.Close()
 
 ```go
 // NewBrowserClient() - auth.go
-func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, tmpDir string) (*BrowserClient, error) {
-    // 1. Create ChromeDP Manager (auto-cleans old directories)
-    manager, err := cdp.NewManager(tmpDir, debug)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create ChromeDP manager: %w", err)
-    }
-
+func NewBrowserClient(cookieManager cookie.Manager, debug bool, stateDir string) (*BrowserClient, error) {
     client := &BrowserClient{
-        ctx:             manager.Context(),
-        chromedpManager: manager,
-        // ... other fields
+        httpClient: &http.Client{...},
+        stateDir:   stateDir,
+        debug:      debug,
     }
 
-    // 2. Authenticate (either via cookies or password login)
-    // ... authentication logic ...
-
-    // 3. Close immediately in non-debug mode
-    if !debug {
-        slog.Info("非デバッグモード: ブラウザコンテキストをクローズします")
-        client.Close()
+    // 1. Cookie復元 → HTTP検証
+    if cookieManager.CookieFileExists() {
+        cookieManager.LoadCookies()
+        client.cookieManager = cookieManager
+        if client.validateAuthenticationViaHTTP() {
+            return client, nil // Cookie有効: ブラウザ不要
+        }
     }
 
+    // 2. Cookie無効: ビジブルブラウザで手動ログイン
+    client.cookieManager = cookieManager
+    cookies, err := client.loginWithVisibleBrowser() // login.go
+    if err != nil {
+        return nil, fmt.Errorf("failed to login: %w", err)
+    }
+
+    // 3. Cookie保存
+    cookieManager.SaveCookiesFromData(cookies)
     return client, nil
+}
+
+// loginWithVisibleBrowser() - login.go
+// ビジブルChrome (headless=false) を起動し、ユーザーが learning.oreilly.com に到達するまで待機
+func (bc *BrowserClient) loginWithVisibleBrowser() ([]*http.Cookie, error) {
+    manager, err := cdp.NewManager(bc.stateDir, false) // headless=false
+    if err != nil {
+        return nil, err
+    }
+    defer manager.Close()
+
+    loginCtx, cancel := context.WithTimeout(manager.Context(), VisibleLoginTimeout) // 5分
+    defer cancel()
+
+    chromedp.Run(loginCtx, chromedp.Navigate("https://www.oreilly.com/member/login/"))
+
+    // 2秒間隔でポーリング
+    for {
+        select {
+        case <-loginCtx.Done():
+            return nil, fmt.Errorf("タイムアウト")
+        case <-ticker.C:
+            var url string
+            chromedp.Run(loginCtx, chromedp.Location(&url))
+            if strings.Contains(url, "learning.oreilly.com") {
+                // Cookie取得して返す
+            }
+        }
+    }
 }
 ```
 
@@ -136,43 +170,21 @@ if !debug {
 
 ### 3. Automatic Reauthentication
 
-**Pattern**: Detect 401/403 errors → Create new Manager → Re-login → Close
+**Pattern**: Detect 401/403 errors → Launch visible browser → Re-login → Close
 
 ```go
-// ReauthenticateIfNeeded() - auth.go
-func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
+// Reauthenticate() - auth.go
+func (bc *BrowserClient) Reauthenticate() error {
     slog.Info("Cookie有効期限切れ検出: 再認証を開始します")
 
-    // 1. Close existing Manager
-    if bc.chromedpManager != nil {
-        bc.chromedpManager.Close()
-        bc.chromedpManager = nil
-    }
-
-    // 2. Create new ChromeDP Manager
-    manager, err := cdp.NewManager(bc.tmpDir, bc.debug)
-    if err != nil {
-        return fmt.Errorf("failed to create ChromeDP manager: %w", err)
-    }
-
-    // 3. Update browser context
-    bc.ctx = manager.Context()
-    bc.chromedpManager = manager
-
-    // 4. Re-login
-    cookies, err := bc.login(userID, password)
+    // 1. ビジブルブラウザで再ログイン
+    cookies, err := bc.loginWithVisibleBrowser() // login.go
     if err != nil {
         return fmt.Errorf("再認証に失敗しました: %w", err)
     }
 
-    // 5. Save cookies (using SaveCookiesFromData, no chromedp needed)
+    // 2. Cookie保存
     bc.cookieManager.SaveCookiesFromData(cookies)
-
-    // 6. Close immediately (non-debug mode)
-    if !bc.debug {
-        bc.Close()
-    }
-
     return nil
 }
 ```
@@ -190,8 +202,8 @@ if resp.StatusCode == 401 || resp.StatusCode == 403 {
 // server.go - SearchContentHandler
 results, err := s.browserClient.SearchContent(requestParams.Query, options)
 if err != nil && isAuthError(err) {
-    // Automatic reauthentication
-    if reauthErr := s.browserClient.ReauthenticateIfNeeded(s.config.OReillyUserID, s.config.OReillyPassword); reauthErr != nil {
+    // Automatic reauthentication (visible browser)
+    if reauthErr := s.browserClient.Reauthenticate(); reauthErr != nil {
         return mcp.NewToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil
     }
     // Retry
