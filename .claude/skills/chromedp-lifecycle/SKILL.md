@@ -348,9 +348,9 @@ ls -la ~/.config/google-chrome/Default/  # Should be unchanged
 # Watch logs for cleanup messages when process exits
 ```
 
-## Remote Chrome Connection Pattern (--setup-cookies)
+## Remote Chrome Connection Pattern (--login)
 
-`--setup-cookies` コマンドのように既存Chromeに接続して手動操作を監視する場合に使うパターン。
+`--login` コマンドのように既存Chromeに接続して手動操作を監視する場合に使うパターン。
 
 ### 重要な罠: chromedp.NewContext は新しいタブを作る
 

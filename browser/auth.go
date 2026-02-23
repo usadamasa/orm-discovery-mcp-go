@@ -128,7 +128,7 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 	if userID == "" || password == "" {
 		client.Close()
 		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required for password login" +
-			"; cookie file is missing or expired, please run --setup-cookies or oreilly_reauthenticate")
+			"; cookie file is missing or expired, please run --login or oreilly_reauthenticate")
 	}
 
 	// 通常のログインを実行
@@ -278,10 +278,10 @@ func (bc *BrowserClient) login(userID, password string) ([]*http.Cookie, error) 
 				bc.debugScreenshot(ctx, "orm_access_denied")
 				slog.Error("Akamai Bot Manager によりアクセスがブロックされました",
 					"title", title,
-					"hint", "Cookie-first 運用を推奨: 手動ログインしてCookieを保存してください",
+					"hint", "Cookie-first 運用を推奨: `orm-discovery-mcp-go --login` を実行してCookieを自動保存してください",
 				)
 				return fmt.Errorf("akamai bot manager によりブロックされました (title: %q)\n"+
-					"対処方法: `orm-discovery-mcp-go --setup-cookies` を実行して手動ログインし、Cookieを保存してください", title)
+					"対処方法: `orm-discovery-mcp-go --login` を実行して手動ログインし、Cookieを保存してください", title)
 			}
 			return nil
 		}),
@@ -491,7 +491,7 @@ func (bc *BrowserClient) CheckAndResetAuth() error {
 }
 
 // ReloadCookies はCookieファイルを再読み込みして認証を検証します。
-// --setup-cookies 完了後にサーバーのCookie状態を更新するために使用します。
+// --login 完了後にサーバーのCookie状態を更新するために使用します。
 func (bc *BrowserClient) ReloadCookies() error {
 	if err := bc.cookieManager.LoadCookies(); err != nil {
 		return fmt.Errorf("cookieの読み込みに失敗しました: %w", err)

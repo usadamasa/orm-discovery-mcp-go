@@ -28,10 +28,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Handle --setup-cookies flag (手動ログインからCookieを保存)
+	// Handle --login flag (手動ログインからCookieを保存)
 	// OREILLY_USER_ID / OREILLY_PASSWORD は不要
-	if len(os.Args) > 1 && os.Args[1] == "--setup-cookies" {
-		if err := runSetupCookies(); err != nil {
+	if len(os.Args) > 1 && os.Args[1] == "--login" {
+		if err := runLogin(); err != nil {
 			fmt.Fprintf(os.Stderr, "エラー: %v\n", err)
 			os.Exit(1)
 		}

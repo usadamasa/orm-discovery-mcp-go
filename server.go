@@ -860,9 +860,9 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 }
 
 // ReauthenticateHandler handles the oreilly_reauthenticate MCP tool.
-// Cookie が有効ならそのまま返し、期限切れなら --setup-cookies フローを実行して
+// Cookie が有効ならそのまま返し、期限切れなら --login フローを実行して
 // サーバーの Cookie 状態を更新します。
-// browserClient が nil の場合 (degraded モード) は setup-cookies フローを実行して
+// browserClient が nil の場合 (degraded モード) は --login フローを実行して
 // 新しい BrowserClient を生成します。
 func (s *Server) ReauthenticateHandler(
 	ctx context.Context,
@@ -871,8 +871,8 @@ func (s *Server) ReauthenticateHandler(
 ) (*mcp.CallToolResult, *ReauthResult, error) {
 	// degraded モード: browserClient が nil = サーバーが認証なしで起動した状態
 	if s.browserClient == nil {
-		slog.Info("oreilly_reauthenticate: degraded モード - setup-cookies フローを開始します")
-		if err := runSetupCookiesWithOutput(os.Stderr); err != nil {
+		slog.Info("oreilly_reauthenticate: degraded モード - --login フローを開始します")
+		if err := runLoginWithOutput(os.Stderr); err != nil {
 			return newToolResultError(fmt.Sprintf("セットアップに失敗しました: %v", err)), nil, nil
 		}
 		// 保存された Cookie で新しい BrowserClient を生成 (Cookie-first で成功するはず)
@@ -901,10 +901,10 @@ func (s *Server) ReauthenticateHandler(
 		}, nil
 	}
 
-	// 2. --setup-cookies フローを実行 (Chrome 起動 → 手動ログイン → Cookie 保存)
+	// 2. --login フローを実行 (Chrome 起動 → 手動ログイン → Cookie 保存)
 	// stderr に出力することで stdio モードの MCP stream を汚染しない
-	slog.Info("oreilly_reauthenticate: --setup-cookies フローを開始します")
-	if err := runSetupCookiesWithOutput(os.Stderr); err != nil {
+	slog.Info("oreilly_reauthenticate: --login フローを開始します")
+	if err := runLoginWithOutput(os.Stderr); err != nil {
 		return newToolResultError(fmt.Sprintf("セットアップに失敗しました: %v", err)), nil, nil
 	}
 

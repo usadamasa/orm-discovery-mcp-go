@@ -21,22 +21,23 @@ const (
 	cdpWaitTimeout     = 30 * time.Second
 	loginWaitTimeout   = 5 * time.Minute
 	loginPollInterval  = 2 * time.Second
+	loginPrintInterval = 15 * time.Second // ステータスメッセージの最小表示間隔
 	cdpPollInterval    = 1 * time.Second
 	cdpRequestTimeout  = 3 * time.Second
 	ormLoginURL        = "https://www.oreilly.com/member/login/"
 	ormLearningURLPart = "learning.oreilly.com"
 )
 
-// runSetupCookies は手動ログインからCookieを保存するセットアップフローを実行します
+// runLogin は手動ログインからCookieを保存するフローを実行します
 // OREILLY_USER_ID / OREILLY_PASSWORD は不要（手動ログインのため）
 // CLI から呼ばれるエントリポイント (stdout に出力)
-func runSetupCookies() error {
-	return runSetupCookiesWithOutput(os.Stdout)
+func runLogin() error {
+	return runLoginWithOutput(os.Stdout)
 }
 
-// runSetupCookiesWithOutput は出力先を指定して実行します
+// runLoginWithOutput は出力先を指定して実行します
 // サーバー内部から呼ぶ際は stderr を渡すことで stdio モードの MCP stream を汚染しません
-func runSetupCookiesWithOutput(out io.Writer) error {
+func runLoginWithOutput(out io.Writer) error {
 	fmt.Fprintln(out, "=== O'Reilly Cookie セットアップ ===")
 	fmt.Fprintln(out)
 
@@ -75,6 +76,11 @@ func runSetupCookiesWithOutput(out io.Writer) error {
 	defer func() {
 		if killErr := cmd.Process.Kill(); killErr != nil {
 			slog.Warn("Chrome プロセスの終了に失敗", "error", killErr)
+		}
+		// Kill後にWaitを呼んでゾンビプロセスを回収する
+		// Kill後のWait失敗 (例: "signal: killed") は正常なため Debug レベルで記録
+		if waitErr := cmd.Wait(); waitErr != nil {
+			slog.Debug("Chromeプロセスのwait結果", "error", waitErr)
 		}
 		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
 			slog.Warn("一時ディレクトリの削除に失敗", "path", tempDir, "error", rmErr)
@@ -138,10 +144,21 @@ func findSystemChrome() (string, error) {
 		}
 	}
 
-	// Windows
-	windowsPath := `C:\Program Files\Google\Chrome\Application\chrome.exe`
-	if _, err := os.Stat(windowsPath); err == nil {
-		return windowsPath, nil
+	// Windows - 複数のインストール先を確認
+	for _, windowsPath := range []string{
+		`C:\Program Files\Google\Chrome\Application\chrome.exe`,
+		`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
+	} {
+		if _, err := os.Stat(windowsPath); err == nil {
+			return windowsPath, nil
+		}
+	}
+	// Windows 環境変数ベースのパス (カスタムインストール先対応)
+	if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+		p := localAppData + `\Google\Chrome\Application\chrome.exe`
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
 	}
 
 	return "", fmt.Errorf("このシステムにGoogle Chromeが見つかりませんでした (macOS/Linux/Windows を検索しましたが見つかりません)")
@@ -211,12 +228,28 @@ func fetchCDPWebSocketURL(cdpVersionURL string) (string, error) {
 // waitForLoginCompletion は learning.oreilly.com への遷移を検出してログイン完了を判定します
 func waitForLoginCompletion(ctx context.Context, out io.Writer) error {
 	deadline := time.Now().Add(loginWaitTimeout)
+	lastPrintedURL := ""
+	lastPrintTime := time.Now().Add(-loginPrintInterval) // 最初のループで即時表示
 
 	for time.Now().Before(deadline) {
+		// コンテキストキャンセルをチェック (Chrome クラッシュなど)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		var currentURL string
 		if err := chromedp.Run(ctx, chromedp.Location(&currentURL)); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			slog.Debug("URL取得エラー (継続)", "error", err)
-			time.Sleep(loginPollInterval)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(loginPollInterval):
+			}
 			continue
 		}
 
@@ -225,8 +258,18 @@ func waitForLoginCompletion(ctx context.Context, out io.Writer) error {
 			return nil
 		}
 
-		fmt.Fprintf(out, "ログイン待機中... (現在のURL: %s)\n", currentURL)
-		time.Sleep(loginPollInterval)
+		// URLが変化したか、loginPrintInterval 以上経過した場合のみ表示
+		if currentURL != lastPrintedURL || time.Since(lastPrintTime) >= loginPrintInterval {
+			fmt.Fprintf(out, "ログイン待機中... (現在のURL: %s)\n", currentURL)
+			lastPrintedURL = currentURL
+			lastPrintTime = time.Now()
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(loginPollInterval):
+		}
 	}
 
 	return fmt.Errorf("ログイン完了の待機がタイムアウトしました (%.0f 分)", loginWaitTimeout.Minutes())
