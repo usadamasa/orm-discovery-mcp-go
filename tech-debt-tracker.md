@@ -449,3 +449,132 @@ const (
 - [ ] T1: browser/cookie テスト追加
 - [ ] T2: middleware テスト追加
 - [ ] T3: browser テストの testify 移行
+
+### Phase 6: アーキテクチャメトリクス改善 (introduce-go-metric で新規追加)
+
+golangci-lint + go-arch-lint 導入時に exclusion 設定で暫定回避した技術的負債。
+exclusion を削除してメトリクスを改善することが目標。
+
+- [ ] M1: `browser/search.go` のリファクタリング
+- [ ] M2: `browser/book.go` の gocognit/gocyclo 削減
+- [ ] M3: `browser/login.go` の gocognit/gocyclo 削減
+- [ ] M4: `config.go` の gocognit/gocyclo/funlen 削減
+- [ ] M5: `prompts.go` の funlen 削減
+- [ ] M6: `internal/git/diff.go` の gocognit 削減
+- [ ] M7: `browser/search.go` SearchContent の gocognit/gocyclo 削減
+- [ ] M8: `browser/book.go` convertAPIFlatTOCToLocal の gocognit 削減
+- [ ] M9: `browser/book.go` parseHTMLNode の gocognit 削減
+
+---
+
+## アーキテクチャメトリクス技術的負債
+
+> **追加日**: 2026-02-23
+> **背景**: golangci-lint + go-arch-lint 導入時 (.golangci.yml に exclusion で暫定回避)
+
+### M1: browser/search.go normalizeSearchResult の複雑度
+
+**カテゴリ**: テスト可能性 / 保守性
+**対象ファイル**: `browser/search.go:13`
+**除外リンター**: gocognit (80 > 20), gocyclo (74 > 20), funlen, maintidx (15 < 20)
+
+**現状**:
+- 認知的複雑度 80: API レスポンスの nil-safe 正規化で多数の if-else チェーン
+- maintidx が 15 で閾値の 20 を下回る
+
+**推奨対応**:
+- フィールド別の小さな正規化関数に分解してテスト可能にする
+
+---
+
+### M2: browser/book.go convertAPIBookDetailToLocal の gocyclo
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/book.go:127`
+**除外リンター**: gocognit (48 > 20), gocyclo (28 > 20)
+
+**推奨対応**:
+- フィールドカテゴリ別の変換ヘルパーに分割
+
+---
+
+### M3: browser/login.go runVisibleLogin の複雑度
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/login.go:152`
+**除外リンター**: gocognit (64 > 20), gocyclo (27 > 20), funlen, nestif
+
+**推奨対応**:
+- Chrome 起動・Cookie 待機・後処理を分離した関数に切り出す
+
+---
+
+### M4: config.go LoadConfig の複雑度
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `config.go:45`
+**除外リンター**: gocognit (44 > 20), gocyclo (36 > 20), funlen (69 statements > 60)
+
+**推奨対応**:
+- セクション別 (HTTP, Auth, Logging, XDG) の設定ロード関数に分割
+
+---
+
+### M5: prompts.go registerPrompts の funlen
+
+**カテゴリ**: 保守性
+**対象ファイル**: `prompts.go:12`
+**除外リンター**: funlen (128 lines > 100)
+
+**推奨対応**:
+- プロンプトごとの登録関数に分割し registerPrompts から呼び出す
+
+---
+
+### M6: internal/git/diff.go GetDiff の gocognit
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `internal/git/diff.go:64`
+**除外リンター**: gocognit (22 > 20, 閾値超過は軽微)
+
+**推奨対応**:
+- オプションビルダーパターンに変更してネストを削減
+
+---
+
+### M7: browser/search.go SearchContent の複雑度
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/search.go:239`
+**除外リンター**: gocognit (22 > 20), gocyclo (23 > 20)
+
+**背景**: PR #120 Copilot レビュー対応で exclusion ルールのスコープを `normalizeSearchResult` に絞り込んだ際に顕在化。
+
+**推奨対応**:
+- 検索オプションのビルド処理を分離した関数に切り出す
+
+---
+
+### M8: browser/book.go convertAPIFlatTOCToLocal の gocognit
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/book.go:295`
+**除外リンター**: gocognit (25 > 20)
+
+**背景**: PR #120 Copilot レビュー対応で exclusion ルールのスコープを `convertAPIBookDetailToLocal` に絞り込んだ際に顕在化。
+
+**推奨対応**:
+- TOC エントリの変換ロジックを小さな関数に分解する
+
+---
+
+### M9: browser/book.go parseHTMLNode の gocognit
+
+**カテゴリ**: テスト可能性
+**対象ファイル**: `browser/book.go:483`
+**除外リンター**: gocognit (26 > 20)
+
+**背景**: PR #120 Copilot レビュー対応で exclusion ルールのスコープを `convertAPIBookDetailToLocal` に絞り込んだ際に顕在化。
+
+**推奨対応**:
+- HTML ノードタイプ別の処理を個別関数に分離する
