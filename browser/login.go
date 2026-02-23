@@ -152,14 +152,21 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 		return nil, fmt.Errorf("chromeの起動に失敗しました: %w", err)
 	}
 	slog.Info("Chrome を起動しました", "pid", cmd.Process.Pid)
+
+	// goroutine で cmd.Wait() を走らせ、Chrome プロセスの終了を検知する
+	processDone := make(chan error, 1)
+	go func() {
+		processDone <- cmd.Wait()
+	}()
+	processExited := false
+
 	defer func() {
-		if killErr := cmd.Process.Kill(); killErr != nil {
-			slog.Warn("Chrome プロセスの終了に失敗", "error", killErr)
-		}
-		// Kill後にWaitを呼んでゾンビプロセスを回収する
-		// Kill後のWait失敗 (例: "signal: killed") は正常なため Debug レベルで記録
-		if waitErr := cmd.Wait(); waitErr != nil {
-			slog.Debug("Chromeプロセスのwait結果", "error", waitErr)
+		if !processExited {
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				slog.Warn("Chrome プロセスの終了に失敗", "error", killErr)
+			}
+			// goroutine の cmd.Wait() 完了を待つ (ゾンビプロセス回収)
+			<-processDone
 		}
 		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
 			slog.Warn("一時ディレクトリの削除に失敗", "path", tempDir, "error", rmErr)
@@ -200,6 +207,9 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 		select {
 		case <-loginCtx.Done():
 			return nil, fmt.Errorf("手動ログインがタイムアウトしました（%.0f分）。再度お試しください", VisibleLoginTimeout.Minutes())
+		case waitErr := <-processDone:
+			processExited = true
+			return nil, fmt.Errorf("chromeが予期せず終了しました。再度コマンドを実行してログインしてください: %w", waitErr)
 		case <-ticker.C:
 			var currentURL string
 			if err := chromedp.Run(loginCtx, chromedp.Location(&currentURL)); err != nil {
