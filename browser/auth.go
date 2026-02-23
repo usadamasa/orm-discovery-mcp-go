@@ -120,20 +120,7 @@ func NewBrowserClient(cookieManager cookie.Manager, debug bool, stateDir string)
 
 // Close はブラウザクライアントをクリーンアップします
 func (bc *BrowserClient) Close() {
-	// chromedpManagerがあればそれを使用(推奨)
-	if bc.chromedpManager != nil {
-		bc.chromedpManager.Close()
-		return
-	}
-
-	// 後方互換性のため: 古いスタイルのクリーンアップ
-	// 正しい順序でクリーンアップ: ctx → allocator
-	if bc.ctxCancel != nil {
-		bc.ctxCancel()
-	}
-	if bc.allocCancel != nil {
-		bc.allocCancel()
-	}
+	// httpClient と cookieManager はクリーンアップ不要
 }
 
 // Reauthenticate はCookie有効期限切れ時にビジブルブラウザを起動して再認証します

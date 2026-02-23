@@ -1,11 +1,9 @@
 package browser
 
 import (
-	"context"
 	"net/http"
 	"time"
 
-	cdp "github.com/usadamasa/orm-discovery-mcp-go/browser/chromedp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 )
 
@@ -34,15 +32,11 @@ type HTTPDoer interface {
 
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
 type BrowserClient struct {
-	ctx             context.Context
-	ctxCancel       context.CancelFunc // chromedp.NewContext()のcancel
-	allocCancel     context.CancelFunc // chromedp.NewExecAllocator()のcancel
-	chromedpManager *cdp.Manager       // ChromeDPライフサイクル管理
-	httpClient      HTTPDoer           // HTTP通信を実行するインターフェース (*http.Clientが実装)
-	userAgent       string
-	cookieManager   cookie.Manager
-	debug           bool
-	stateDir        string // XDG StateHome (Chrome一時データ、スクリーンショット用)
+	httpClient    HTTPDoer // HTTP通信を実行するインターフェース (*http.Clientが実装)
+	userAgent     string
+	cookieManager cookie.Manager
+	debug         bool
+	stateDir      string // XDG StateHome (Chrome一時データ、スクリーンショット用)
 }
 
 // TableOfContentsItem represents a single item in the table of contents

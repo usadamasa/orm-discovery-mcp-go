@@ -28,7 +28,7 @@ func TestServerWithRealAuthentication(t *testing.T) {
 	client := GetSharedClient()
 
 	// Verify authentication by performing a simple search
-	results, err := client.SearchContent("Go", nil)
+	results, _, err := client.SearchContent("Go", nil)
 	if err != nil {
 		t.Fatalf("Search failed after authentication: %v", err)
 	}
@@ -49,8 +49,6 @@ func TestServerBrowserClientLifecycle(t *testing.T) {
 	cookieManager := cookie.NewCookieManager(cfg.TmpDir)
 
 	client, err := browser.NewBrowserClient(
-		cfg.OReillyUserID,
-		cfg.OReillyPassword,
 		cookieManager,
 		cfg.Debug,
 		cfg.TmpDir,

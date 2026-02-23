@@ -46,7 +46,7 @@ func TestChromeDPLogin(t *testing.T) {
 	defer client.Close()
 
 	// Verify login succeeded by performing a search
-	results, err := client.SearchContent("test", nil)
+	results, _, err := client.SearchContent("test", nil)
 	if err != nil {
 		t.Fatalf("Search after login failed: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestCookieRestoration(t *testing.T) {
 	defer client2.Close()
 
 	// Verify authentication works with restored cookies
-	results, err := client2.SearchContent("Go", nil)
+	results, _, err := client2.SearchContent("Go", nil)
 	if err != nil {
 		t.Fatalf("Search with restored cookies failed: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestChromeDP_ReauthenticationFlow(t *testing.T) {
 	}
 
 	// Verify reauthentication succeeded
-	results, err := client.SearchContent("Python", nil)
+	results, _, err := client.SearchContent("Python", nil)
 	if err != nil {
 		t.Fatalf("Search after reauthentication failed: %v", err)
 	}

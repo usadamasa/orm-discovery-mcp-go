@@ -1,7 +1,6 @@
 package cookie
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,9 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/chromedp/cdproto/network"
-	"github.com/chromedp/chromedp"
 )
 
 const (
@@ -24,7 +20,6 @@ const (
 
 // Manager の前方宣言（main パッケージの構造体）
 type Manager interface {
-	SaveCookies(ctx *context.Context) error
 	SaveCookiesFromData(cookies []*http.Cookie) error
 	LoadCookies() error
 	CookieFileExists() bool
@@ -65,78 +60,6 @@ func NewCookieManager(cacheDir string) *ManagerImpl {
 		filePath: filepath.Join(cacheDir, cookieFileName),
 		cookies:  make([]*http.Cookie, 0),
 	}
-}
-
-// SaveCookies はブラウザのCookieをファイルに保存する
-func (cm *ManagerImpl) SaveCookies(ctx *context.Context) error {
-	// Cookie保存操作にタイムアウトを設定
-	saveCtx, saveCancel := context.WithTimeout(*ctx, CookieOperationTimeout)
-	defer saveCancel()
-
-	var cookies []*network.Cookie
-	err := chromedp.Run(saveCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-		var err error
-		cookies, err = network.GetCookies().Do(ctx)
-		return err
-	}))
-	if err != nil {
-		return fmt.Errorf("failed to get cookies from browser: %w", err)
-	}
-
-	// 重要なCookieのみをフィルタリング
-	var filteredCookies []entry
-	var httpCookies []*http.Cookie
-	for _, cookie := range cookies {
-		if cm.isImportantCookie(cookie.Name) {
-			cookieData := entry{
-				Name:     cookie.Name,
-				Value:    cookie.Value,
-				Domain:   cookie.Domain,
-				Path:     cookie.Path,
-				HTTPOnly: cookie.HTTPOnly,
-				Secure:   cookie.Secure,
-			}
-			if cookie.Expires != 0 {
-				cookieData.Expires = time.Unix(int64(cookie.Expires), 0)
-			}
-			filteredCookies = append(filteredCookies, cookieData)
-
-			// http.Cookieとしても保存
-			httpCookie := &http.Cookie{
-				Name:     cookie.Name,
-				Value:    cookie.Value,
-				Domain:   cookie.Domain,
-				Path:     cookie.Path,
-				HttpOnly: cookie.HTTPOnly,
-				Secure:   cookie.Secure,
-			}
-			if cookie.Expires != 0 {
-				httpCookie.Expires = time.Unix(int64(cookie.Expires), 0)
-			}
-			httpCookies = append(httpCookies, httpCookie)
-		}
-	}
-
-	// 内部のクッキーストレージを更新
-	cm.cookies = httpCookies
-
-	cache := cookieCache{
-		Cookies: filteredCookies,
-		SavedAt: time.Now(),
-	}
-
-	data, err := json.MarshalIndent(cache, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal cookies: %w", err)
-	}
-
-	err = os.WriteFile(cm.filePath, data, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to write cookies file: %w", err)
-	}
-
-	slog.Info("Cookieを保存しました", "count", len(filteredCookies), "file_path", cm.filePath)
-	return nil
 }
 
 // SaveCookiesFromData は渡されたCookieをファイルに保存する（chromedp不要）
