@@ -56,21 +56,24 @@ func NewManager(cacheDir string, debug bool) (*Manager, error) {
 	slog.Debug("Chromeユーザーデータディレクトリ", "path", chromeDataDir)
 
 	// ChromeDPオプションの設定
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+	// 注意: DefaultExecAllocatorOptions は多数の自動化フラグを含み Akamai に検出されるため使用しない
+	// 代わりに必要最小限のフラグのみを設定する
+	opts := []chromedp.ExecAllocatorOption{
 		chromedp.UserDataDir(chromeDataDir),
-		// 新 headless モード (Chrome 109+): CDN のボット検出を回避
+		// 新 headless モード (Chrome 112+)
 		chromedp.Flag("headless", "new"),
 		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("no-sandbox", true),
+		// /dev/shm が小さい環境 (Docker/CI) でのクラッシュを防ぐ安定性フラグ
+		chromedp.Flag("disable-dev-shm-usage", true),
 		// 自動化マーカーを隠蔽 (navigator.webdriver を無効化)
 		chromedp.Flag("enable-automation", false),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
-		chromedp.Flag("no-sandbox", true),
-		chromedp.Flag("disable-web-security", true),
-		// デフォルトの disable-features とマージ (上書きではなく)
-		chromedp.Flag("disable-features", "site-per-process,Translate,BlinkGenPropertyTrees,VizDisplayCompositor"),
+		// クラッシュレポートを無効化
+		chromedp.Flag("disable-crash-reporter", true),
 		// システム Chrome に合わせた User-Agent
 		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
-	)
+	}
 
 	// タイムアウト付きコンテキストでブラウザを起動
 	baseCtx, baseCancel := context.WithTimeout(context.Background(), ExecAllocatorTimeout)

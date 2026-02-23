@@ -348,6 +348,69 @@ ls -la ~/.config/google-chrome/Default/  # Should be unchanged
 # Watch logs for cleanup messages when process exits
 ```
 
+## Remote Chrome Connection Pattern (--login)
+
+`--login` コマンドのように既存Chromeに接続して手動操作を監視する場合に使うパターン。
+
+### 重要な罠: chromedp.NewContext は新しいタブを作る
+
+```
+Chrome起動 → タブ1: oreilly.com/member/login/  ← ユーザーが操作するタブ
+chromedp   → タブ2: about:blank                  ← NewContext が作った新しいタブ
+```
+
+`chromedp.NewContext(allocCtx)` は既存タブに「接続」するのではなく、**新しい空のタブを作成**する。既存タブのURL変化は監視できない。
+
+**症状**: `chromedp.Location` が永遠に `about:blank` を返す
+
+### 正しいパターン: 新しいタブをナビゲートして監視する
+
+```go
+// 1. Chrome を起動 (URLなし。chromedpでナビゲートするから不要)
+cmd := exec.Command(
+    chromePath,
+    "--remote-debugging-port=9222",
+    "--user-data-dir="+setupDataDir,
+    "--no-first-run",            // 初回セットアップウィザードを抑制
+    "--no-default-browser-check", // デフォルトブラウザチェックを抑制
+)
+
+// 2. CDP接続待機 (http://localhost:9222/json/version をポーリング)
+wsURL, _ := waitForCDP("9222")
+
+// 3. ブラウザレベルで接続
+allocCtx, _ := chromedp.NewRemoteAllocator(context.Background(), wsURL)
+
+// 4. 新しいタブを作成 (about:blank から始まる)
+ctx, _ := chromedp.NewContext(allocCtx)
+
+// 5. このタブをログインページへナビゲート ← ここが重要！
+chromedp.Run(ctx, chromedp.Navigate(loginURL))
+
+// 6. このタブのURL変化を監視 → 正しく learning.oreilly.com を検出できる
+chromedp.Run(ctx, chromedp.Location(&currentURL))
+```
+
+### NG パターン: ChromeにURLを渡してchromedpで監視
+
+```go
+// ❌ Chrome起動時にURLを渡す → タブ1がlogin.oreilly.com
+cmd := exec.Command(chromePath, "--remote-debugging-port=9222", loginURL)
+
+// chromedp.NewContext はタブ2(about:blank)を作る
+ctx, _ := chromedp.NewContext(allocCtx)
+
+// タブ2のURLを監視 → 永遠にabout:blank！
+chromedp.Run(ctx, chromedp.Location(&url)) // about:blank ...
+```
+
+### CDP エンドポイントの使い分け
+
+| エンドポイント | 返す情報 | 用途 |
+|--------------|---------|------|
+| `/json/version` | ブラウザのwebSocketDebuggerUrl | `NewRemoteAllocator` に渡すWSURL取得 |
+| `/json` または `/json/list` | 全タブ(target)の一覧 | 特定タブへの接続 (`chromedp.WithTargetID`) |
+
 ## Common Pitfalls
 
 1. **Using defer in NewBrowserClient()**: Don't use defer for Close() in NewBrowserClient(). Use explicit calls instead for immediate cleanup.
@@ -357,6 +420,8 @@ ls -la ~/.config/google-chrome/Default/  # Should be unchanged
 3. **Not handling reauthentication**: Implement automatic reauthentication for 401/403 errors.
 
 4. **Missing debug mode check**: Always check debug mode before closing browser to enable troubleshooting.
+
+5. **Passing URL to Chrome args when using chromedp to monitor**: Chrome opens a tab at that URL, but `chromedp.NewContext` creates a DIFFERENT tab at `about:blank`. The tabs are separate. Navigate the chromedp tab instead.
 
 ## Related Files
 

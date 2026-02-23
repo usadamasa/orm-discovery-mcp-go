@@ -1,0 +1,12 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # fmt.Fprintln/Fprintf/Fprint are the io.Writer variants of fmt.Println/Printf/Print.
+      # Errors from writing to diagnostic writers (stderr/stdout) are not actionable,
+      # mirroring errcheck's built-in exclusion of fmt.Print* functions.
+      exclude-functions:
+        - fmt.Fprintln
+        - fmt.Fprintf
+        - fmt.Fprint

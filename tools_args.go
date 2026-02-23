@@ -110,6 +110,12 @@ type ReviewPRFinding struct {
 	Metadata   map[string]any `json:"metadata,omitempty"`
 }
 
+// ReauthResult represents the structured output for the oreilly_reauthenticate tool.
+type ReauthResult struct {
+	Status  string `json:"status"`  // "authenticated" | "setup_completed"
+	Message string `json:"message"` // Human-readable description
+}
+
 // AskQuestionResult represents the structured output for oreilly_ask_question tool.
 type AskQuestionResult struct {
 	QuestionID          string                       `json:"question_id"`

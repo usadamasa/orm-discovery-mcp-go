@@ -69,7 +69,8 @@ func LoadConfig() (*Config, error) {
 	OReillyPassword := getEnv("OREILLY_PASSWORD")
 	if OReillyUserID == "" || OReillyPassword == "" {
 		// この時点ではまだslogが設定されていないため、標準的なログ出力を使用
-		log.Fatalf("OREILLY_USER_ID と OREILLY_PASSWORD が設定されていません")
+		log.Printf("警告: OREILLY_USER_ID または OREILLY_PASSWORD が設定されていません。" +
+			"Cookie がある場合は認証可能です。ない場合は oreilly_reauthenticate ツールで再認証してください。")
 	}
 
 	// XDGディレクトリの解決
