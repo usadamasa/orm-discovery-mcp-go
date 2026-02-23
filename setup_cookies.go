@@ -38,7 +38,6 @@ func runSetupCookies() error {
 // サーバー内部から呼ぶ際は stderr を渡すことで stdio モードの MCP stream を汚染しません
 func runSetupCookiesWithOutput(out io.Writer) error {
 	fmt.Fprintln(out, "=== O'Reilly Cookie セットアップ ===")
-	fmt.Fprintln(out, "Google Chrome を起動してログインページを開きます。ログインするとCookieを自動保存します。")
 	fmt.Fprintln(out)
 
 	// XDGディレクトリを解決（OREILLY_USER_ID/PASSWORDは不要）
@@ -51,52 +50,45 @@ func runSetupCookiesWithOutput(out io.Writer) error {
 		return fmt.Errorf("XDGディレクトリの作成に失敗しました: %w", err)
 	}
 
-	// Chrome実行ファイルを検索
 	chromePath, err := findSystemChrome()
 	if err != nil {
 		return fmt.Errorf("%w\nGoogle Chrome をインストールしてください: https://www.google.com/chrome/", err)
 	}
 	slog.Info("Chromeを発見しました", "path", chromePath)
 
-	// セットアップ用データディレクトリ
-	setupDataDir := xdgDirs.ChromeSetupDataDir()
+	// 一時プロファイルで Chrome を起動する
+	// ログイン後に Chrome を終了し一時ディレクトリを削除する
+	tempDir := xdgDirs.ChromeSetupDataDir()
+	fmt.Fprintln(out, "Chrome を起動してログインページを開きます。ログインするとCookieを自動保存します。")
 
-	// Chrome を起動 (URLはchromedpでナビゲートするためここでは指定しない)
-	// --no-first-run: 初回セットアップウィザードを抑制
-	// --no-default-browser-check: デフォルトブラウザチェックを抑制
 	cmd := exec.Command(
 		chromePath,
 		"--remote-debugging-port="+cdpDebugPort,
-		"--user-data-dir="+setupDataDir,
+		"--user-data-dir="+tempDir,
 		"--no-first-run",
 		"--no-default-browser-check",
 	)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("chrome の起動に失敗しました: %w", err)
 	}
-
+	fmt.Fprintf(out, "Chrome を起動しました (PID: %d)\n", cmd.Process.Pid)
 	defer func() {
-		if cmd.Process != nil {
-			if err := cmd.Process.Kill(); err != nil {
-				slog.Warn("Chromeプロセスの終了に失敗", "error", err)
-			}
+		if killErr := cmd.Process.Kill(); killErr != nil {
+			slog.Warn("Chrome プロセスの終了に失敗", "error", killErr)
 		}
-		if err := os.RemoveAll(setupDataDir); err != nil {
-			slog.Warn("セットアップデータディレクトリの削除に失敗", "path", setupDataDir, "error", err)
+		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
+			slog.Warn("一時ディレクトリの削除に失敗", "path", tempDir, "error", rmErr)
 		}
 	}()
-
-	fmt.Fprintf(out, "Chrome を起動しました (PID: %d)\n", cmd.Process.Pid)
 
 	// CDP 接続待機
 	fmt.Fprintln(out, "CDP サーバーへの接続を待機中...")
 	wsURL, err := waitForCDP(cdpDebugPort)
 	if err != nil {
-		return fmt.Errorf("CDP接続に失敗しました: %w\nヒント: ポート %s が既に使用中の場合は、MCP サーバーを停止してから再試行してください", err, cdpDebugPort)
+		return fmt.Errorf("CDP 接続に失敗しました: %w", err)
 	}
-	slog.Info("CDP接続確立", "ws_url", wsURL)
+	slog.Info("CDP 接続確立", "ws_url", wsURL)
 
-	// 既存 Chrome プロセスに接続
 	allocCtx, allocCancel := chromedp.NewRemoteAllocator(context.Background(), wsURL)
 	defer allocCancel()
 
@@ -163,7 +155,8 @@ func waitForCDP(port string) (string, error) {
 // waitForCDPWithTimeout は指定したタイムアウトで CDP WebSocket URL が利用可能になるまで待機します
 func waitForCDPWithTimeout(port string, timeout time.Duration) (string, error) {
 	deadline := time.Now().Add(timeout)
-	cdpVersionURL := fmt.Sprintf("http://localhost:%s/json/version", port)
+	// Chrome は IPv4 127.0.0.1 でリッスンするため localhost (IPv6 [::1]) ではなく明示的に指定する
+	cdpVersionURL := fmt.Sprintf("http://127.0.0.1:%s/json/version", port)
 	var lastErr error
 
 	for time.Now().Before(deadline) {
