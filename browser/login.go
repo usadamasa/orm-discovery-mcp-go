@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,13 +19,30 @@ import (
 )
 
 const (
-	// CDPDebugPort はChrome DevTools Protocol のデバッグポート
-	CDPDebugPort = "9222"
 	// CDPWaitTimeout はCDP接続待機タイムアウト
 	CDPWaitTimeout    = 30 * time.Second
 	cdpPollInterval   = 1 * time.Second
 	cdpRequestTimeout = 3 * time.Second
 )
+
+// findAvailablePort はOS に空きポートを割り当ててもらい、そのポート番号を返す。
+// 固定ポート (9222) では複数インスタンス起動時にポート衝突が起きるため、動的に割り当てる。
+func findAvailablePort() (string, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", fmt.Errorf("空きポートの検索に失敗しました: %w", err)
+	}
+	defer func() {
+		if err := l.Close(); err != nil {
+			slog.Warn("リスナーのクローズに失敗", "error", err)
+		}
+	}()
+	_, port, err := net.SplitHostPort(l.Addr().String())
+	if err != nil {
+		return "", fmt.Errorf("ポート番号の取得に失敗しました: %w", err)
+	}
+	return port, nil
+}
 
 // FindSystemChrome はシステム Chrome のパスを返す (macOS / Linux のみ)
 func FindSystemChrome() (string, error) {
@@ -97,6 +115,9 @@ func fetchCDPWebSocketURL(cdpVersionURL string) (string, error) {
 		return "", fmt.Errorf("CDP レスポンスのパースに失敗: %w", err)
 	}
 
+	if result.WebSocketDebuggerURL == "" {
+		return "", fmt.Errorf("CDP エンドポイントが空の WebSocket URL を返しました")
+	}
 	return result.WebSocketDebuggerURL, nil
 }
 
@@ -139,11 +160,22 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 		return nil, fmt.Errorf("chromeの検索に失敗しました: %w", err)
 	}
 
+	// CDPデバッグポートを動的に割り当てる (固定ポートでは複数インスタンス起動時に衝突する)
+	port, err := findAvailablePort()
+	if err != nil {
+		return nil, fmt.Errorf("CDPデバッグポートの取得に失敗しました: %w", err)
+	}
+
+	// 一時ディレクトリを事前に作成する (Chrome が存在しないディレクトリを user-data-dir に指定するとエラーになる場合がある)
+	if err := os.MkdirAll(tempDir, 0700); err != nil {
+		return nil, fmt.Errorf("一時ディレクトリの作成に失敗しました: %w", err)
+	}
+
 	// 一時プロファイルで Chrome を起動する
 	// ログイン後に Chrome を終了し一時ディレクトリを削除する
 	cmd := exec.Command(
 		chromePath,
-		"--remote-debugging-port="+CDPDebugPort,
+		"--remote-debugging-port="+port,
 		"--user-data-dir="+tempDir,
 		"--no-first-run",
 		"--no-default-browser-check",
@@ -151,9 +183,11 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("chromeの起動に失敗しました: %w", err)
 	}
-	slog.Info("Chrome を起動しました", "pid", cmd.Process.Pid)
+	slog.Info("Chrome を起動しました", "pid", cmd.Process.Pid, "cdp_port", port)
 
-	// goroutine で cmd.Wait() を走らせ、Chrome プロセスの終了を検知する
+	// goroutine で cmd.Wait() を走らせ、Chrome プロセスの終了を検知する。
+	// バッファサイズ 1 は、goroutine が cmd.Wait() の結果を書き込めるようにするため必須。
+	// バッファなしだと、select で processDone を消費する前に goroutine がブロックされる。
 	processDone := make(chan error, 1)
 	go func() {
 		processDone <- cmd.Wait()
@@ -174,7 +208,7 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 	}()
 
 	// CDP 接続待機
-	wsURL, err := WaitForCDPWithTimeout(CDPDebugPort, CDPWaitTimeout)
+	wsURL, err := WaitForCDPWithTimeout(port, CDPWaitTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("CDP 接続に失敗しました: %w", err)
 	}
@@ -209,7 +243,10 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 			return nil, fmt.Errorf("手動ログインがタイムアウトしました（%.0f分）。再度お試しください", VisibleLoginTimeout.Minutes())
 		case waitErr := <-processDone:
 			processExited = true
-			return nil, fmt.Errorf("chromeが予期せず終了しました。再度コマンドを実行してログインしてください: %w", waitErr)
+			if waitErr == nil {
+				return nil, fmt.Errorf("ログイン完了前にChromeが閉じられました。再度コマンドを実行してログインしてください")
+			}
+			return nil, fmt.Errorf("chromeが予期せず終了しました: %w", waitErr)
 		case <-ticker.C:
 			var currentURL string
 			if err := chromedp.Run(loginCtx, chromedp.Location(&currentURL)); err != nil {
@@ -239,6 +276,11 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 							Secure:   c.Secure,
 							HttpOnly: c.HTTPOnly,
 						}
+						// CDP Cookie の Expires (float64 Unix epoch秒) を http.Cookie.Expires に変換する。
+						// Session Cookie (c.Session == true) は有効期限なしのため変換しない。
+						if !c.Session && c.Expires > 0 {
+							cookies[i].Expires = time.Unix(int64(c.Expires), 0)
+						}
 					}
 					slog.Info("Cookieを取得しました", "count", len(cookies))
 					return nil
@@ -246,6 +288,24 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 				if err != nil {
 					return nil, fmt.Errorf("cookie取得に失敗しました: %w", err)
 				}
+
+				// 空Cookieチェックと認証Cookie存在確認
+				if len(cookies) == 0 {
+					slog.Debug("Cookieが空です。ポーリングを継続します")
+					continue
+				}
+				hasAuthCookie := false
+				for _, c := range cookies {
+					if c.Name == "orm-jwt" || c.Name == "groot_sessionid" {
+						hasAuthCookie = true
+						break
+					}
+				}
+				if !hasAuthCookie {
+					slog.Debug("認証Cookie (orm-jwt/groot_sessionid) が見つかりません。ポーリングを継続します")
+					continue
+				}
+
 				return cookies, nil
 			}
 		}

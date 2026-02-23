@@ -8,11 +8,18 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 )
+
+// visibleLoginTempDir はビジブルログイン用の一時ディレクトリパスを返す。
+// PIDベースのユニークパスにすることで、複数プロセス同時実行時のディレクトリ衝突を防ぐ。
+func visibleLoginTempDir(stateDir string) string {
+	return filepath.Join(stateDir, fmt.Sprintf("chrome-setup-%d", os.Getpid()))
+}
 
 // errUnauthenticated は HTTP 401/403 による認証失敗を表すセンチネルエラー。
 // ネットワークエラーとは区別され、Cookie の削除判断に使用される。
@@ -110,7 +117,7 @@ func NewBrowserClient(cookieManager cookie.Manager, debug bool, stateDir string)
 
 	// ビジブルブラウザでログインを実行
 	client.cookieManager = cookieManager
-	if err := RunVisibleLogin(filepath.Join(stateDir, "chrome-setup"), cookieManager); err != nil {
+	if err := RunVisibleLogin(visibleLoginTempDir(stateDir), cookieManager); err != nil {
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 
@@ -127,8 +134,13 @@ func (bc *BrowserClient) Close() {
 func (bc *BrowserClient) Reauthenticate() error {
 	slog.Info("Cookie有効期限切れ検出: ビジブルブラウザで再認証を開始します")
 
-	if err := RunVisibleLogin(filepath.Join(bc.stateDir, "chrome-setup"), bc.cookieManager); err != nil {
+	if err := RunVisibleLogin(visibleLoginTempDir(bc.stateDir), bc.cookieManager); err != nil {
 		return fmt.Errorf("再認証に失敗しました: %w", err)
+	}
+
+	// ログイン成功後にCookieの有効性をHTTPで検証する
+	if err := bc.validateAuthenticationViaHTTP(); err != nil {
+		return fmt.Errorf("再認証後のCookie検証に失敗しました: %w", err)
 	}
 
 	slog.Info("再認証が完了しました")
@@ -210,18 +222,6 @@ func (bc *BrowserClient) CheckAndResetAuth() error {
 	return fmt.Errorf("cookieが無効です。再認証が必要です: %w", err)
 }
 
-// ReloadCookies はCookieファイルを再読み込みして認証を検証します。
-// --login 完了後にサーバーのCookie状態を更新するために使用します。
-func (bc *BrowserClient) ReloadCookies() error {
-	if err := bc.cookieManager.LoadCookies(); err != nil {
-		return fmt.Errorf("cookieの読み込みに失敗しました: %w", err)
-	}
-	if err := bc.validateAuthenticationViaHTTP(); err != nil {
-		return fmt.Errorf("cookie読み込み後の認証検証に失敗しました: %w", err)
-	}
-	return nil
-}
-
 // CreateRequestEditor creates a standardized RequestEditorFn for API calls
 func (bc *BrowserClient) CreateRequestEditor() func(ctx context.Context, req *http.Request) error {
 	return bc.createRequestEditorInternal("")
@@ -298,7 +298,7 @@ func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
 
 	slog.Info("コンテンツを取得しています", "type", contentType, "url", contentURL)
 
-	req, err := http.NewRequest("GET", contentURL, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, contentURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}

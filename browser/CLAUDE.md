@@ -26,7 +26,6 @@ browser/
 - `validateAuthenticationViaHTTP()` - HTTPリクエストによるCookie有効性検証
 - `Close()` - No-op (ブラウザプロセスは login.go で管理)
 - `CheckAndResetAuth()` - Cookie有効性検証 + 無効時の削除
-- `ReloadCookies()` - Cookieファイル再読み込みと検証
 
 **Login Flow**:
 1. Cookie restoration attempt via `LoadCookies()`
@@ -129,19 +128,16 @@ type BrowserClient struct {
     userAgent     string
     cookieManager cookie.Manager
     debug         bool
-    stateDir      string         // XDG StateHome (Chrome一時データ、スクリーンショット用)
+    stateDir      string         // XDG StateHome (Chrome一時データ用)
 }
 ```
 
 **Timeout Constants**:
 ```go
 const (
-    ChromeDPExecAllocatorTimeout = 45 * time.Second
-    AuthValidationTimeout        = 15 * time.Second
-    CookieOperationTimeout       = 10 * time.Second
-    WaitVisibleTimeout           = 10 * time.Second
-    APIOperationTimeout          = 30 * time.Second
-    VisibleLoginTimeout          = 5 * time.Minute  // 手動ログイン待機
+    AuthValidationTimeout = 15 * time.Second
+    APIOperationTimeout   = 30 * time.Second
+    VisibleLoginTimeout   = 5 * time.Minute  // 手動ログイン待機
 )
 ```
 
@@ -177,7 +173,9 @@ if cookieManager.CookieFileExists() {
 
 // 3. Fallback to visible browser login
 client.cookieManager = cookieManager
-RunVisibleLogin(filepath.Join(stateDir, "chrome-setup"), cookieManager)
+if err := RunVisibleLogin(visibleLoginTempDir(stateDir), cookieManager); err != nil {
+    return nil, err
+}
 ```
 
 ### OpenAPI Client Integration Pattern

@@ -18,8 +18,14 @@ func TestMain(m *testing.M) {
 	cfg := LoadTestConfig()
 	sharedConfig = cfg
 
-	// Create shared client (only once for all tests)
+	// Cookie不在時はE2Eテストをスキップする (ビジブルブラウザが起動してしまうため)
 	cookieManager := cookie.NewCookieManager(cfg.TmpDir)
+	if !cookieManager.CookieFileExists() {
+		log.Println("Cookie not found, skipping E2E tests")
+		os.Exit(0)
+	}
+
+	// Create shared client (only once for all tests)
 	client, err := browser.NewBrowserClient(
 		cookieManager,
 		cfg.Debug,

@@ -1,10 +1,10 @@
 # ChromeDP Lifecycle Management
 
-ChromeDP-based authentication implementation guide with "close-after-authentication" pattern.
+exec.Command + NewRemoteAllocator ベースの認証実装ガイド。"close-after-authentication" パターンを採用。
 
 ## Overview
 
-ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern to **avoid issues with URL operations in production environments**. As a secondary benefit, this also reduces memory usage.
+ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern. Chrome は `exec.Command` でネイティブ起動し、`chromedp.NewRemoteAllocator` で CDP 接続する。`chromedp.NewExecAllocator` は Akamai にボットとして検知されるため使用しない。メモリ使用量の削減は副次的な利点。
 
 ## パッケージ構成
 
@@ -36,6 +36,7 @@ browser/
 func NewBrowserClient(cookieManager cookie.Manager, debug bool, stateDir string) (*BrowserClient, error) {
     client := &BrowserClient{
         httpClient: &http.Client{...},
+        userAgent:  "Mozilla/5.0 ...",
         stateDir:   stateDir,
         debug:      debug,
     }
@@ -231,12 +232,9 @@ Note: Memory reduction is a secondary benefit. The primary reason for closing th
 
 ```go
 const (
-    ChromeDPExecAllocatorTimeout = 45 * time.Second
-    AuthValidationTimeout        = 15 * time.Second
-    CookieOperationTimeout       = 10 * time.Second
-    WaitVisibleTimeout           = 10 * time.Second
-    APIOperationTimeout          = 30 * time.Second
-    VisibleLoginTimeout          = 5 * time.Minute  // 手動ログイン待機
+    AuthValidationTimeout = 15 * time.Second
+    APIOperationTimeout   = 30 * time.Second
+    VisibleLoginTimeout   = 5 * time.Minute  // 手動ログイン待機
 )
 ```
 
@@ -244,11 +242,11 @@ const (
 
 ```go
 const (
-    CDPDebugPort      = "9222"
     CDPWaitTimeout    = 30 * time.Second  // CDP 接続待機
     cdpPollInterval   = 1 * time.Second
     cdpRequestTimeout = 3 * time.Second
 )
+// CDPデバッグポートは findAvailablePort() で動的に割り当て
 ```
 
 ## Remote Chrome Connection Pattern
@@ -348,11 +346,9 @@ chromedp.Run(ctx, chromedp.Location(&url)) // about:blank ...
 **タイムアウト値の確認** (browser/types.go):
 ```go
 const (
-    ChromeDPExecAllocatorTimeout = 45 * time.Second  // ブラウザ起動全体
-    AuthValidationTimeout        = 15 * time.Second  // 認証検証
-    CookieOperationTimeout       = 10 * time.Second  // Cookie操作
-    APIOperationTimeout          = 30 * time.Second  // API呼び出し
-    VisibleLoginTimeout          = 5 * time.Minute   // 手動ログイン待機
+    AuthValidationTimeout = 15 * time.Second  // 認証検証
+    APIOperationTimeout   = 30 * time.Second  // API呼び出し
+    VisibleLoginTimeout   = 5 * time.Minute   // 手動ログイン待機
 )
 ```
 

@@ -7,13 +7,10 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 )
 
-// ChromeDP operation timeouts (all under 1 minute)
+// Operation timeouts
 const (
-	ChromeDPExecAllocatorTimeout = 45 * time.Second
-	AuthValidationTimeout        = 15 * time.Second
-	CookieOperationTimeout       = 10 * time.Second
-	WaitVisibleTimeout           = 10 * time.Second
-	APIOperationTimeout          = 30 * time.Second
+	AuthValidationTimeout = 15 * time.Second
+	APIOperationTimeout   = 30 * time.Second
 
 	// VisibleLoginTimeout はビジブルブラウザでの手動ログイン待機タイムアウト
 	VisibleLoginTimeout = 5 * time.Minute
@@ -36,7 +33,7 @@ type BrowserClient struct {
 	userAgent     string
 	cookieManager cookie.Manager
 	debug         bool
-	stateDir      string // XDG StateHome (Chrome一時データ、スクリーンショット用)
+	stateDir      string // XDG StateHome (Chrome一時データ用)
 }
 
 // TableOfContentsItem represents a single item in the table of contents

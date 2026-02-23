@@ -14,8 +14,6 @@ import (
 
 const (
 	cookieFileName = "orm-mcp-go-cookies.json"
-	// CookieOperationTimeout はCookie操作のタイムアウト時間
-	CookieOperationTimeout = 10 * time.Second
 )
 
 // Manager の前方宣言（main パッケージの構造体）
