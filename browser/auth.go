@@ -79,10 +79,6 @@ func (grc *gzipReadCloser) Close() error {
 // NewBrowserClient は新しいブラウザクライアントを作成し、ログインを実行します
 // stateDir: XDG StateHome (Chrome一時データ用)
 func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, stateDir string) (*BrowserClient, error) {
-	if userID == "" || password == "" {
-		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required")
-	}
-
 	// ChromeDPライフサイクルマネージャーを作成(古いディレクトリを自動クリーンアップ)
 	manager, err := cdp.NewManager(stateDir, debug)
 	if err != nil {
@@ -126,6 +122,13 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 			}
 			slog.Info("Cookieが無効でした。通常のログインを実行します")
 		}
+	}
+
+	// Cookie-first 認証が失敗した後、パスワードログインの直前に認証情報を確認
+	if userID == "" || password == "" {
+		client.Close()
+		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required for password login" +
+			"; cookie file is missing or expired, please run --setup-cookies or oreilly_reauthenticate")
 	}
 
 	// 通常のログインを実行
@@ -473,6 +476,30 @@ func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
 	// それ以外のステータスコード（302リダイレクトなど）は認証失敗として扱う
 	slog.Warn("予期しないステータスコード", "status", resp.StatusCode)
 	return false
+}
+
+// CheckAndResetAuth はCookieの有効性を検証し、期限切れの場合はCookieファイルを削除します。
+// 認証済みの場合は nil を返します。未認証の場合は stale Cookie を削除してエラーを返します。
+func (bc *BrowserClient) CheckAndResetAuth() error {
+	if bc.validateAuthenticationViaHTTP() {
+		return nil
+	}
+	if delErr := bc.cookieManager.DeleteCookieFile(); delErr != nil {
+		slog.Warn("期限切れCookieの削除に失敗", "error", delErr)
+	}
+	return fmt.Errorf("cookieが無効です。再認証が必要です")
+}
+
+// ReloadCookies はCookieファイルを再読み込みして認証を検証します。
+// --setup-cookies 完了後にサーバーのCookie状態を更新するために使用します。
+func (bc *BrowserClient) ReloadCookies() error {
+	if err := bc.cookieManager.LoadCookies(); err != nil {
+		return fmt.Errorf("cookieの読み込みに失敗しました: %w", err)
+	}
+	if !bc.validateAuthenticationViaHTTP() {
+		return fmt.Errorf("cookie読み込み後の認証検証に失敗しました")
+	}
+	return nil
 }
 
 // CreateRequestEditor creates a standardized RequestEditorFn for API calls

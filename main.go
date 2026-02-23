@@ -72,13 +72,13 @@ func runMCPServer() {
 	// Create browser client and login (using StateHome for Chrome temp data)
 	browserClient, err := browser.NewBrowserClient(cfg.OReillyUserID, cfg.OReillyPassword, cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
 	if err != nil {
-		slog.Error("ブラウザクライアントの初期化に失敗しました", "error", err)
-		os.Exit(1)
+		slog.Warn("ブラウザクライアントの初期化に失敗しました。degraded モードで起動します。"+
+			"oreilly_reauthenticate ツールで再認証してください。", "error", err)
+	} else {
+		slog.Info("ブラウザクライアントの初期化が完了しました")
+		defer browserClient.Close() // Clean up browser on process exit
 	}
-	defer browserClient.Close() // Clean up browser on process exit
-
-	slog.Info("ブラウザクライアントの初期化が完了しました")
-	s := NewServer(browserClient, cfg)
+	s := NewServer(browserClient, cfg, cookieManager)
 
 	if cfg.Transport == "http" {
 		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.BindAddress, cfg.Port)); err != nil {

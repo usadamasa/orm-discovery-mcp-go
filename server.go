@@ -7,12 +7,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/critic"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/git"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/reviewer"
@@ -33,10 +35,11 @@ type Server struct {
 	config          *Config
 	historyManager  *ResearchHistoryManager
 	samplingManager *SamplingManager
+	cookieManager   cookie.Manager // 再認証時の BrowserClient 再生成に使用
 }
 
 // NewServer creates a new server instance.
-func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
+func NewServer(browserClient *browser.BrowserClient, config *Config, cookieManager cookie.Manager) *Server {
 	// Create MCP server
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
@@ -64,6 +67,7 @@ func NewServer(browserClient *browser.BrowserClient, config *Config) *Server {
 		config:          config,
 		historyManager:  historyManager,
 		samplingManager: samplingManager,
+		cookieManager:   cookieManager,
 	}
 
 	// Add middleware for logging
@@ -226,6 +230,23 @@ IMPORTANT: Cite sources provided in the response.`,
 	}
 	mcp.AddTool(s.server, askQuestionTool, s.AskQuestionHandler)
 
+	// Add reauthenticate tool
+	reauthTool := &mcp.Tool{
+		Name: "oreilly_reauthenticate",
+		Description: "O'Reillyセッションを再認証します。" +
+			"Cookieが有効な場合は認証済みを返します。" +
+			"Cookieが期限切れの場合はGoogle Chromeを起動してログインページを開きます。" +
+			"ブラウザでログインが完了すると自動的にCookieを保存してサーバーの認証状態を更新します。",
+		Annotations: &mcp.ToolAnnotations{
+			Title:           "Re-authenticate O'Reilly Session",
+			ReadOnlyHint:    false,
+			DestructiveHint: ptrBool(false),
+			IdempotentHint:  true,
+			OpenWorldHint:   ptrBool(false),
+		},
+	}
+	mcp.AddTool(s.server, reauthTool, s.ReauthenticateHandler)
+
 	// Add review_pr tool
 	reviewPRTool := &mcp.Tool{
 		Name: "review_pr",
@@ -348,6 +369,11 @@ func (s *Server) registerResources() {
 func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequest, args SearchContentArgs) (*mcp.CallToolResult, *SearchContentResult, error) {
 	slog.Debug("検索リクエスト受信")
 	start := time.Now()
+
+	if s.browserClient == nil {
+		return newToolResultError("O'Reilly セッションが認証されていません。" +
+			"oreilly_reauthenticate ツールを呼び出してログインしてください。"), nil, nil
+	}
 
 	if args.Query == "" {
 		return newToolResultError("query parameter is required"), nil, nil
@@ -830,6 +856,66 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 			MIMEType: "application/json",
 			Text:     string(jsonBytes),
 		}},
+	}, nil
+}
+
+// ReauthenticateHandler handles the oreilly_reauthenticate MCP tool.
+// Cookie が有効ならそのまま返し、期限切れなら --setup-cookies フローを実行して
+// サーバーの Cookie 状態を更新します。
+// browserClient が nil の場合 (degraded モード) は setup-cookies フローを実行して
+// 新しい BrowserClient を生成します。
+func (s *Server) ReauthenticateHandler(
+	ctx context.Context,
+	_ *mcp.CallToolRequest,
+	_ struct{},
+) (*mcp.CallToolResult, *ReauthResult, error) {
+	// degraded モード: browserClient が nil = サーバーが認証なしで起動した状態
+	if s.browserClient == nil {
+		slog.Info("oreilly_reauthenticate: degraded モード - setup-cookies フローを開始します")
+		if err := runSetupCookiesWithOutput(os.Stderr); err != nil {
+			return newToolResultError(fmt.Sprintf("セットアップに失敗しました: %v", err)), nil, nil
+		}
+		// 保存された Cookie で新しい BrowserClient を生成 (Cookie-first で成功するはず)
+		client, err := browser.NewBrowserClient(
+			s.config.OReillyUserID,
+			s.config.OReillyPassword,
+			s.cookieManager,
+			s.config.Debug,
+			s.config.XDGDirs.StateHome,
+		)
+		if err != nil {
+			return newToolResultError(fmt.Sprintf("BrowserClient の生成に失敗しました: %v", err)), nil, nil
+		}
+		s.browserClient = client
+		return nil, &ReauthResult{
+			Status:  "setup_completed",
+			Message: "再認証が完了しました。O'Reilly セッションが更新されました。",
+		}, nil
+	}
+
+	// 通常モード: 1. 現在の Cookie で認証チェック
+	if err := s.browserClient.CheckAndResetAuth(); err == nil {
+		return nil, &ReauthResult{
+			Status:  "authenticated",
+			Message: "O'Reilly セッションは有効です。",
+		}, nil
+	}
+
+	// 2. --setup-cookies フローを実行 (Chrome 起動 → 手動ログイン → Cookie 保存)
+	// stderr に出力することで stdio モードの MCP stream を汚染しない
+	slog.Info("oreilly_reauthenticate: --setup-cookies フローを開始します")
+	if err := runSetupCookiesWithOutput(os.Stderr); err != nil {
+		return newToolResultError(fmt.Sprintf("セットアップに失敗しました: %v", err)), nil, nil
+	}
+
+	// 3. 新しい Cookie をサーバーにリロード
+	if err := s.browserClient.ReloadCookies(); err != nil {
+		return newToolResultError(fmt.Sprintf("Cookieの再読み込みに失敗しました: %v", err)), nil, nil
+	}
+
+	return nil, &ReauthResult{
+		Status:  "setup_completed",
+		Message: "再認証が完了しました。O'Reilly セッションが更新されました。",
 	}, nil
 }
 

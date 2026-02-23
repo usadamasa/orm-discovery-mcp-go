@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -28,10 +29,17 @@ const (
 
 // runSetupCookies は手動ログインからCookieを保存するセットアップフローを実行します
 // OREILLY_USER_ID / OREILLY_PASSWORD は不要（手動ログインのため）
+// CLI から呼ばれるエントリポイント (stdout に出力)
 func runSetupCookies() error {
-	fmt.Println("=== O'Reilly Cookie セットアップ ===")
-	fmt.Println("Google Chrome を起動してログインページを開きます。ログインするとCookieを自動保存します。")
-	fmt.Println()
+	return runSetupCookiesWithOutput(os.Stdout)
+}
+
+// runSetupCookiesWithOutput は出力先を指定して実行します
+// サーバー内部から呼ぶ際は stderr を渡すことで stdio モードの MCP stream を汚染しません
+func runSetupCookiesWithOutput(out io.Writer) error {
+	fmt.Fprintln(out, "=== O'Reilly Cookie セットアップ ===")
+	fmt.Fprintln(out, "Google Chrome を起動してログインページを開きます。ログインするとCookieを自動保存します。")
+	fmt.Fprintln(out)
 
 	// XDGディレクトリを解決（OREILLY_USER_ID/PASSWORDは不要）
 	xdgDirs, err := GetXDGDirs(os.Getenv("ORM_MCP_GO_DEBUG_DIR"))
@@ -78,10 +86,10 @@ func runSetupCookies() error {
 		}
 	}()
 
-	fmt.Printf("Chrome を起動しました (PID: %d)\n", cmd.Process.Pid)
+	fmt.Fprintf(out, "Chrome を起動しました (PID: %d)\n", cmd.Process.Pid)
 
 	// CDP 接続待機
-	fmt.Println("CDP サーバーへの接続を待機中...")
+	fmt.Fprintln(out, "CDP サーバーへの接続を待機中...")
 	wsURL, err := waitForCDP(cdpDebugPort)
 	if err != nil {
 		return fmt.Errorf("CDP接続に失敗しました: %w\nヒント: ポート %s が既に使用中の場合は、MCP サーバーを停止してから再試行してください", err, cdpDebugPort)
@@ -99,15 +107,15 @@ func runSetupCookies() error {
 	defer ctxCancel()
 
 	// ログインページへナビゲート
-	fmt.Printf("ログインページを開いています: %s\n\n", ormLoginURL)
+	fmt.Fprintf(out, "ログインページを開いています: %s\n\n", ormLoginURL)
 	if err := chromedp.Run(ctx, chromedp.Navigate(ormLoginURL)); err != nil {
 		return fmt.Errorf("ログインページへのナビゲートに失敗しました: %w", err)
 	}
 
 	// ログイン完了を待機
-	fmt.Printf("ログイン完了を待機中... (最大 %.0f 分)\n", loginWaitTimeout.Minutes())
-	fmt.Println("ブラウザで O'Reilly にログインしてください。")
-	if err := waitForLoginCompletion(ctx); err != nil {
+	fmt.Fprintf(out, "ログイン完了を待機中... (最大 %.0f 分)\n", loginWaitTimeout.Minutes())
+	fmt.Fprintln(out, "ブラウザで O'Reilly にログインしてください。")
+	if err := waitForLoginCompletion(ctx, out); err != nil {
 		return fmt.Errorf("ログイン完了の待機に失敗しました: %w", err)
 	}
 
@@ -117,9 +125,9 @@ func runSetupCookies() error {
 		return fmt.Errorf("cookieの保存に失敗しました: %w", err)
 	}
 
-	fmt.Println()
-	fmt.Printf("✓ Cookieを保存しました: %s\n", xdgDirs.CookiePath())
-	fmt.Println("次回から `orm-discovery-mcp-go` を実行すると、Cookieでログインできます。")
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "✓ Cookieを保存しました: %s\n", xdgDirs.CookiePath())
+	fmt.Fprintln(out, "次回から `orm-discovery-mcp-go` を実行すると、Cookieでログインできます。")
 	return nil
 }
 
@@ -208,7 +216,7 @@ func fetchCDPWebSocketURL(cdpVersionURL string) (string, error) {
 }
 
 // waitForLoginCompletion は learning.oreilly.com への遷移を検出してログイン完了を判定します
-func waitForLoginCompletion(ctx context.Context) error {
+func waitForLoginCompletion(ctx context.Context, out io.Writer) error {
 	deadline := time.Now().Add(loginWaitTimeout)
 
 	for time.Now().Before(deadline) {
@@ -220,11 +228,11 @@ func waitForLoginCompletion(ctx context.Context) error {
 		}
 
 		if strings.Contains(currentURL, ormLearningURLPart) {
-			fmt.Println("✓ ログイン完了を確認しました")
+			fmt.Fprintln(out, "✓ ログイン完了を確認しました")
 			return nil
 		}
 
-		fmt.Printf("ログイン待機中... (現在のURL: %s)\n", currentURL)
+		fmt.Fprintf(out, "ログイン待機中... (現在のURL: %s)\n", currentURL)
 		time.Sleep(loginPollInterval)
 	}
 
