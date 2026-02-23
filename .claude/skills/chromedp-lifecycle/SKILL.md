@@ -1,178 +1,138 @@
 # ChromeDP Lifecycle Management
 
-ChromeDP-based authentication implementation guide with "close-after-authentication" pattern.
+exec.Command + NewRemoteAllocator ベースの認証実装ガイド。"close-after-authentication" パターンを採用。
 
 ## Overview
 
-ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern to **avoid issues with URL operations in production environments**. As a secondary benefit, this also reduces memory usage.
+ChromeDP is only required for initial authentication. All subsequent API calls use HTTP client with cookies. The implementation follows a "close-after-authentication" pattern. Chrome は `exec.Command` でネイティブ起動し、`chromedp.NewRemoteAllocator` で CDP 接続する。`chromedp.NewExecAllocator` は Akamai にボットとして検知されるため使用しない。メモリ使用量の削減は副次的な利点。
 
 ## パッケージ構成
 
-ChromeDPライフサイクル管理は `browser/chromedp/` パッケージに切り出されています:
+ChromeDP ライフサイクル管理は `browser/` パッケージ内に統合されています:
 
 ```
 browser/
-└── chromedp/
-    └── lifecycle.go   # Manager構造体とクリーンアップ関数
-```
-
-## Manager構造体
-
-`chromedp.Manager` はChromeDPブラウザインスタンスのライフサイクルを管理します:
-
-```go
-import cdp "github.com/usadamasa/orm-discovery-mcp-go/browser/chromedp"
-
-// 新しいマネージャーを作成(古いディレクトリを自動クリーンアップ)
-manager, err := cdp.NewManager(tmpDir, debug)
-if err != nil {
-    return nil, err
-}
-
-// ブラウザ操作用のコンテキストを取得
-ctx := manager.Context()
-
-// ブラウザを閉じてユーザーデータディレクトリを削除
-manager.Close()
-```
-
-### 主要メソッド
-
-- `NewManager(tmpDir, debug)` - 新しいマネージャーを作成(古いディレクトリを自動クリーンアップ)
-- `Context()` - ブラウザ操作用のコンテキストを返す
-- `Close()` - ブラウザを閉じてユーザーデータディレクトリを削除
-
-## SingletonLock問題の自動解決
-
-サーバーは起動時に以下の処理を自動的に行います:
-
-1. **プロセス固有のユーザーデータディレクトリ**: 各インスタンスは `chrome-user-data-{PID}` 形式のディレクトリを使用
-2. **安全な古いディレクトリのクリーンアップ**:
-   - プロセスが存在しない → 削除
-   - プロセスが存在するが別のプログラム → 削除
-   - **orm-discovery-mcp-goが実行中** → スキップ
-3. **旧形式ディレクトリ(chrome-user-data)の安全な削除**:
-   - SingletonLockがない → 削除
-   - SingletonLockがある → スキップ(警告ログ出力)
-4. **終了時のクリーンアップ**: Close()で自身のディレクトリを削除
-
-### 複数インスタンス対応
-
-複数のClaude Codeインスタンスから同時に起動しても競合しません:
-
-```bash
-# 例: 2つのインスタンスを同時起動
-./bin/orm-discovery-mcp-go &   # chrome-user-data-12345
-./bin/orm-discovery-mcp-go &   # chrome-user-data-12346
+├── login.go   # RunVisibleLogin / runVisibleLogin (Chrome起動とログイン待機)
+├── auth.go    # NewBrowserClient / Reauthenticate / Close
+└── types.go   # BrowserClient構造体、タイムアウト定数
 ```
 
 ## Core Principles
 
 1. **Minimize browser runtime**: Browser only runs during authentication
 2. **Production environment safety**: Avoid URL operation issues by closing browser after auth
-3. **Debug mode flexibility**: Keep browser alive for troubleshooting when needed
-4. **Automatic recovery**: Reauthenticate automatically on cookie expiration
-5. **User browser isolation**: Process-specific UserDataDir prevents interference
-6. **Automatic cleanup**: Old Chrome data directories are cleaned up on startup
+3. **Automatic recovery**: Reauthenticate automatically on cookie expiration
+4. **User browser isolation**: Temporary UserDataDir prevents interference
+5. **Process exit detection**: Chrome closure is detected immediately via goroutine
 
 ## Implementation Patterns
 
 ### 1. Authentication-Only Browser Usage
 
-**Pattern**: Start ChromeDP via Manager → Authenticate → Close immediately (unless debug mode)
+**Pattern**: exec.Command で Chrome を起動 → NewRemoteAllocator で CDP 接続 → 認証 → プロセス Kill
 
 ```go
 // NewBrowserClient() - auth.go
-func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, tmpDir string) (*BrowserClient, error) {
-    // 1. Create ChromeDP Manager (auto-cleans old directories)
-    manager, err := cdp.NewManager(tmpDir, debug)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create ChromeDP manager: %w", err)
-    }
-
+func NewBrowserClient(cookieManager cookie.Manager, debug bool, stateDir string) (*BrowserClient, error) {
     client := &BrowserClient{
-        ctx:             manager.Context(),
-        chromedpManager: manager,
-        // ... other fields
+        httpClient: &http.Client{...},
+        userAgent:  "Mozilla/5.0 ...",
+        stateDir:   stateDir,
+        debug:      debug,
     }
 
-    // 2. Authenticate (either via cookies or password login)
-    // ... authentication logic ...
-
-    // 3. Close immediately in non-debug mode
-    if !debug {
-        slog.Info("非デバッグモード: ブラウザコンテキストをクローズします")
-        client.Close()
+    // 1. Cookie復元 → HTTP検証
+    if cookieManager.CookieFileExists() {
+        cookieManager.LoadCookies()
+        client.cookieManager = cookieManager
+        if client.validateAuthenticationViaHTTP() == nil {
+            return client, nil // Cookie有効: ブラウザ不要
+        }
     }
 
+    // 2. Cookie無効: ビジブルブラウザで手動ログイン
+    client.cookieManager = cookieManager
+    if err := RunVisibleLogin(filepath.Join(stateDir, "chrome-setup"), cookieManager); err != nil {
+        return nil, fmt.Errorf("failed to login: %w", err)
+    }
     return client, nil
 }
 ```
 
-**Benefits**:
-- **Avoids SingletonLock errors** by using process-specific directories
-- **Avoids URL operation issues** in production environments
-- Browser process only runs during authentication
-- HTTP API calls work without browser
-- 100-300MB memory reduction as secondary benefit
-- **Automatic cleanup** of old Chrome data directories
+### 2. Visible Login Flow (login.go)
 
-### 2. Debug Mode Persistence
-
-**Pattern**: Keep browser alive in debug mode for screenshot functionality
+**Pattern**: exec.Command + NewRemoteAllocator + processDone チャネル
 
 ```go
-// Debug mode check before closing
-if !debug {
-    client.Close()
+// runVisibleLogin() - login.go
+func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
+    chromePath, _ := FindSystemChrome() // macOS / Linux のみ
+
+    // 1. exec.Command で Chrome をネイティブ起動
+    cmd := exec.Command(chromePath,
+        "--remote-debugging-port="+CDPDebugPort,
+        "--user-data-dir="+tempDir,
+        "--no-first-run",
+        "--no-default-browser-check",
+    )
+    cmd.Start()
+
+    // 2. goroutine で Chrome プロセスの終了を監視
+    processDone := make(chan error, 1)
+    go func() { processDone <- cmd.Wait() }()
+    processExited := false
+
+    defer func() {
+        if !processExited {
+            cmd.Process.Kill()
+            <-processDone // ゾンビプロセス回収
+        }
+        os.RemoveAll(tempDir)
+    }()
+
+    // 3. CDP 接続待機 → NewRemoteAllocator
+    wsURL, _ := WaitForCDPWithTimeout(CDPDebugPort, CDPWaitTimeout)
+    allocCtx, _ := chromedp.NewRemoteAllocator(context.Background(), wsURL)
+    chromeCtx, _ := chromedp.NewContext(allocCtx)
+    loginCtx, _ := context.WithTimeout(chromeCtx, VisibleLoginTimeout) // 5分
+
+    // 4. ログインページにナビゲート
+    chromedp.Run(loginCtx, chromedp.Navigate("https://www.oreilly.com/member/login/"))
+
+    // 5. ポーリングループ
+    for {
+        select {
+        case <-loginCtx.Done():
+            return nil, fmt.Errorf("タイムアウト")
+        case waitErr := <-processDone:
+            processExited = true
+            return nil, fmt.Errorf("chromeが予期せず終了: %w", waitErr)
+        case <-ticker.C:
+            chromedp.Run(loginCtx, chromedp.Location(&url))
+            if strings.Contains(url, "learning.oreilly.com") {
+                // Cookie取得して返す
+            }
+        }
+    }
 }
-// In debug mode, browser stays alive for debugScreenshot()
 ```
 
-**Use Case**:
-- Development and troubleshooting
-- Screenshot capture during authentication flow
-- Visual verification of browser state
+**Benefits**:
+- **exec.Command**: Akamai のボット検知を回避 (chromedp.NewExecAllocator は検知される)
+- **processDone channel**: Chrome を閉じると即座にエラーを返す (5分待たない)
+- **processExited flag**: defer での二重 Wait を回避
 
 ### 3. Automatic Reauthentication
 
-**Pattern**: Detect 401/403 errors → Create new Manager → Re-login → Close
+**Pattern**: Detect 401/403 errors → Launch visible browser → Re-login
 
 ```go
-// ReauthenticateIfNeeded() - auth.go
-func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
-    slog.Info("Cookie有効期限切れ検出: 再認証を開始します")
-
-    // 1. Close existing Manager
-    if bc.chromedpManager != nil {
-        bc.chromedpManager.Close()
-        bc.chromedpManager = nil
-    }
-
-    // 2. Create new ChromeDP Manager
-    manager, err := cdp.NewManager(bc.tmpDir, bc.debug)
-    if err != nil {
-        return fmt.Errorf("failed to create ChromeDP manager: %w", err)
-    }
-
-    // 3. Update browser context
-    bc.ctx = manager.Context()
-    bc.chromedpManager = manager
-
-    // 4. Re-login
-    cookies, err := bc.login(userID, password)
-    if err != nil {
+// Reauthenticate() - auth.go
+func (bc *BrowserClient) Reauthenticate() error {
+    slog.Info("Cookie有効期限切れ検出: ビジブルブラウザで再認証を開始します")
+    if err := RunVisibleLogin(filepath.Join(bc.stateDir, "chrome-setup"), bc.cookieManager); err != nil {
         return fmt.Errorf("再認証に失敗しました: %w", err)
     }
-
-    // 5. Save cookies (using SaveCookiesFromData, no chromedp needed)
-    bc.cookieManager.SaveCookiesFromData(cookies)
-
-    // 6. Close immediately (non-debug mode)
-    if !bc.debug {
-        bc.Close()
-    }
-
     return nil
 }
 ```
@@ -182,16 +142,10 @@ func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
 **Pattern**: Detect authentication errors → Trigger reauthentication → Retry
 
 ```go
-// GetContentFromURL() - auth.go
-if resp.StatusCode == 401 || resp.StatusCode == 403 {
-    return "", fmt.Errorf("authentication error: status %d (cookies may have expired)", resp.StatusCode)
-}
-
 // server.go - SearchContentHandler
 results, err := s.browserClient.SearchContent(requestParams.Query, options)
 if err != nil && isAuthError(err) {
-    // Automatic reauthentication
-    if reauthErr := s.browserClient.ReauthenticateIfNeeded(s.config.OReillyUserID, s.config.OReillyPassword); reauthErr != nil {
+    if reauthErr := s.browserClient.Reauthenticate(); reauthErr != nil {
         return mcp.NewToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil
     }
     // Retry
@@ -203,86 +157,67 @@ if err != nil && isAuthError(err) {
 
 ### Why No isClosed Flag?
 
-**Answer**: Not needed - Manager handles cleanup internally
+**Answer**: Not needed - BrowserClient.Close() is a no-op
 
 ```go
-// Close() - Manager handles all cleanup
+// Close() - auth.go
 func (bc *BrowserClient) Close() {
-    if bc.chromedpManager != nil {
-        bc.chromedpManager.Close()
-        return
-    }
-    // Fallback for backward compatibility
-    if bc.ctxCancel != nil {
-        bc.ctxCancel()
-    }
-    if bc.allocCancel != nil {
-        bc.allocCancel()
-    }
+    // httpClient と cookieManager はクリーンアップ不要
 }
 ```
 
 **Rationale**:
-- Manager handles browser close and directory cleanup atomically
-- Go's nil-safe checks prevent double-close issues
-- Multiple Close() calls are harmless
-- Simpler implementation without additional state
+- Chrome プロセスは `runVisibleLogin` の defer で自動クリーンアップ
+- `BrowserClient` 自体はブラウザプロセスを保持しない
+- HTTP クライアントと Cookie マネージャーは GC で回収される
 
 ## Chrome Isolation (User Browser Protection)
 
-### Process-Specific UserDataDir Setting
+### Temporary UserDataDir
 
-**Pattern**: Each process uses isolated UserDataDir to prevent SingletonLock conflicts
+**Pattern**: 一時ディレクトリで Chrome を起動し、終了後に削除
 
 ```go
-// Manager creates process-specific directory
-chromeDataDir := filepath.Join(tmpDir, fmt.Sprintf("chrome-user-data-%d", os.Getpid()))
-chromedp.UserDataDir(chromeDataDir)
+// login.go - RunVisibleLogin に渡す tempDir
+RunVisibleLogin(filepath.Join(stateDir, "chrome-setup"), cookieManager)
+
+// runVisibleLogin 内
+cmd := exec.Command(chromePath,
+    "--user-data-dir="+tempDir,  // 一時プロファイル
+    // ...
+)
+defer os.RemoveAll(tempDir) // 終了後に削除
 ```
 
 **Benefits**:
-- **No SingletonLock conflicts**: Each process has its own directory
-- **Multiple instance support**: Multiple MCP servers can run simultaneously
-- **Automatic cleanup**: Old directories are cleaned up on startup
-- **Explicit isolation**: No accidental access to user's Chrome profile
-- **Unified management**: tmpDir controls both cookies and Chrome data
-
-**Old vs New**:
-- **Old** (fixed): `filepath.Join(tmpDir, "chrome-user-data")` - causes SingletonLock conflicts
-- **New** (dynamic): `filepath.Join(tmpDir, "chrome-user-data-{PID}")` - no conflicts
+- **Explicit isolation**: ユーザーの Chrome プロファイルに影響しない
+- **Automatic cleanup**: defer で一時ディレクトリを必ず削除
+- **No SingletonLock**: 毎回新しいディレクトリを使用
 
 ## Defer Pattern for Cleanup
 
 ### main.go - Safety Net
 
 ```go
-defer browserClient.Close() // プロセス終了時にブラウザをクリーンアップ
+defer browserClient.Close() // 現在は no-op だが将来の安全弁
 ```
 
 **Purpose**:
-- Acts as safety net if Close() wasn't called in NewBrowserClient()
-- Ensures cleanup on process termination
-- Handles debug mode where browser stays alive
-
-**Key Point**: Only use defer in main.go, NOT in NewBrowserClient()
-- NewBrowserClient() uses explicit Close() calls for immediate cleanup
-- defer in main.go provides final cleanup guarantee
+- Acts as safety net for future changes
+- Ensures cleanup contract is maintained
 
 ## Implementation Checklist
 
 When implementing ChromeDP-based features:
 
-- [ ] Use `cdp.NewManager()` for ChromeDP lifecycle management
-- [ ] Store Manager in `chromedpManager` field
-- [ ] Close browser immediately after authentication (non-debug mode)
-- [ ] Keep browser alive in debug mode for screenshots
+- [ ] Use `exec.Command` + `NewRemoteAllocator` for Chrome lifecycle
+- [ ] Add `processDone` channel for Chrome process exit detection
+- [ ] Use `processExited` flag to avoid double-Wait in defer
+- [ ] Close browser and clean up temp dir in defer
 - [ ] Implement 401/403 error detection
-- [ ] Add automatic reauthentication with new Manager
-- [ ] Use Manager.Close() for cleanup
-- [ ] Add defer browserClient.Close() in main.go only
-- [ ] Test both debug and non-debug modes
-- [ ] Test multiple instances running simultaneously
-- [ ] Verify old Chrome data directories are cleaned up
+- [ ] Add automatic reauthentication via `RunVisibleLogin`
+- [ ] Test browser closure during login (should return error immediately)
+- [ ] Verify temp directory cleanup after login
 
 ## Memory Impact
 
@@ -291,66 +226,32 @@ Note: Memory reduction is a secondary benefit. The primary reason for closing th
 | Mode | Browser State | Memory Usage | Use Case |
 |------|---------------|--------------|----------|
 | **Normal (Production)** | Closed after auth | ~10-30MB | Production deployment |
-| **Debug** | Always running | ~100-300MB | Development & troubleshooting |
 | **Reauthentication** | Temporary restart | Brief spike (~100-300MB) | Cookie expiration handling |
 
-## Testing
+## Timeout Constants (types.go)
 
-### Verify Browser Lifecycle
-```bash
-# 1. Non-debug mode - browser should close after auth
-task build
-./bin/orm-discovery-mcp-go
-ps aux | grep chrome  # Should not find chrome process after startup
-
-# 2. Debug mode - browser should stay alive
-ORM_MCP_GO_DEBUG=true ./bin/orm-discovery-mcp-go
-ps aux | grep chrome  # Should find running chrome process
-
-# 3. Memory comparison
-ps aux | grep orm-discovery-mcp-go  # Compare RSS with/without debug mode
+```go
+const (
+    AuthValidationTimeout = 15 * time.Second
+    APIOperationTimeout   = 30 * time.Second
+    VisibleLoginTimeout   = 5 * time.Minute  // 手動ログイン待機
+)
 ```
 
-### Verify Multiple Instance Support
-```bash
-# 1. Build the project
-task build
+## CDP Constants (login.go)
 
-# 2. Start multiple instances simultaneously
-./bin/orm-discovery-mcp-go &
-PID1=$!
-./bin/orm-discovery-mcp-go &
-PID2=$!
-
-# 3. Verify both directories exist with different PIDs
-ls /var/tmp/ | grep chrome-user-data
-# Expected: chrome-user-data-{PID1}, chrome-user-data-{PID2}
-
-# 4. Verify cleanup after termination
-kill $PID1 $PID2
-ls /var/tmp/ | grep chrome-user-data
-# Expected: directories should be cleaned up
+```go
+const (
+    CDPWaitTimeout    = 30 * time.Second  // CDP 接続待機
+    cdpPollInterval   = 1 * time.Second
+    cdpRequestTimeout = 3 * time.Second
+)
+// CDPデバッグポートは findAvailablePort() で動的に割り当て
 ```
 
-### Verify Chrome Isolation
-```bash
-# Check UserDataDir location (process-specific)
-ls -la /var/tmp/ | grep chrome-user-data
-# Expected: chrome-user-data-{PID} directories for running processes
+## Remote Chrome Connection Pattern
 
-# Verify no interference with user's Chrome
-ls -la ~/.config/google-chrome/Default/  # Should be unchanged
-```
-
-### Verify Defer Cleanup
-```bash
-# Verify defer cleanup on process termination
-# Watch logs for cleanup messages when process exits
-```
-
-## Remote Chrome Connection Pattern (--login)
-
-`--login` コマンドのように既存Chromeに接続して手動操作を監視する場合に使うパターン。
+`RunVisibleLogin` のように既存 Chrome に接続して手動操作を監視する場合に使うパターン。
 
 ### 重要な罠: chromedp.NewContext は新しいタブを作る
 
@@ -367,16 +268,15 @@ chromedp   → タブ2: about:blank                  ← NewContext が作った
 
 ```go
 // 1. Chrome を起動 (URLなし。chromedpでナビゲートするから不要)
-cmd := exec.Command(
-    chromePath,
+cmd := exec.Command(chromePath,
     "--remote-debugging-port=9222",
-    "--user-data-dir="+setupDataDir,
-    "--no-first-run",            // 初回セットアップウィザードを抑制
-    "--no-default-browser-check", // デフォルトブラウザチェックを抑制
+    "--user-data-dir="+tempDir,
+    "--no-first-run",
+    "--no-default-browser-check",
 )
 
-// 2. CDP接続待機 (http://localhost:9222/json/version をポーリング)
-wsURL, _ := waitForCDP("9222")
+// 2. CDP接続待機 (http://127.0.0.1:9222/json/version をポーリング)
+wsURL, _ := WaitForCDPWithTimeout("9222", CDPWaitTimeout)
 
 // 3. ブラウザレベルで接続
 allocCtx, _ := chromedp.NewRemoteAllocator(context.Background(), wsURL)
@@ -413,21 +313,22 @@ chromedp.Run(ctx, chromedp.Location(&url)) // about:blank ...
 
 ## Common Pitfalls
 
-1. **Using defer in NewBrowserClient()**: Don't use defer for Close() in NewBrowserClient(). Use explicit calls instead for immediate cleanup.
+1. **Using chromedp.NewExecAllocator**: Akamai がボットとして検知する。exec.Command + NewRemoteAllocator を使うこと。
 
-2. **Forgetting UserDataDir**: Always set explicit UserDataDir to prevent interference with user's Chrome.
+2. **Forgetting processDone channel**: Chrome がクラッシュやユーザーにより閉じられた場合、タイムアウトまで待ち続ける。processDone channel で即座に検知すること。
 
-3. **Not handling reauthentication**: Implement automatic reauthentication for 401/403 errors.
+3. **Double Wait on processDone**: select で processDone を消費した後、defer で再度 `<-processDone` するとデッドロックする。`processExited` フラグで回避すること。
 
-4. **Missing debug mode check**: Always check debug mode before closing browser to enable troubleshooting.
+4. **Passing URL to Chrome args when using chromedp to monitor**: Chrome がそのURLでタブを開くが、`chromedp.NewContext` は別のタブ (about:blank) を作る。chromedp のタブをナビゲートすること。
 
-5. **Passing URL to Chrome args when using chromedp to monitor**: Chrome opens a tab at that URL, but `chromedp.NewContext` creates a DIFFERENT tab at `about:blank`. The tabs are separate. Navigate the chromedp tab instead.
+5. **Not handling reauthentication**: 401/403 エラーを検知して `Reauthenticate()` で自動再認証すること。
 
 ## Related Files
 
-- `browser/auth.go`: Main implementation
-- `browser/types.go`: BrowserClient structure
-- `browser/cookie/cookie.go`: Cookie management
+- `browser/login.go`: RunVisibleLogin / runVisibleLogin (Chrome 起動とログイン待機)
+- `browser/auth.go`: NewBrowserClient / Reauthenticate / Close
+- `browser/types.go`: BrowserClient 構造体、タイムアウト定数
+- `browser/cookie/cookie.go`: Cookie 管理
 - `main.go`: defer cleanup pattern
 - `server.go`: Error handling and reauthentication trigger
 
@@ -445,19 +346,10 @@ chromedp.Run(ctx, chromedp.Location(&url)) // about:blank ...
 **タイムアウト値の確認** (browser/types.go):
 ```go
 const (
-    ChromeDPExecAllocatorTimeout = 45 * time.Second  // ブラウザ起動全体
-    LoginTimeout                 = 30 * time.Second  // ログイン処理
-    AuthValidationTimeout        = 15 * time.Second  // 認証検証
-    CookieOperationTimeout       = 10 * time.Second  // Cookie操作
-    APIOperationTimeout          = 30 * time.Second  // API呼び出し
+    AuthValidationTimeout = 15 * time.Second  // 認証検証
+    APIOperationTimeout   = 30 * time.Second  // API呼び出し
+    VisibleLoginTimeout   = 5 * time.Minute   // 手動ログイン待機
 )
-```
-
-**タイムアウト時のログ例**:
-```
-ログインタイムアウト: ブラウザをクローズします timeout=30s
-再認証タイムアウト: ブラウザをクローズします timeout=45s
-認証検証がタイムアウトしました timeout=15s
 ```
 
 ### Chromeプロセスの強制終了
@@ -468,7 +360,7 @@ const (
 ps aux | grep -E "(chrome|chromium)" | grep -v grep
 
 # chromedpが起動したChromeを特定 (user-data-dirで判別)
-ps aux | grep chrome-user-data
+ps aux | grep chrome-setup
 ```
 
 **プロセス強制終了**:
@@ -476,58 +368,8 @@ ps aux | grep chrome-user-data
 # 特定のプロセスを終了
 kill -9 <PID>
 
-# chromedp関連のChromeを一括終了 (注意: 他のChromeも終了する可能性)
-pkill -f "chrome.*chrome-user-data"
-
-# macOSでChrome全体を終了
-killall "Google Chrome"
-```
-
-### SingletonLockファイルの削除
-
-**新しい実装では自動解決**: プロセス固有のディレクトリ(`chrome-user-data-{PID}`)を使用するため、SingletonLock 問題は通常発生しません。サーバー起動時に古いディレクトリは自動的にクリーンアップされます。
-
-**旧形式ディレクトリが残っている場合**:
-
-旧形式の `chrome-user-data` ディレクトリにSingletonLockがある場合、サーバーは以下の警告を出力してスキップします:
-
-```
-旧形式のChromeデータディレクトリにSingletonLockが存在するため削除をスキップ
-path=/var/tmp/chrome-user-data hint=手動で削除してください: rm -rf /var/tmp/chrome-user-data
-```
-
-**手動削除が必要な場合**:
-```bash
-# 旧形式ディレクトリの確認
-ls -la /var/tmp/chrome-user-data
-
-# Chrome関連ファイルを全て削除
-rm -rf /var/tmp/chrome-user-data
-
-# プロセス固有ディレクトリの削除(通常は不要 - 終了時に自動削除)
-rm -rf /var/tmp/chrome-user-data-*
-```
-
-### デバッグモードでの強制終了
-
-デバッグモードではブラウザが起動したままになる。
-
-**安全な終了方法**:
-```bash
-# MCPサーバーを終了 (defer cleanup が実行される)
-# Ctrl+C または SIGTERM
-
-# プロセスにSIGTERMを送信
-kill <PID>
-```
-
-**強制終了** (defer cleanup がスキップされる):
-```bash
-# SIGKILL (最終手段)
-kill -9 <PID>
-
-# この場合、手動でChromeプロセスを終了する必要がある
-pkill -f "chrome.*chrome-user-data"
+# chromedp関連のChromeを一括終了
+pkill -f "chrome.*chrome-setup"
 ```
 
 ### よくある問題と解決策
@@ -536,82 +378,8 @@ pkill -f "chrome.*chrome-user-data"
 |------|------|--------|
 | ブラウザが起動しない | Chrome未インストール | Chrome/Chromiumをインストール |
 | タイムアウトが頻発 | ネットワーク遅延/サーバー負荷 | タイムアウト値を増やす or リトライ |
-| ログイン失敗 | 認証情報の誤り | OREILLY_USER_ID/PASSWORDを確認 |
 | Cookie復元失敗 | Cookieファイル破損 | Cookieファイルを削除して再認証 |
-| プロセスが残る | Close()未呼び出し | 手動でプロセス終了 + コード修正 |
-| メモリリーク | ブラウザ未クローズ | debug=false でブラウザをクローズ |
-
-### SingletonLock問題の実際のエラー例
-
-```
-chrome failed to start:
-[76355:14201041:0124/121754.454753:ERROR:chrome/browser/process_singleton_posix.cc:345] Failed to create /private/var/tmp/chrome-user-data/SingletonLock: File exists (17)
-[76355:14201041:0124/121754.455879:ERROR:chrome/app/chrome_main_delegate.cc:510] Failed to create a ProcessSingleton for your profile directory. This means that running multiple instances would start multiple browser processes rather than opening a new window in the existing process. Aborting now to avoid profile corruption.
-```
-
-**原因**: 前回のセッションでChromeが正常終了しなかった場合に発生
-
-**解決手順**:
-```bash
-# 1. SingletonLockを削除
-rm -f /private/var/tmp/chrome-user-data/SingletonLock
-
-# 2. 残留Chromeプロセスを確認
-ps aux | grep -E "[c]hrome.*chrome-user-data"
-
-# 3. 残留プロセスがあれば終了
-pkill -f "chrome.*chrome-user-data"
-```
-
-### macOSでの起動確認方法
-
-macOSには`timeout`コマンドがないため、代替方法を使用:
-
-```bash
-# 方法1: バックグラウンド実行 + sleep + kill
-(./bin/orm-discovery-mcp-go 2>&1 & pid=$!; sleep 30; kill $pid 2>/dev/null) || true
-
-# 方法2: gtimeoutをインストール (Homebrew)
-brew install coreutils
-gtimeout 30 ./bin/orm-discovery-mcp-go
-
-# 方法3: perlを使用
-perl -e 'alarm 30; exec @ARGV' ./bin/orm-discovery-mcp-go
-```
-
-### 正常起動時のログ例
-
-```
-time=2026-01-24T12:17:54.378+09:00 level=INFO msg=ログシステムを初期化しました log_level=INFO debug_mode=false
-time=2026-01-24T12:17:54.378+09:00 level=INFO msg=設定を読み込みました
-time=2026-01-24T12:17:54.378+09:00 level=INFO msg=ブラウザクライアントを使用してO'Reillyにログインします...
-time=2026-01-24T12:17:54.378+09:00 level=INFO msg=O'Reillyへのログインを開始します user_id=xxx@acm.org
-time=2026-01-24T12:XX:XX.XXX+09:00 level=INFO msg=ブラウザクライアントの初期化が完了しました
-time=2026-01-24T12:XX:XX.XXX+09:00 level=INFO msg=MCPサーバーを標準入出力で起動します
-```
-
-### タイムアウト発生時のログ例
-
-```
-time=2026-01-24T12:19:19.972+09:00 level=ERROR msg="ログインタイムアウト: ブラウザをクローズします" timeout=30s
-time=2026-01-24T12:19:19.981+09:00 level=ERROR msg=ブラウザクライアントの初期化に失敗しました error="failed to login: ログイン処理でエラーが発生しました: context deadline exceeded"
-```
-
-**ポイント**: タイムアウト後にブラウザが正しくクローズされているか確認
-```bash
-ps aux | grep -E "[c]hrome" | head -10
-# chromedp起動のプロセスが残っていないことを確認
-```
-
-### ログ確認方法
-
-```bash
-# デバッグモードで詳細ログを出力
-ORM_MCP_GO_DEBUG=true ./bin/orm-discovery-mcp-go
-
-# ログレベルを調整 (slogを使用)
-# コード内でslog.SetLogLevel()を使用可能
-```
+| Chrome閉じてもエラーが出ない | processDone channel の実装漏れ | processDone channel を確認 |
 
 ### Cookieファイルのリセット
 
@@ -620,9 +388,6 @@ ORM_MCP_GO_DEBUG=true ./bin/orm-discovery-mcp-go
 ```bash
 # Cookieファイルを削除
 rm -f /var/tmp/orm-mcp-go-cookies.json
-
-# Chrome User Dataも削除 (完全リセット)
-rm -rf /var/tmp/chrome-user-data
 
 # サーバーを再起動して再認証
 ./bin/orm-discovery-mcp-go

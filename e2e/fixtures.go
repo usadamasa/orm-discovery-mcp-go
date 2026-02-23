@@ -21,31 +21,20 @@ const (
 
 // TestConfig holds configuration for E2E tests loaded from environment variables.
 type TestConfig struct {
-	OReillyUserID   string
-	OReillyPassword string
-	Debug           bool
-	TmpDir          string
+	Debug  bool
+	TmpDir string
 }
 
 // LoadTestConfig loads test configuration from environment variables.
-// Returns nil if required environment variables are not set.
+// Cookie ファイルの存在有無に関わらず設定を返します。
 func LoadTestConfig() *TestConfig {
-	userID := os.Getenv("OREILLY_USER_ID")
-	password := os.Getenv("OREILLY_PASSWORD")
-
-	if userID == "" || password == "" {
-		return nil
-	}
-
 	tmpDir := os.Getenv("ORM_MCP_GO_TMP_DIR")
 	if tmpDir == "" {
 		tmpDir = os.TempDir()
 	}
 
 	return &TestConfig{
-		OReillyUserID:   userID,
-		OReillyPassword: password,
-		Debug:           os.Getenv("ORM_MCP_GO_DEBUG") == "true",
-		TmpDir:          tmpDir,
+		Debug:  os.Getenv("ORM_MCP_GO_DEBUG") == "true",
+		TmpDir: tmpDir,
 	}
 }

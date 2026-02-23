@@ -6,11 +6,13 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
 func TestFindSystemChrome(t *testing.T) {
 	// Chrome が見つかった場合はファイルが存在すること、見つからない場合はエラーが返ること
-	path, err := findSystemChrome()
+	path, err := browser.FindSystemChrome()
 	if err != nil {
 		// Chrome が見つからない場合はエラーが返ること (これは正常)
 		t.Logf("Chrome not found (expected in some environments): %v", err)
@@ -19,7 +21,7 @@ func TestFindSystemChrome(t *testing.T) {
 
 	// 見つかった場合はファイルが存在すること
 	if _, statErr := os.Stat(path); statErr != nil {
-		t.Errorf("findSystemChrome() returned %q but file does not exist: %v", path, statErr)
+		t.Errorf("browser.FindSystemChrome() returned %q but file does not exist: %v", path, statErr)
 	}
 }
 
@@ -30,15 +32,15 @@ func TestWaitForCDPWithTimeout_Timeout(t *testing.T) {
 		t.Fatalf("未使用ポートの取得に失敗: %v", err)
 	}
 	port := strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
-	if err := ln.Close(); err != nil { // ポートを解放してから waitForCDPWithTimeout に渡す
+	if err := ln.Close(); err != nil { // ポートを解放してから WaitForCDPWithTimeout に渡す
 		t.Fatalf("リスナーのクローズに失敗: %v", err)
 	}
 
-	wsURL, err := waitForCDPWithTimeout(port, 2*time.Second)
+	wsURL, err := browser.WaitForCDPWithTimeout(port, 2*time.Second)
 	if err == nil {
-		t.Error("waitForCDPWithTimeout() should return error when port is not available")
+		t.Error("browser.WaitForCDPWithTimeout() should return error when port is not available")
 	}
 	if wsURL != "" {
-		t.Errorf("waitForCDPWithTimeout() should return empty string on timeout, got %q", wsURL)
+		t.Errorf("browser.WaitForCDPWithTimeout() should return empty string on timeout, got %q", wsURL)
 	}
 }

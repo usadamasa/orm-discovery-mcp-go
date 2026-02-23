@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -441,7 +440,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	if err != nil && isAuthError(err) {
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
-		if reauthErr := s.getBrowserClient().ReauthenticateIfNeeded(s.config.OReillyUserID, s.config.OReillyPassword); reauthErr != nil {
+		if reauthErr := s.getBrowserClient().Reauthenticate(); reauthErr != nil {
 			slog.Error("再認証失敗", "error", reauthErr)
 			return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil, nil
 		}
@@ -884,10 +883,10 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 }
 
 // ReauthenticateHandler handles the oreilly_reauthenticate MCP tool.
-// Cookie が有効ならそのまま返し、期限切れなら --login フローを実行して
-// サーバーの Cookie 状態を更新します。
-// browserClient が nil の場合 (degraded モード) は --login フローを実行して
-// 新しい BrowserClient を生成します。
+// Cookie が有効ならそのまま返し、期限切れなら BrowserClient.Reauthenticate() で
+// ビジブルブラウザを起動して再認証します。
+// browserClient が nil の場合 (degraded モード) は NewBrowserClient() で
+// 新しい BrowserClient を生成します (内部でビジブルログインを実行)。
 func (s *Server) ReauthenticateHandler(
 	ctx context.Context,
 	_ *mcp.CallToolRequest,
@@ -895,14 +894,8 @@ func (s *Server) ReauthenticateHandler(
 ) (*mcp.CallToolResult, *ReauthResult, error) {
 	// degraded モード: browserClient が nil = サーバーが認証なしで起動した状態
 	if s.getBrowserClient() == nil {
-		slog.Info("oreilly_reauthenticate: degraded モード - --login フローを開始します")
-		if err := runLoginWithOutput(os.Stderr); err != nil {
-			return newToolResultError(fmt.Sprintf("セットアップに失敗しました: %v", err)), nil, nil
-		}
-		// 保存された Cookie で新しい BrowserClient を生成 (Cookie-first で成功するはず)
+		slog.Info("oreilly_reauthenticate: degraded モード - NewBrowserClient で認証を開始します")
 		client, err := browser.NewBrowserClient(
-			s.config.OReillyUserID,
-			s.config.OReillyPassword,
 			s.cookieManager,
 			s.config.Debug,
 			s.config.XDGDirs.StateHome,
@@ -925,16 +918,10 @@ func (s *Server) ReauthenticateHandler(
 		}, nil
 	}
 
-	// 2. --login フローを実行 (Chrome 起動 → 手動ログイン → Cookie 保存)
-	// stderr に出力することで stdio モードの MCP stream を汚染しない
-	slog.Info("oreilly_reauthenticate: --login フローを開始します")
-	if err := runLoginWithOutput(os.Stderr); err != nil {
-		return newToolResultError(fmt.Sprintf("セットアップに失敗しました: %v", err)), nil, nil
-	}
-
-	// 3. 新しい Cookie をサーバーにリロード
-	if err := s.getBrowserClient().ReloadCookies(); err != nil {
-		return newToolResultError(fmt.Sprintf("Cookieの再読み込みに失敗しました: %v", err)), nil, nil
+	// 2. Reauthenticate() でビジブルブラウザを起動して再認証
+	slog.Info("oreilly_reauthenticate: Reauthenticate() で再認証を開始します")
+	if err := s.getBrowserClient().Reauthenticate(); err != nil {
+		return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", err)), nil, nil
 	}
 
 	return nil, &ReauthResult{

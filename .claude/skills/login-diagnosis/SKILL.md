@@ -13,12 +13,13 @@ description: O'Reillyログイン失敗時の診断と対処ガイド。CDN (Aka
 
 ```
 Cookie復元 → HTTP検証 → [成功: Cookie有効]
-                      → [失敗: ChromeDP起動 → ブラウザログイン → Cookie保存]
+                      → [失敗: ビジブルChrome起動 → ユーザーが手動ログイン → Cookie保存]
 ```
 
 - **Cookie-first**: 保存済みCookieで認証を試行 (ChromeDP不要)
-- **フォールバック**: Cookie無効時のみChromeDPでブラウザログインを実行
-- **認証後クローズ**: 非デバッグモードではブラウザを即座にクローズ
+- **フォールバック**: Cookie無効時はビジブルブラウザでユーザーが手動ログイン
+- **自動検知**: `learning.oreilly.com` へのURL遷移でログイン完了を検知
+- **環境変数不要**: `OREILLY_USER_ID` / `OREILLY_PASSWORD` は不要
 
 ### Akamai Bot Manager
 
@@ -121,7 +122,7 @@ bin/orm-discovery-mcp-go  # "Cookieを使用してログインが完了しまし
 ### ブラウザログインのテスト (リスクベース)
 
 以下の状況でのみ実施:
-- ChromeDP / lifecycle.go の変更時
+- login.go の変更時
 - 認証フロー (auth.go) の変更時
 - O'Reilly側のログインページ構造変更が疑われる時
 
@@ -131,38 +132,40 @@ rm -f ~/.cache/orm-mcp-go/orm-mcp-go-cookies.json
 ORM_MCP_GO_DEBUG=true ORM_MCP_GO_LOG_LEVEL=DEBUG bin/orm-discovery-mcp-go
 ```
 
-## lifecycle.go 設定リファレンス
+## login.go 実装リファレンス
 
-### 現在の推奨設定 (2026-02-22)
+### 現在の方式 (exec.Command + NewRemoteAllocator)
 
 ```go
-opts := append(chromedp.DefaultExecAllocatorOptions[:],
-    chromedp.UserDataDir(chromeDataDir),
-    chromedp.Flag("headless", "new"),           // 新headlessモード (Chrome 109+)
-    chromedp.Flag("disable-gpu", true),
-    chromedp.Flag("enable-automation", false),   // navigator.webdriver 隠蔽
-    chromedp.Flag("disable-blink-features", "AutomationControlled"),
-    chromedp.Flag("no-sandbox", true),
-    chromedp.Flag("disable-web-security", true),
-    chromedp.Flag("disable-features", "site-per-process,Translate,BlinkGenPropertyTrees,VizDisplayCompositor"),
-    chromedp.UserAgent("...Chrome/131.0.0.0..."),
+// Chrome をネイティブ起動 (最小フラグのみ)
+cmd := exec.Command(chromePath,
+    "--remote-debugging-port="+port,  // 動的ポート割り当て
+    "--user-data-dir="+tempDir,
+    "--no-first-run",
+    "--no-default-browser-check",
 )
+
+// CDP 接続待機 → NewRemoteAllocator で接続
+wsURL, _ := WaitForCDPWithTimeout(port, CDPWaitTimeout)
+allocCtx, _ := chromedp.NewRemoteAllocator(context.Background(), wsURL)
 ```
 
 ### 検証済みの知見
 
 | 設定 | 結果 | 備考 |
 |------|------|------|
-| `DefaultExecAllocatorOptions` + `headless=new` | ❌ ブロック | デフォルトフラグが検出される |
-| 最小フラグ + システムChrome + `headless=new` | ⚠️ 不安定 | 一時的に成功するが再現不安定 |
-| 最小フラグ + 非headless | ❌ ブロック | フラグ問題は headless に限らない |
-| Cookie認証 (ChromeDP不使用) | ✅ 安定 | 推奨アプローチ |
+| `DefaultExecAllocatorOptions` + `headless=new` | ブロック | デフォルトフラグが検出される |
+| 最小フラグ + システムChrome + `headless=new` | 不安定 | 一時的に成功するが再現不安定 |
+| 最小フラグ + 非headless | ブロック | フラグ問題は headless に限らない |
+| exec.Command + ビジブル + 手動ログイン | 安定 | 現在の推奨アプローチ |
+| Cookie認証 (ChromeDP不使用) | 安定 | 再認証不要時の推奨 |
 
 ## トラブルシューティング早見表
 
 | 問題 | 最速の対処 |
 |------|-----------|
-| 初回ログインが通らない | 手動ブラウザでログイン → Cookie保存 |
-| Cookie期限切れ | Cookie削除 → 手動ログイン → Cookie保存 |
-| CDNブロック | 時間を置く or ネットワーク変更 |
+| 初回ログイン (ビジブルブラウザが起動しない) | Chrome インストール確認、stateDir のパーミッション確認 |
+| ビジブルブラウザでログインしてもタイムアウト | 5分以内にログインを完了する |
+| Cookie期限切れ | `oreilly_reauthenticate` ツール呼び出し → ビジブルブラウザで再ログイン |
+| CDNブロック | ビジブルブラウザは手動ログインのため CDN ブロックされない |
 | `DefaultExecAllocatorOptions` 問題 | Cookie-first 運用で回避 |

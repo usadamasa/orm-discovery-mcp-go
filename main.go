@@ -70,7 +70,7 @@ func runMCPServer() {
 	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
 	// Create browser client and login (using StateHome for Chrome temp data)
-	browserClient, err := browser.NewBrowserClient(cfg.OReillyUserID, cfg.OReillyPassword, cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
+	browserClient, err := browser.NewBrowserClient(cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
 	if err != nil {
 		slog.Warn("ブラウザクライアントの初期化に失敗しました。degraded モードで起動します。"+
 			"oreilly_reauthenticate ツールで再認証してください。", "error", err)

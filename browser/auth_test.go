@@ -3,7 +3,6 @@ package browser
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -14,75 +13,16 @@ import (
 // === Close Tests ===
 
 func TestBrowserClient_Close(t *testing.T) {
-	tests := []struct {
-		name        string
-		setupClient func(t *testing.T) *BrowserClient
-	}{
-		{
-			name: "正常系: 通常のクリーンアップ",
-			setupClient: func(t *testing.T) *BrowserClient {
-				ctx, ctxCancel := context.WithCancel(t.Context())
-				_, allocCancel := context.WithCancel(t.Context())
+	// Close() が空の BrowserClient でパニックしないことを確認
+	client := &BrowserClient{}
 
-				return &BrowserClient{
-					ctx:         ctx,
-					ctxCancel:   ctxCancel,
-					allocCancel: allocCancel,
-				}
-			},
-		},
-		{
-			name: "異常系: nilキャンセル関数でもパニックしない",
-			setupClient: func(t *testing.T) *BrowserClient {
-				return &BrowserClient{
-					ctx:         t.Context(),
-					ctxCancel:   nil,
-					allocCancel: nil,
-				}
-			},
-		},
-		{
-			name: "正常系: ctxCancelのみnil",
-			setupClient: func(t *testing.T) *BrowserClient {
-				allocCtx, allocCancel := context.WithCancel(t.Context())
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Close() でパニックが発生しました: %v", r)
+		}
+	}()
 
-				return &BrowserClient{
-					ctx:         allocCtx,
-					ctxCancel:   nil,
-					allocCancel: allocCancel,
-				}
-			},
-		},
-		{
-			name: "正常系: allocCancelのみnil",
-			setupClient: func(t *testing.T) *BrowserClient {
-				ctx, ctxCancel := context.WithCancel(t.Context())
-
-				return &BrowserClient{
-					ctx:         ctx,
-					ctxCancel:   ctxCancel,
-					allocCancel: nil,
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client := tt.setupClient(t)
-
-			// パニックが発生しないことを確認
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("Close() でパニックが発生しました: %v", r)
-				}
-			}()
-
-			client.Close()
-
-			// Close()が正常に完了したことを確認（パニックしなければOK）
-		})
-	}
+	client.Close()
 }
 
 // === CreateRequestEditor Tests ===
@@ -584,66 +524,6 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 			}
 			if !tt.wantUnauthenticated && errors.Is(err, errUnauthenticated) {
 				t.Errorf("validateAuthenticationViaHTTP() got errUnauthenticated but wanted different error type")
-			}
-		})
-	}
-}
-
-// === NewBrowserClient Tests ===
-
-func TestNewBrowserClient_ValidationErrors(t *testing.T) {
-	tests := []struct {
-		name          string
-		userID        string
-		password      string
-		wantError     bool
-		errorContains string
-	}{
-		{
-			name:          "異常系: userIDが空文字列",
-			userID:        "",
-			password:      "password",
-			wantError:     true,
-			errorContains: "OREILLY_USER_ID and OREILLY_PASSWORD are required",
-		},
-		{
-			name:          "異常系: passwordが空文字列",
-			userID:        "test@acm.org",
-			password:      "",
-			wantError:     true,
-			errorContains: "OREILLY_USER_ID and OREILLY_PASSWORD are required",
-		},
-		{
-			name:          "異常系: 両方とも空文字列",
-			userID:        "",
-			password:      "",
-			wantError:     true,
-			errorContains: "OREILLY_USER_ID and OREILLY_PASSWORD are required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockCookieManager := NewMockCookieManager()
-
-			client, err := NewBrowserClient(tt.userID, tt.password, mockCookieManager, false, "/tmp")
-
-			if tt.wantError {
-				if err == nil {
-					t.Errorf("エラーが期待されましたが、エラーが返されませんでした")
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("エラーメッセージに %q が含まれていません。エラー: %v", tt.errorContains, err)
-				}
-				if client != nil {
-					t.Errorf("エラー時はclientがnilであるべきですが、nilではありません")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("予期しないエラー: %v", err)
-				}
-				if client == nil {
-					t.Errorf("clientがnilです")
-				}
 			}
 		})
 	}

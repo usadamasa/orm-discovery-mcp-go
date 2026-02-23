@@ -14,9 +14,8 @@ paths:
 ### Required Environment Variables
 
 ```bash
-# コア認証情報
-OREILLY_USER_ID=your_email@example.com    # O'Reilly アカウントメール
-OREILLY_PASSWORD=your_password             # O'Reilly パスワード
+# 初回認証 (ビジブルブラウザで手動ログイン)
+# bin/orm-discovery-mcp-go --login
 
 # サーバー設定
 PORT=8080                                  # HTTP サーバーポート (オプション)
@@ -30,8 +29,7 @@ ORM_MCP_GO_ENABLE_SAMPLING=true           # MCP Sampling による要約 (defaul
 ORM_MCP_GO_SAMPLING_MAX_TOKENS=500        # Sampling レスポンスの最大トークン (default: 500)
 
 # Development and debugging
-ORM_MCP_GO_DEBUG=true                     # デバッグログとスクリーンショット有効化
-ORM_MCP_GO_TMP_DIR=/path/to/tmp           # Cookie 用カスタム temp ディレクトリ
+ORM_MCP_GO_DEBUG=true                     # デバッグログ有効化
 ```
 
 ### .env File Support

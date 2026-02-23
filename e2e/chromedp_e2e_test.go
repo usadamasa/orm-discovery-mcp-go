@@ -28,7 +28,7 @@ func TestChromeDPLogin(t *testing.T) {
 	cfg := GetSharedConfig()
 
 	// Use a fresh cookie manager without cached cookies
-	// to force a fresh login
+	// to force a fresh login via visible browser
 	freshLoginDir := cfg.TmpDir + "/fresh-login-test"
 	if err := os.MkdirAll(freshLoginDir, 0755); err != nil {
 		t.Fatalf("Failed to create fresh login directory: %v", err)
@@ -36,8 +36,6 @@ func TestChromeDPLogin(t *testing.T) {
 	cookieManager := cookie.NewCookieManager(freshLoginDir)
 
 	client, err := browser.NewBrowserClient(
-		cfg.OReillyUserID,
-		cfg.OReillyPassword,
 		cookieManager,
 		cfg.Debug,
 		cfg.TmpDir,
@@ -48,7 +46,7 @@ func TestChromeDPLogin(t *testing.T) {
 	defer client.Close()
 
 	// Verify login succeeded by performing a search
-	results, err := client.SearchContent("test", nil)
+	results, _, err := client.SearchContent("test", nil)
 	if err != nil {
 		t.Fatalf("Search after login failed: %v", err)
 	}
@@ -74,8 +72,6 @@ func TestCookieRestoration(t *testing.T) {
 
 	// First: Create client and login (saves cookies)
 	client1, err := browser.NewBrowserClient(
-		cfg.OReillyUserID,
-		cfg.OReillyPassword,
 		cookieManager,
 		cfg.Debug,
 		cfg.TmpDir,
@@ -95,8 +91,6 @@ func TestCookieRestoration(t *testing.T) {
 	// This should restore cookies instead of logging in fresh
 	cookieManager2 := cookie.NewCookieManager(cookieDir)
 	client2, err := browser.NewBrowserClient(
-		cfg.OReillyUserID,
-		cfg.OReillyPassword,
 		cookieManager2,
 		cfg.Debug,
 		cfg.TmpDir,
@@ -107,7 +101,7 @@ func TestCookieRestoration(t *testing.T) {
 	defer client2.Close()
 
 	// Verify authentication works with restored cookies
-	results, err := client2.SearchContent("Go", nil)
+	results, _, err := client2.SearchContent("Go", nil)
 	if err != nil {
 		t.Fatalf("Search with restored cookies failed: %v", err)
 	}
@@ -121,17 +115,16 @@ func TestCookieRestoration(t *testing.T) {
 
 // TestChromeDP_ReauthenticationFlow tests the reauthentication mechanism.
 func TestChromeDP_ReauthenticationFlow(t *testing.T) {
-	cfg := GetSharedConfig()
 	client := GetSharedClient()
 
-	// Trigger reauthentication (simulates cookie expiration handling)
-	err := client.ReauthenticateIfNeeded(cfg.OReillyUserID, cfg.OReillyPassword)
+	// Trigger reauthentication via visible browser (simulates cookie expiration handling)
+	err := client.Reauthenticate()
 	if err != nil {
 		t.Fatalf("Reauthentication failed: %v", err)
 	}
 
 	// Verify reauthentication succeeded
-	results, err := client.SearchContent("Python", nil)
+	results, _, err := client.SearchContent("Python", nil)
 	if err != nil {
 		t.Fatalf("Search after reauthentication failed: %v", err)
 	}
