@@ -267,7 +267,7 @@ func (bc *BrowserClient) login(userID, password string) ([]*http.Cookie, error) 
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var title string
 			if err := chromedp.Title(&title).Do(ctx); err != nil {
-				slog.Debug("ページタイトル取得失敗", "error", err)
+				slog.Warn("ページタイトル取得失敗", "error", err)
 				return nil // タイトル取得失敗は継続
 			}
 			slog.Debug("ログインページタイトル", "title", title)
@@ -278,8 +278,7 @@ func (bc *BrowserClient) login(userID, password string) ([]*http.Cookie, error) 
 					"hint", "Cookie-first 運用を推奨: 手動ログインしてCookieを保存してください",
 				)
 				return fmt.Errorf("akamai bot manager によりブロックされました (title: %q)\n"+
-					"対処方法: 通常のChrome/Safariブラウザで https://www.oreilly.com/member/login/ にログインし、\n"+
-					"ブラウザの開発者ツールからCookieを取得して保存してください", title)
+					"対処方法: `orm-discovery-mcp-go --setup-cookies` を実行して手動ログインし、Cookieを保存してください", title)
 			}
 			return nil
 		}),

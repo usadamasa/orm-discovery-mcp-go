@@ -28,29 +28,25 @@ const (
 
 // runSetupCookies は手動ログインからCookieを保存するセットアップフローを実行します
 // OREILLY_USER_ID / OREILLY_PASSWORD は不要（手動ログインのため）
-func runSetupCookies() {
+func runSetupCookies() error {
 	fmt.Println("=== O'Reilly Cookie セットアップ ===")
-	fmt.Println("通常のChrome/Safariで手動ログインして、Cookieを自動保存します。")
+	fmt.Println("Google Chrome を起動してログインページを開きます。ログインするとCookieを自動保存します。")
 	fmt.Println()
 
 	// XDGディレクトリを解決（OREILLY_USER_ID/PASSWORDは不要）
 	xdgDirs, err := GetXDGDirs(os.Getenv("ORM_MCP_GO_DEBUG_DIR"))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: XDGディレクトリの解決に失敗しました: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("XDGディレクトリの解決に失敗しました: %w", err)
 	}
 
 	if err := xdgDirs.EnsureExists(); err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: XDGディレクトリの作成に失敗しました: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("XDGディレクトリの作成に失敗しました: %w", err)
 	}
 
 	// Chrome実行ファイルを検索
 	chromePath, err := findSystemChrome()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: %v\n", err)
-		fmt.Fprintf(os.Stderr, "Google Chrome をインストールしてください: https://www.google.com/chrome/\n")
-		os.Exit(1)
+		return fmt.Errorf("%w\nGoogle Chrome をインストールしてください: https://www.google.com/chrome/", err)
 	}
 	slog.Info("Chromeを発見しました", "path", chromePath)
 
@@ -68,8 +64,7 @@ func runSetupCookies() {
 		"--no-default-browser-check",
 	)
 	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: Chrome の起動に失敗しました: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("chrome の起動に失敗しました: %w", err)
 	}
 
 	defer func() {
@@ -89,9 +84,7 @@ func runSetupCookies() {
 	fmt.Println("CDP サーバーへの接続を待機中...")
 	wsURL, err := waitForCDP(cdpDebugPort)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: CDP接続に失敗しました: %v\n", err)
-		fmt.Fprintf(os.Stderr, "ヒント: ポート %s が既に使用中の場合は、MCP サーバーを停止してから再試行してください\n", cdpDebugPort)
-		os.Exit(1)
+		return fmt.Errorf("CDP接続に失敗しました: %w\nヒント: ポート %s が既に使用中の場合は、MCP サーバーを停止してから再試行してください", err, cdpDebugPort)
 	}
 	slog.Info("CDP接続確立", "ws_url", wsURL)
 
@@ -108,28 +101,26 @@ func runSetupCookies() {
 	// ログインページへナビゲート
 	fmt.Printf("ログインページを開いています: %s\n\n", ormLoginURL)
 	if err := chromedp.Run(ctx, chromedp.Navigate(ormLoginURL)); err != nil {
-		slog.Warn("ログインページへのナビゲートに失敗しました。手動で開いてください", "url", ormLoginURL, "error", err)
-		fmt.Fprintf(os.Stderr, "警告: ログインページを自動で開けませんでした。\n手動で %s を開いてログインしてください。\n\n", ormLoginURL)
+		return fmt.Errorf("ログインページへのナビゲートに失敗しました: %w", err)
 	}
 
 	// ログイン完了を待機
 	fmt.Printf("ログイン完了を待機中... (最大 %.0f 分)\n", loginWaitTimeout.Minutes())
 	fmt.Println("ブラウザで O'Reilly にログインしてください。")
 	if err := waitForLoginCompletion(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: ログイン完了の待機に失敗しました: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("ログイン完了の待機に失敗しました: %w", err)
 	}
 
 	// Cookie を保存
 	cookieManager := cookie.NewCookieManager(xdgDirs.CacheHome)
 	if err := cookieManager.SaveCookies(&ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "エラー: Cookieの保存に失敗しました: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("cookieの保存に失敗しました: %w", err)
 	}
 
 	fmt.Println()
 	fmt.Printf("✓ Cookieを保存しました: %s\n", xdgDirs.CookiePath())
 	fmt.Println("次回から `orm-discovery-mcp-go` を実行すると、Cookieでログインできます。")
+	return nil
 }
 
 // findSystemChrome はシステムにインストールされている Chrome の実行ファイルパスを返します
@@ -165,15 +156,20 @@ func waitForCDP(port string) (string, error) {
 func waitForCDPWithTimeout(port string, timeout time.Duration) (string, error) {
 	deadline := time.Now().Add(timeout)
 	cdpVersionURL := fmt.Sprintf("http://localhost:%s/json/version", port)
+	var lastErr error
 
 	for time.Now().Before(deadline) {
 		wsURL, err := fetchCDPWebSocketURL(cdpVersionURL)
 		if err == nil && wsURL != "" {
 			return wsURL, nil
 		}
+		lastErr = err
 		time.Sleep(cdpPollInterval)
 	}
 
+	if lastErr != nil {
+		return "", fmt.Errorf("CDP サーバーへの接続がタイムアウトしました (ポート %s): %w", port, lastErr)
+	}
 	return "", fmt.Errorf("CDP サーバーへの接続がタイムアウトしました (ポート %s)", port)
 }
 
@@ -196,6 +192,10 @@ func fetchCDPWebSocketURL(cdpVersionURL string) (string, error) {
 			slog.Warn("CDP レスポンスボディのクローズに失敗", "error", err)
 		}
 	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("CDP エンドポイントが予期しないステータスを返しました: %d", resp.StatusCode)
+	}
 
 	var result struct {
 		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`

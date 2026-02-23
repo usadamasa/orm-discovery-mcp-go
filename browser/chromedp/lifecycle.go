@@ -60,10 +60,12 @@ func NewManager(cacheDir string, debug bool) (*Manager, error) {
 	// 代わりに必要最小限のフラグのみを設定する
 	opts := []chromedp.ExecAllocatorOption{
 		chromedp.UserDataDir(chromeDataDir),
-		// 新 headless モード (Chrome 109+)
+		// 新 headless モード (Chrome 112+)
 		chromedp.Flag("headless", "new"),
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("no-sandbox", true),
+		// /dev/shm が小さい環境 (Docker/CI) でのクラッシュを防ぐ安定性フラグ
+		chromedp.Flag("disable-dev-shm-usage", true),
 		// 自動化マーカーを隠蔽 (navigator.webdriver を無効化)
 		chromedp.Flag("enable-automation", false),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
