@@ -1,0 +1,98 @@
+version: 3
+
+excludeFiles:
+  - "browser/generated/.*\\.go$"  # OpenAPI 生成コードはチェック対象外
+  - "e2e/.*\\.go$"                # E2E テストはチェック対象外
+  - ".*_test\\.go$"               # テストファイルはアーキテクチャチェック対象外
+
+vendors:
+  chromedp:
+    in:
+      - github.com/chromedp/chromedp
+      - github.com/chromedp/cdproto
+      - github.com/chromedp/cdproto/**
+  net-html:
+    in: golang.org/x/net/html
+  net-http:
+    in: net/http
+  mcp-sdk:
+    in: github.com/modelcontextprotocol/go-sdk/mcp
+  oapi-codegen:
+    in: github.com/oapi-codegen/runtime
+  lumberjack:
+    in: gopkg.in/natefinch/lumberjack.v2
+  uuid:
+    in: github.com/google/uuid
+
+components:
+  main:
+    in: .
+  browser:
+    in: browser
+  generated:
+    in: browser/generated/api  # OpenAPI 生成クライアント
+  cookie:
+    in: browser/cookie
+  model:
+    in: internal/model
+  git:
+    in: internal/git
+  critic:
+    in: internal/critic
+  reviewer:
+    in: internal/reviewer
+  version:
+    in: internal/version
+
+commonComponents:
+  - model
+
+deps:
+  main:
+    mayDependOn:
+      - browser
+      - cookie    # main は browser/cookie を直接 import する
+      - critic
+      - git
+      - reviewer
+      - version
+    canUse:
+      - mcp-sdk
+      - net-http
+      - lumberjack
+      - uuid
+
+  browser:
+    mayDependOn:
+      - cookie
+      - generated  # OpenAPI 生成クライアントを使用
+    canUse:
+      - chromedp
+      - net-html
+      - net-http
+      - oapi-codegen
+
+  generated:
+    anyVendorDeps: true  # OpenAPI 生成コードは外部 vendor を自由に使用
+
+  cookie:
+    canUse:
+      - net-http
+
+  critic:
+    mayDependOn:
+      - git
+
+  reviewer:
+    mayDependOn:
+      - critic
+      - git
+
+  git:
+    anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可
+
+  model:
+    anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可
+
+  version:
+    anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可

@@ -8,17 +8,22 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
-
-	cdp "github.com/usadamasa/orm-discovery-mcp-go/browser/chromedp"
-
-	"github.com/chromedp/cdproto/network"
-	"github.com/chromedp/chromedp"
 )
+
+// visibleLoginTempDir はビジブルログイン用の一時ディレクトリパスを返す。
+// PIDベースのユニークパスにすることで、複数プロセス同時実行時のディレクトリ衝突を防ぐ。
+func visibleLoginTempDir(stateDir string) string {
+	return filepath.Join(stateDir, fmt.Sprintf("chrome-setup-%d", os.Getpid()))
+}
+
+// errUnauthenticated は HTTP 401/403 による認証失敗を表すセンチネルエラー。
+// ネットワークエラーとは区別され、Cookie の削除判断に使用される。
+var errUnauthenticated = errors.New("認証されていません (401/403)")
 
 const ormHome = "https://learning.oreilly.com/home/"
 
@@ -76,22 +81,11 @@ func (grc *gzipReadCloser) Close() error {
 	return nil
 }
 
-// NewBrowserClient は新しいブラウザクライアントを作成し、ログインを実行します
+// NewBrowserClient は新しいブラウザクライアントを作成します。
+// Cookie が無効またはない場合は、ビジブルブラウザを起動してユーザーに手動ログインを促します。
 // stateDir: XDG StateHome (Chrome一時データ用)
-func NewBrowserClient(userID, password string, cookieManager cookie.Manager, debug bool, stateDir string) (*BrowserClient, error) {
-	if userID == "" || password == "" {
-		return nil, fmt.Errorf("OREILLY_USER_ID and OREILLY_PASSWORD are required")
-	}
-
-	// ChromeDPライフサイクルマネージャーを作成(古いディレクトリを自動クリーンアップ)
-	manager, err := cdp.NewManager(stateDir, debug)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ChromeDP manager: %w", err)
-	}
-
+func NewBrowserClient(cookieManager cookie.Manager, debug bool, stateDir string) (*BrowserClient, error) {
 	client := &BrowserClient{
-		ctx:             manager.Context(),
-		chromedpManager: manager,
 		httpClient: &http.Client{
 			Timeout: APIOperationTimeout,
 			Transport: &GzipTransport{
@@ -113,303 +107,59 @@ func NewBrowserClient(userID, password string, cookieManager cookie.Manager, deb
 			client.cookieManager = cookieManager
 
 			// HTTPリクエストでCookieが有効かどうか検証（chromedp不要）
-			if client.validateAuthenticationViaHTTP() {
+			if client.validateAuthenticationViaHTTP() == nil {
 				slog.Info("Cookieを使用してログインが完了しました")
-
-				// デバッグモードでなければ、ブラウザをクローズ
-				if !debug {
-					slog.Info("非デバッグモード: ブラウザコンテキストをクローズします")
-					client.Close()
-				}
-
 				return client, nil
 			}
-			slog.Info("Cookieが無効でした。通常のログインを実行します")
+			slog.Info("Cookieが無効でした。ビジブルブラウザでログインを実行します")
 		}
 	}
 
-	// 通常のログインを実行
-	cookies, err := client.login(userID, password)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			slog.Error("ログインタイムアウト: ブラウザをクローズします", "timeout", LoginTimeout)
-		}
-		client.Close()
+	// ビジブルブラウザでログインを実行
+	client.cookieManager = cookieManager
+	if err := RunVisibleLogin(visibleLoginTempDir(stateDir), cookieManager); err != nil {
 		return nil, fmt.Errorf("failed to login: %w", err)
 	}
 
-	// ログイン成功後にCookieを保存（login()で取得済みのCookieを使用、chromedp不要）
-	client.cookieManager = cookieManager
-	if err := cookieManager.SaveCookiesFromData(cookies); err != nil {
-		slog.Warn("Cookieの保存に失敗しました", "error", err)
-	}
-
-	// Cookie を内部ストレージに設定
-	urls := []*url.URL{
-		{Scheme: "https", Host: "learning.oreilly.com"},
-		{Scheme: "https", Host: "www.oreilly.com"},
-		{Scheme: "https", Host: "oreilly.com"},
-	}
-	for _, u := range urls {
-		if err := cookieManager.SetCookies(u, cookies); err != nil {
-			slog.Warn("cookie.ManagerへのCookie設定に失敗", "url", u.String(), "error", err)
-		}
-	}
-
 	slog.Info("ブラウザクライアントの初期化とログインが完了しました")
-
-	// デバッグモードでなければ、ブラウザをクローズ
-	if !debug {
-		slog.Info("非デバッグモード: ブラウザコンテキストをクローズします")
-		client.Close()
-	}
-
 	return client, nil
 }
 
 // Close はブラウザクライアントをクリーンアップします
 func (bc *BrowserClient) Close() {
-	// chromedpManagerがあればそれを使用(推奨)
-	if bc.chromedpManager != nil {
-		bc.chromedpManager.Close()
-		return
-	}
-
-	// 後方互換性のため: 古いスタイルのクリーンアップ
-	// 正しい順序でクリーンアップ: ctx → allocator
-	if bc.ctxCancel != nil {
-		bc.ctxCancel()
-	}
-	if bc.allocCancel != nil {
-		bc.allocCancel()
-	}
+	// httpClient と cookieManager はクリーンアップ不要
 }
 
-// ReauthenticateIfNeeded はCookie有効期限切れ時にブラウザを再起動して再認証します
-func (bc *BrowserClient) ReauthenticateIfNeeded(userID, password string) error {
-	slog.Info("Cookie有効期限切れ検出: 再認証を開始します")
+// Reauthenticate はCookie有効期限切れ時にビジブルブラウザを起動して再認証します
+func (bc *BrowserClient) Reauthenticate() error {
+	slog.Info("Cookie有効期限切れ検出: ビジブルブラウザで再認証を開始します")
 
-	// 既存のManagerをクローズ
-	if bc.chromedpManager != nil {
-		bc.chromedpManager.Close()
-		bc.chromedpManager = nil
-	}
-
-	// 新しいChromeDPライフサイクルマネージャーを作成
-	manager, err := cdp.NewManager(bc.stateDir, bc.debug)
-	if err != nil {
-		return fmt.Errorf("failed to create ChromeDP manager for reauthentication: %w", err)
-	}
-
-	// ブラウザコンテキストを更新
-	bc.ctx = manager.Context()
-	bc.chromedpManager = manager
-
-	// ログイン実行
-	cookies, err := bc.login(userID, password)
-	if err != nil {
-		slog.Error("再認証ログイン失敗", "error", err)
-		// エラー時は常にCloseしてリソースを解放
-		bc.Close()
-		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("再認証タイムアウト(%.0f秒): %w", ChromeDPExecAllocatorTimeout.Seconds(), err)
-		}
+	if err := RunVisibleLogin(visibleLoginTempDir(bc.stateDir), bc.cookieManager); err != nil {
 		return fmt.Errorf("再認証に失敗しました: %w", err)
 	}
 
-	// Cookie保存（login()で取得済みのCookieを使用、chromedp不要）
-	if err := bc.cookieManager.SaveCookiesFromData(cookies); err != nil {
-		slog.Warn("Cookieの保存に失敗しました", "error", err)
-	}
-
-	// Cookie を内部ストレージに設定
-	urls := []*url.URL{
-		{Scheme: "https", Host: "learning.oreilly.com"},
-		{Scheme: "https", Host: "www.oreilly.com"},
-		{Scheme: "https", Host: "oreilly.com"},
-	}
-	for _, u := range urls {
-		if err := bc.cookieManager.SetCookies(u, cookies); err != nil {
-			slog.Warn("cookie.ManagerへのCookie設定に失敗", "url", u.String(), "error", err)
-		}
-	}
-
-	// 非デバッグモード時はすぐにクローズ
-	if !bc.debug {
-		bc.Close()
+	// ログイン成功後にCookieの有効性をHTTPで検証する
+	if err := bc.validateAuthenticationViaHTTP(); err != nil {
+		return fmt.Errorf("再認証後のCookie検証に失敗しました: %w", err)
 	}
 
 	slog.Info("再認証が完了しました")
 	return nil
 }
 
-// login はO'Reillyにログインし、セッションCookieを取得して返します
-func (bc *BrowserClient) login(userID, password string) ([]*http.Cookie, error) {
-	slog.Info("O'Reillyへのログインを開始します", "user_id", userID)
-
-	// ログイン処理にタイムアウトを設定
-	loginCtx, loginCancel := context.WithTimeout(bc.ctx, LoginTimeout)
-	defer loginCancel()
-
-	var cookies []*http.Cookie
-	var divText string
-
-	err := chromedp.Run(loginCtx,
-		// ログインページに移動
-		chromedp.Navigate("https://www.oreilly.com/member/login/"),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			slog.Debug("ログインページに移動しました")
-			return nil
-		}),
-		// メールアドレスの入力
-		chromedp.WaitVisible(`input[name="email"]`, chromedp.ByQuery),
-		chromedp.SendKeys(`input[name="email"]`, userID, chromedp.ByQuery),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			slog.Debug("メールアドレスを入力しました", "user_id", userID)
-			bc.debugScreenshot(ctx, "orm_filled_email")
-			slog.Debug("Continueボタンをクリックしようとしています")
-			return nil
-		}),
-		// Continueボタンをクリック
-		chromedp.WaitVisible(`.orm-Button-root`, chromedp.ByQuery),
-		chromedp.Click(`.orm-Button-root`, chromedp.ByQuery),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			// クリック操作
-			bc.debugScreenshot(ctx, "orm_clicked_continue")
-			slog.Debug("Continueボタンをクリックしました")
-			return nil
-		}),
-		// リダイレクトまたはページ更新を待機
-		chromedp.WaitVisible(`.sub-title`, chromedp.ByQuery),
-		chromedp.Text(`.sub-title`, &divText, chromedp.ByQuery),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			bc.debugScreenshot(ctx, "acm_after_redirected")
-			slog.Debug(".sub-title取得", "text", divText)
-			var currentURL string
-			if err := chromedp.Location(&currentURL).Do(ctx); err != nil {
-				return err
-			}
-			if strings.Contains(currentURL, "idp.acm.org") {
-				slog.Info("ACM IDPにリダイレクトされました", "url", currentURL)
-			} else {
-				slog.Error("想定されたログインフローが見つかりませんでした", "current_url", currentURL)
-				return fmt.Errorf("想定されたログインフローが見つかりませんでした。現在のURL: %s", currentURL)
-			}
-			return nil
-		}),
-		// ACM IDPでログイン
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			// @acm.orgを除いたユーザー名を取得
-			username := strings.TrimSuffix(userID, "@acm.org")
-			slog.Debug("ACMユーザー名を取得", "username", username)
-
-			return chromedp.Run(ctx,
-				// ユーザー名フィールドを待機
-				chromedp.WaitVisible(`input[placeholder*="username"]`, chromedp.ByQuery),
-				chromedp.ActionFunc(func(ctx context.Context) error {
-					slog.Debug("ACMユーザー名フィールドが表示されました")
-					return nil
-				}),
-				// ユーザー名を入力
-				chromedp.Clear(`input[placeholder*="username"]`, chromedp.ByQuery),
-				chromedp.SendKeys(`input[placeholder*="username"]`, username, chromedp.ByQuery),
-				chromedp.ActionFunc(func(ctx context.Context) error {
-					slog.Debug("ACMユーザー名を入力しました", "username", username)
-					return nil
-				}),
-				// パスワードを入力
-				chromedp.SendKeys(`input[placeholder*="password"]`, password, chromedp.ByQuery),
-				chromedp.ActionFunc(func(ctx context.Context) error {
-					slog.Debug("ACMパスワードを入力しました")
-					return nil
-				}),
-				chromedp.ActionFunc(func(ctx context.Context) error {
-					bc.debugScreenshot(ctx, "acm_filled")
-					return nil
-				}),
-				// Sign inボタンをクリック
-				chromedp.Click(`.btn`, chromedp.ByQuery),
-				chromedp.ActionFunc(func(ctx context.Context) error {
-					slog.Debug("ACM Sign inボタンをクリックしました")
-					return nil
-				}),
-			)
-		}),
-		// ログイン完了まで待機
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			// 最大60秒待機（時間を延長）
-			timeout := time.Now().Add(60 * time.Second)
-			bc.debugScreenshot(ctx, "acm_login_completed")
-			for time.Now().Before(timeout) {
-				var currentURL string
-				if err := chromedp.Location(&currentURL).Do(ctx); err != nil {
-					slog.Debug("URL取得エラー", "error", err)
-					time.Sleep(2 * time.Second)
-					continue
-				}
-
-				slog.Debug("ログイン処理中", "url", currentURL)
-
-				// ログイン成功の判定
-				if strings.Contains(currentURL, "learning.oreilly.com") ||
-					strings.Contains(currentURL, "oreilly.com/home") ||
-					strings.Contains(currentURL, "oreilly.com/member") {
-					slog.Info("ログイン成功を確認しました", "final_url", currentURL)
-					return nil
-				}
-
-				// エラーページの確認
-				if strings.Contains(currentURL, "error") || strings.Contains(currentURL, "denied") {
-					return fmt.Errorf("ログインエラーページが検出されました: %s", currentURL)
-				}
-
-				time.Sleep(2 * time.Second)
-			}
-
-			return fmt.Errorf("ログインがタイムアウトしました（60秒）")
-		}),
-
-		// Cookieを取得
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			cookiesResp, err := network.GetCookies().Do(ctx)
-			if err != nil {
-				return err
-			}
-
-			// cdproto.Cookieから標準のhttp.Cookieに変換
-			cookies = make([]*http.Cookie, len(cookiesResp))
-			for i, c := range cookiesResp {
-				cookies[i] = &http.Cookie{
-					Name:     c.Name,
-					Value:    c.Value,
-					Domain:   c.Domain,
-					Path:     c.Path,
-					Secure:   c.Secure,
-					HttpOnly: c.HTTPOnly,
-				}
-			}
-			slog.Info("Cookieを取得しました", "count", len(cookies))
-			return nil
-		}),
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("ログイン処理でエラーが発生しました: %w", err)
-	}
-
-	return cookies, nil
-}
-
-// validateAuthenticationViaHTTP はHTTPリクエストでCookieの有効性を検証します
-// chromedpを使用せずにHTTPクライアントで認証を検証する
-func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
+// validateAuthenticationViaHTTP はHTTPリクエストでCookieの有効性を検証します。
+// chromedpを使用せずにHTTPクライアントで認証を検証する。
+// 戻り値:
+//   - nil: 認証成功 (200)
+//   - errUnauthenticated: 401/403 による認証失敗 (Cookie を削除すべき)
+//   - その他エラー: ネットワーク障害や予期しないレスポンス (Cookie は保持すべき)
+func (bc *BrowserClient) validateAuthenticationViaHTTP() error {
 	ctx, cancel := context.WithTimeout(context.Background(), AuthValidationTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", ormHome, nil)
 	if err != nil {
-		slog.Warn("認証検証リクエスト作成に失敗", "error", err)
-		return false
+		return fmt.Errorf("認証検証リクエスト作成に失敗: %w", err)
 	}
 
 	// ヘッダー設定
@@ -428,8 +178,7 @@ func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
 
 	resp, err := bc.httpClient.Do(req)
 	if err != nil {
-		slog.Warn("認証検証リクエストに失敗", "error", err)
-		return false
+		return fmt.Errorf("認証検証リクエストに失敗: %w", err)
 	}
 	defer func() {
 		if cerr := resp.Body.Close(); cerr != nil {
@@ -437,21 +186,40 @@ func (bc *BrowserClient) validateAuthenticationViaHTTP() bool {
 		}
 	}()
 
-	// 401/403 は認証失敗
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+	// 401/403 は認証失敗 (Cookie が無効)
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		slog.Info("認証が無効です", "status", resp.StatusCode)
-		return false
+		return errUnauthenticated
 	}
 
 	// 200 は認証成功
-	if resp.StatusCode == 200 {
+	if resp.StatusCode == http.StatusOK {
 		slog.Info("HTTP認証検証成功", "status", resp.StatusCode)
-		return true
+		return nil
 	}
 
-	// それ以外のステータスコード（302リダイレクトなど）は認証失敗として扱う
+	// それ以外のステータスコード（302リダイレクトなど）はネットワーク的な問題として扱う
 	slog.Warn("予期しないステータスコード", "status", resp.StatusCode)
-	return false
+	return fmt.Errorf("予期しないステータスコード: %d", resp.StatusCode)
+}
+
+// CheckAndResetAuth はCookieの有効性を検証し、期限切れの場合はCookieファイルを削除します。
+// 認証済みの場合は nil を返します。
+// 401/403 が確定した場合のみ stale Cookie を削除してエラーを返します。
+// ネットワークエラーの場合は Cookie を保持したままエラーを返します。
+func (bc *BrowserClient) CheckAndResetAuth() error {
+	err := bc.validateAuthenticationViaHTTP()
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, errUnauthenticated) {
+		// 401/403 が確定した場合のみ Cookie を削除
+		if delErr := bc.cookieManager.DeleteCookieFile(); delErr != nil {
+			slog.Warn("期限切れCookieの削除に失敗", "error", delErr)
+		}
+	}
+	// ネットワークエラーの場合は Cookie を保持したままエラーを返す
+	return fmt.Errorf("cookieが無効です。再認証が必要です: %w", err)
 }
 
 // CreateRequestEditor creates a standardized RequestEditorFn for API calls
@@ -530,7 +298,7 @@ func (bc *BrowserClient) GetContentFromURL(contentURL string) (string, error) {
 
 	slog.Info("コンテンツを取得しています", "type", contentType, "url", contentURL)
 
-	req, err := http.NewRequest("GET", contentURL, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, contentURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}

@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -239,5 +241,26 @@ func TestXDGDirs_LogPath(t *testing.T) {
 	expected := "/test/state/orm-mcp-go/orm-mcp-go.log"
 	if got := dirs.LogPath(); got != expected {
 		t.Errorf("LogPath() = %q, want %q", got, expected)
+	}
+}
+
+func TestXDGDirs_ChromeSetupDataDir(t *testing.T) {
+	dirs := &XDGDirs{
+		StateHome:  "/test/state/orm-mcp-go",
+		CacheHome:  "/test/cache/orm-mcp-go",
+		ConfigHome: "/test/config/orm-mcp-go",
+	}
+
+	got := dirs.ChromeSetupDataDir()
+
+	// StateHome 配下であることを確認
+	if !strings.HasPrefix(got, "/test/state/orm-mcp-go/chrome-setup-data-") {
+		t.Errorf("ChromeSetupDataDir() = %q, should start with /test/state/orm-mcp-go/chrome-setup-data-", got)
+	}
+
+	// PIDが含まれていることを確認
+	pid := strconv.Itoa(os.Getpid())
+	if !strings.HasSuffix(got, pid) {
+		t.Errorf("ChromeSetupDataDir() = %q, should end with PID %s", got, pid)
 	}
 }

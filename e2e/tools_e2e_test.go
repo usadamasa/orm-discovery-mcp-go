@@ -13,7 +13,7 @@ func TestMCPTool_SearchContent(t *testing.T) {
 	client := GetSharedClient()
 
 	// Test search functionality
-	results, err := client.SearchContent(TestSearchQuery, nil)
+	results, _, err := client.SearchContent(TestSearchQuery, nil)
 	if err != nil {
 		t.Fatalf("SearchContent failed: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestMCPTool_SearchContent_WithOptions(t *testing.T) {
 		"languages": []string{"en"},
 	}
 
-	results, err := client.SearchContent("Docker containers", options)
+	results, _, err := client.SearchContent("Docker containers", options)
 	if err != nil {
 		t.Fatalf("SearchContent with options failed: %v", err)
 	}

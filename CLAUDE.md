@@ -20,9 +20,8 @@ ORM_MCP_GO_DEBUG=true go run .
 ### Environment Setup
 
 ```bash
-# Required credentials
-export OREILLY_USER_ID="your_email@example.com"
-export OREILLY_PASSWORD="your_password"
+# 初回認証 (ビジブルブラウザで手動ログイン)
+bin/orm-discovery-mcp-go --login
 
 # Optional
 export TRANSPORT="stdio"  # or "http"

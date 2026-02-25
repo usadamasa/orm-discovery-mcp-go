@@ -1,7 +1,6 @@
 package browser
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 
@@ -29,15 +28,6 @@ func NewMockCookieManager() *MockCookieManager {
 
 // Ensure MockCookieManager implements cookie.Manager
 var _ cookie.Manager = (*MockCookieManager)(nil)
-
-// SaveCookies はブラウザのCookieをファイルに保存する（モック）
-func (m *MockCookieManager) SaveCookies(ctx *context.Context) error {
-	if m.saveError != nil {
-		return m.saveError
-	}
-	// 実際には何もしない（モック）
-	return nil
-}
 
 // SaveCookiesFromData は渡されたCookieをファイルに保存する（モック）
 func (m *MockCookieManager) SaveCookiesFromData(cookies []*http.Cookie) error {

@@ -3,7 +3,7 @@ package browser
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -13,75 +13,16 @@ import (
 // === Close Tests ===
 
 func TestBrowserClient_Close(t *testing.T) {
-	tests := []struct {
-		name        string
-		setupClient func(t *testing.T) *BrowserClient
-	}{
-		{
-			name: "正常系: 通常のクリーンアップ",
-			setupClient: func(t *testing.T) *BrowserClient {
-				ctx, ctxCancel := context.WithCancel(t.Context())
-				_, allocCancel := context.WithCancel(t.Context())
+	// Close() が空の BrowserClient でパニックしないことを確認
+	client := &BrowserClient{}
 
-				return &BrowserClient{
-					ctx:         ctx,
-					ctxCancel:   ctxCancel,
-					allocCancel: allocCancel,
-				}
-			},
-		},
-		{
-			name: "異常系: nilキャンセル関数でもパニックしない",
-			setupClient: func(t *testing.T) *BrowserClient {
-				return &BrowserClient{
-					ctx:         t.Context(),
-					ctxCancel:   nil,
-					allocCancel: nil,
-				}
-			},
-		},
-		{
-			name: "正常系: ctxCancelのみnil",
-			setupClient: func(t *testing.T) *BrowserClient {
-				allocCtx, allocCancel := context.WithCancel(t.Context())
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Close() でパニックが発生しました: %v", r)
+		}
+	}()
 
-				return &BrowserClient{
-					ctx:         allocCtx,
-					ctxCancel:   nil,
-					allocCancel: allocCancel,
-				}
-			},
-		},
-		{
-			name: "正常系: allocCancelのみnil",
-			setupClient: func(t *testing.T) *BrowserClient {
-				ctx, ctxCancel := context.WithCancel(t.Context())
-
-				return &BrowserClient{
-					ctx:         ctx,
-					ctxCancel:   ctxCancel,
-					allocCancel: nil,
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client := tt.setupClient(t)
-
-			// パニックが発生しないことを確認
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("Close() でパニックが発生しました: %v", r)
-				}
-			}()
-
-			client.Close()
-
-			// Close()が正常に完了したことを確認（パニックしなければOK）
-		})
-	}
+	client.Close()
 }
 
 // === CreateRequestEditor Tests ===
@@ -484,10 +425,11 @@ func TestGzipTransport_RoundTrip(t *testing.T) {
 
 func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 	tests := []struct {
-		name            string
-		setupHTTPClient func() *MockHTTPClient
-		cookies         []*http.Cookie
-		wantResult      bool
+		name                string
+		setupHTTPClient     func() *MockHTTPClient
+		cookies             []*http.Cookie
+		wantErr             bool
+		wantUnauthenticated bool // 401/403 による errUnauthenticated を期待するか
 	}{
 		{
 			name: "正常系: 200レスポンスで認証成功",
@@ -500,10 +442,10 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 				{Name: "orm-jwt", Value: "valid-token", Domain: ".oreilly.com"},
 				{Name: "groot_sessionid", Value: "session-123", Domain: ".oreilly.com"},
 			},
-			wantResult: true,
+			wantErr: false,
 		},
 		{
-			name: "異常系: 401レスポンスで認証失敗",
+			name: "異常系: 401レスポンスで認証失敗 (errUnauthenticated)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithResponse(
 					createMockHTTPResponse(401, "Unauthorized", nil),
@@ -512,10 +454,11 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 			cookies: []*http.Cookie{
 				{Name: "orm-jwt", Value: "expired-token", Domain: ".oreilly.com"},
 			},
-			wantResult: false,
+			wantErr:             true,
+			wantUnauthenticated: true,
 		},
 		{
-			name: "異常系: 403レスポンスで認証失敗",
+			name: "異常系: 403レスポンスで認証失敗 (errUnauthenticated)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithResponse(
 					createMockHTTPResponse(403, "Forbidden", nil),
@@ -524,25 +467,28 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 			cookies: []*http.Cookie{
 				{Name: "orm-jwt", Value: "invalid-token", Domain: ".oreilly.com"},
 			},
-			wantResult: false,
+			wantErr:             true,
+			wantUnauthenticated: true,
 		},
 		{
-			name: "異常系: HTTPリクエストエラーで認証失敗",
+			name: "異常系: HTTPリクエストエラーで認証失敗 (ネットワークエラー)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithError(io.EOF)
 			},
-			cookies:    []*http.Cookie{},
-			wantResult: false,
+			cookies:             []*http.Cookie{},
+			wantErr:             true,
+			wantUnauthenticated: false, // ネットワークエラーは errUnauthenticated ではない
 		},
 		{
-			name: "異常系: 500レスポンスで認証失敗",
+			name: "異常系: 500レスポンスで認証失敗 (予期しないステータス)",
 			setupHTTPClient: func() *MockHTTPClient {
 				return NewMockHTTPClient().WithResponse(
 					createMockHTTPResponse(500, "Internal Server Error", nil),
 				)
 			},
-			cookies:    []*http.Cookie{},
-			wantResult: false,
+			cookies:             []*http.Cookie{},
+			wantErr:             true,
+			wantUnauthenticated: false,
 		},
 		{
 			name: "正常系: リダイレクト（302）は認証失敗として扱う",
@@ -551,8 +497,9 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 					createMockHTTPResponse(302, "", map[string]string{"Location": "https://www.oreilly.com/member/login/"}),
 				)
 			},
-			cookies:    []*http.Cookie{},
-			wantResult: false,
+			cookies:             []*http.Cookie{},
+			wantErr:             true,
+			wantUnauthenticated: false,
 		},
 	}
 
@@ -567,70 +514,16 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 				userAgent:     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 			}
 
-			result := client.validateAuthenticationViaHTTP()
+			err := client.validateAuthenticationViaHTTP()
 
-			if result != tt.wantResult {
-				t.Errorf("validateAuthenticationViaHTTP() = %v, want %v", result, tt.wantResult)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateAuthenticationViaHTTP() error = %v, wantErr %v", err, tt.wantErr)
 			}
-		})
-	}
-}
-
-// === NewBrowserClient Tests ===
-
-func TestNewBrowserClient_ValidationErrors(t *testing.T) {
-	tests := []struct {
-		name          string
-		userID        string
-		password      string
-		wantError     bool
-		errorContains string
-	}{
-		{
-			name:          "異常系: userIDが空文字列",
-			userID:        "",
-			password:      "password",
-			wantError:     true,
-			errorContains: "OREILLY_USER_ID and OREILLY_PASSWORD are required",
-		},
-		{
-			name:          "異常系: passwordが空文字列",
-			userID:        "test@acm.org",
-			password:      "",
-			wantError:     true,
-			errorContains: "OREILLY_USER_ID and OREILLY_PASSWORD are required",
-		},
-		{
-			name:          "異常系: 両方とも空文字列",
-			userID:        "",
-			password:      "",
-			wantError:     true,
-			errorContains: "OREILLY_USER_ID and OREILLY_PASSWORD are required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockCookieManager := NewMockCookieManager()
-
-			client, err := NewBrowserClient(tt.userID, tt.password, mockCookieManager, false, "/tmp")
-
-			if tt.wantError {
-				if err == nil {
-					t.Errorf("エラーが期待されましたが、エラーが返されませんでした")
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("エラーメッセージに %q が含まれていません。エラー: %v", tt.errorContains, err)
-				}
-				if client != nil {
-					t.Errorf("エラー時はclientがnilであるべきですが、nilではありません")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("予期しないエラー: %v", err)
-				}
-				if client == nil {
-					t.Errorf("clientがnilです")
-				}
+			if tt.wantUnauthenticated && !errors.Is(err, errUnauthenticated) {
+				t.Errorf("validateAuthenticationViaHTTP() error = %v, want errUnauthenticated", err)
+			}
+			if !tt.wantUnauthenticated && errors.Is(err, errUnauthenticated) {
+				t.Errorf("validateAuthenticationViaHTTP() got errUnauthenticated but wanted different error type")
 			}
 		})
 	}

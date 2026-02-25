@@ -13,15 +13,13 @@ import (
 
 // Config はアプリケーションの設定を保持します
 type Config struct {
-	Port            string
-	Debug           bool
-	MCPDebug        bool
-	Transport       string
-	OReillyUserID   string
-	OReillyPassword string
-	XDGDirs         *XDGDirs // XDG Base Directory準拠のディレクトリパス
-	LogLevel        slog.Level
-	LogFile         string // ログファイルパス(空の場合はstderrのみ)
+	Port      string
+	Debug     bool
+	MCPDebug  bool
+	Transport string
+	XDGDirs   *XDGDirs // XDG Base Directory準拠のディレクトリパス
+	LogLevel  slog.Level
+	LogFile   string // ログファイルパス(空の場合はstderrのみ)
 
 	// ログローテーション設定
 	LogMaxSizeMB  int // メインログ最大サイズ (MB)、デフォルト: 10
@@ -62,14 +60,6 @@ func LoadConfig() (*Config, error) {
 	transport := "stdio"
 	if transportStr := getEnv("TRANSPORT"); transportStr != "" {
 		transport = transportStr
-	}
-
-	// 認証情報の確認
-	OReillyUserID := getEnv("OREILLY_USER_ID")
-	OReillyPassword := getEnv("OREILLY_PASSWORD")
-	if OReillyUserID == "" || OReillyPassword == "" {
-		// この時点ではまだslogが設定されていないため、標準的なログ出力を使用
-		log.Fatalf("OREILLY_USER_ID と OREILLY_PASSWORD が設定されていません")
 	}
 
 	// XDGディレクトリの解決
@@ -178,8 +168,6 @@ func LoadConfig() (*Config, error) {
 		Port:              port,
 		Debug:             debug,
 		Transport:         transport,
-		OReillyUserID:     OReillyUserID,
-		OReillyPassword:   OReillyPassword,
 		XDGDirs:           xdgDirs,
 		LogLevel:          logLevel,
 		LogFile:           logFile,

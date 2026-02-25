@@ -28,6 +28,16 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Handle --login flag (手動ログインからCookieを保存)
+	// OREILLY_USER_ID / OREILLY_PASSWORD は不要
+	if len(os.Args) > 1 && os.Args[1] == "--login" {
+		if err := runLogin(); err != nil {
+			fmt.Fprintf(os.Stderr, "エラー: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	runMCPServer()
 }
 
@@ -60,15 +70,15 @@ func runMCPServer() {
 	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
 	// Create browser client and login (using StateHome for Chrome temp data)
-	browserClient, err := browser.NewBrowserClient(cfg.OReillyUserID, cfg.OReillyPassword, cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
+	browserClient, err := browser.NewBrowserClient(cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
 	if err != nil {
-		slog.Error("ブラウザクライアントの初期化に失敗しました", "error", err)
-		os.Exit(1)
+		slog.Warn("ブラウザクライアントの初期化に失敗しました。degraded モードで起動します。"+
+			"oreilly_reauthenticate ツールで再認証してください。", "error", err)
+	} else {
+		slog.Info("ブラウザクライアントの初期化が完了しました")
 	}
-	defer browserClient.Close() // Clean up browser on process exit
-
-	slog.Info("ブラウザクライアントの初期化が完了しました")
-	s := NewServer(browserClient, cfg)
+	s := NewServer(browserClient, cfg, cookieManager)
+	defer s.Close() // Clean up browser on process exit (includes clients created in degraded mode)
 
 	if cfg.Transport == "http" {
 		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.BindAddress, cfg.Port)); err != nil {
