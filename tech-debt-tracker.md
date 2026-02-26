@@ -10,9 +10,9 @@
 |--------|------|------|
 | P1 (High) | 2 | URIパース、レスポンス形式 |
 | P2 (Medium) | 4 | エラーメッセージ、入力バリデーション、エラー判定、timeout |
-| P3 (Low) | 6 | ドキュメント、命名、i18n、magic string |
+| P3 (Low) | 9 | ドキュメント、命名、i18n、magic string、SDK新機能活用 |
 | Testing | 3 | cookie、middleware、testify移行 |
-| **合計** | **15** | |
+| **合計** | **18** | |
 
 ---
 
@@ -78,6 +78,10 @@ func extractProductIDFromURI(uri string) string {
 
 **影響**: LLM が JSON を再整形する必要があり、トークンを無駄に消費する場面がある。
 
+**SDK 実装手段 (v1.3.1)**:
+
+SDK v1.3.1 では、新たに `OutputSchema`（および関連機能）が追加されている。一方、`StructuredContent` 自体は SDK v1.2.0 以降で既にサポートされており、本リポジトリでも structured response（例: `server.go`）として利用済みである。ツール定義に `OutputSchema` を設定することで、クライアントが期待するレスポンス構造を宣言的に指定でき、`StructuredContent` でそのスキーマに準拠した機械可読な構造化レスポンスを返せる。これにより、LLM 側での JSON／Markdown への再整形処理を減らし、型付き出力の保証とトークン消費削減が期待できる。なお、`OutputSchema`／`StructuredContent` は Markdown 形式サポートそのものの代替ではなく、人間向けの Markdown 出力オプションと併用し得る補完的な仕組みとして位置付けるとよい。
+
 ---
 
 ## P2: Medium
@@ -135,6 +139,10 @@ Text: fmt.Sprintf(`{"error": "failed to get book details: %v"}`, err),
 4. JSON Schema の `jsonschema` タグに制約を追加
 
 **影響**: 予期しない入力による API 呼び出しの失敗やリソース浪費。
+
+**SDK 実装手段 (v1.1.0)**:
+
+SDK v1.1.0 で追加された `server.SchemaCache` を活用することで、JSON Schema のバリデーションを高速化できる。スキーマのコンパイル結果をキャッシュし、リクエストごとのバリデーションオーバーヘッドを削減する。
 
 ---
 
@@ -277,6 +285,10 @@ Name:    "orm-discovery-mcp-go",
 Version: version, // GoReleaser から注入される値を使用
 ```
 
+**追加対応 (SDK v1.1.0)**:
+
+`ServerOptions.Instructions` フィールドを設定し、サーバーの利用ガイダンスをクライアントに提供する。実装名修正と合わせて、`Instructions` にサーバーの概要・使い方・制約事項を記載する。
+
 ---
 
 ### P3-005: キーワード抽出が英語のみ
@@ -324,6 +336,62 @@ const (
 ```
 
 **影響**: 可読性の改善、タイポ防止。
+
+---
+
+### P3-007: Tool.Title / Prompt.Icons フィールド移行
+
+**カテゴリ**: SDK Migration
+**対象ファイル**: `server.go` (ツール定義箇所)
+**ベストプラクティス参照**: MCP SDK v1.2.0 - Tool.Title, Prompt.Icons
+
+**現状**:
+
+- ツールのタイトルが `Annotations.Title` に設定されている
+- SDK v1.2.0 でトップレベル `Title` フィールドが追加された
+
+**推奨対応**:
+
+- `Annotations.Title` → トップレベル `Title` フィールドへ移行
+- Prompt 定義に `Icons` フィールドを設定し、クライアント UI での視認性を向上
+
+---
+
+### P3-008: ResourceLink コンテンツタイプ導入
+
+**カテゴリ**: SDK Feature Adoption
+**対象ファイル**: `server.go` (ツールレスポンス生成箇所)
+**ベストプラクティス参照**: MCP SDK v1.2.0+ - ResourceLink
+
+**現状**:
+
+- ツール結果はテキストコンテンツのみを返す
+- 関連するリソース URI (`oreilly://book-details/{product_id}` 等) への直接リンクがない
+
+**推奨対応**:
+
+- `oreilly_search_content` の結果に `ResourceLink` を埋め込み、`oreilly://book-details/{product_id}` へのリンクを提供
+- クライアントが検索結果から直接リソースにアクセスできるようにする
+- ツール結果とリソースの連携を強化
+
+---
+
+### P3-009: LoggingHandler による MCP ログ送信
+
+**カテゴリ**: SDK Feature Adoption
+**対象ファイル**: `server.go`, `config.go`
+**ベストプラクティス参照**: MCP SDK v1.1.0 - NewLoggingHandler
+
+**現状**:
+
+- ログは `slog` 経由でファイル/stderr にのみ出力
+- MCP クライアントへのログ配信機能なし
+
+**推奨対応**:
+
+- SDK v1.1.0 の `NewLoggingHandler` を使用して、`slog.Handler` を MCP ログ通知に変換
+- クライアントがサーバーのログをリアルタイムで受信可能にする
+- 既存の `slog` ハンドラとの `MultiHandler` 構成で併用
 
 ---
 
@@ -440,9 +508,12 @@ const (
 - [ ] P3-001: ツール説明の例を拡充
 - [ ] P3-002: レート制限ドキュメント追加
 - [ ] P3-003: パフォーマンス特性ドキュメント追加
-- [ ] P3-004: サーバー実装名の修正
+- [ ] P3-004: サーバー実装名の修正 + Instructions 設定
 - [ ] P3-005: 日本語ストップワード対応
 - [x] P3-006: Middleware の magic string 定数化
+- [ ] P3-007: Tool.Title / Prompt.Icons フィールド移行
+- [ ] P3-008: ResourceLink コンテンツタイプ導入
+- [ ] P3-009: LoggingHandler による MCP ログ送信
 
 ### Phase 5: テストカバレッジ改善
 
