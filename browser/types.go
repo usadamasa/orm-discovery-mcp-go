@@ -27,6 +27,23 @@ type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// Client は server.go が BrowserClient に期待するメソッドを定義するインターフェース。
+// テスト時に mock に差し替えることで、全 O'Reilly ハンドラーの単体テストを可能にする。
+type Client interface {
+	SearchContent(query string, options map[string]any) ([]map[string]any, int, error)
+	AskQuestion(question string, maxWaitTime time.Duration) (*AnswerResponse, error)
+	GetBookDetails(productID string) (*BookDetailResponse, error)
+	GetBookTOC(productID string) (*TableOfContentsResponse, error)
+	GetBookChapterContent(productID, chapterName string) (*ChapterContentResponse, error)
+	GetQuestionByID(questionID string) (*AnswerResponse, error)
+	Reauthenticate() error
+	CheckAndResetAuth() error
+	Close()
+}
+
+// コンパイル時にインターフェース実装を検証
+var _ Client = (*BrowserClient)(nil)
+
 // BrowserClient はヘッドレスブラウザを使用したO'Reillyクライアントです
 type BrowserClient struct {
 	httpClient    HTTPDoer // HTTP通信を実行するインターフェース (*http.Clientが実装)

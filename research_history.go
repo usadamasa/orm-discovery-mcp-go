@@ -118,8 +118,8 @@ func (m *ResearchHistoryManager) Load() error {
 
 // Save は履歴をファイルに保存する
 func (m *ResearchHistoryManager) Save() error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	if m.history == nil {
 		return nil

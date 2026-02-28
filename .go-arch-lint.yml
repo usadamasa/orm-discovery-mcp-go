@@ -41,6 +41,8 @@ components:
     in: internal/critic
   reviewer:
     in: internal/reviewer
+  review:
+    in: internal/review
   version:
     in: internal/version
 
@@ -52,9 +54,7 @@ deps:
     mayDependOn:
       - browser
       - cookie    # main は browser/cookie を直接 import する
-      - critic
-      - git
-      - reviewer
+      - review    # review_pr ツール登録
       - version
     canUse:
       - mcp-sdk
@@ -82,6 +82,14 @@ deps:
   critic:
     mayDependOn:
       - git
+
+  review:
+    mayDependOn:
+      - critic
+      - git
+      - reviewer
+    canUse:
+      - mcp-sdk
 
   reviewer:
     mayDependOn:

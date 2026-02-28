@@ -70,11 +70,15 @@ func runMCPServer() {
 	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
 	// Create browser client and login (using StateHome for Chrome temp data)
-	browserClient, err := browser.NewBrowserClient(cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
+	// browser.Client インターフェースとして宣言し、エラー時は nil (interface nil) のまま渡す。
+	// typed nil (*BrowserClient(nil)) を渡すと == nil チェックが正しく動作しないため。
+	var browserClient browser.Client
+	bc, err := browser.NewBrowserClient(cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
 	if err != nil {
 		slog.Warn("ブラウザクライアントの初期化に失敗しました。degraded モードで起動します。"+
 			"oreilly_reauthenticate ツールで再認証してください。", "error", err)
 	} else {
+		browserClient = bc
 		slog.Info("ブラウザクライアントの初期化が完了しました")
 	}
 	s := NewServer(browserClient, cfg, cookieManager)

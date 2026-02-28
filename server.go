@@ -15,9 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
-	"github.com/usadamasa/orm-discovery-mcp-go/internal/critic"
-	"github.com/usadamasa/orm-discovery-mcp-go/internal/git"
-	"github.com/usadamasa/orm-discovery-mcp-go/internal/reviewer"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/review"
 )
 
 // HTTP server timeout constants.
@@ -31,7 +29,7 @@ const (
 // Server is the MCP server implementation.
 type Server struct {
 	clientMu        sync.RWMutex
-	browserClient   *browser.BrowserClient
+	browserClient   browser.Client
 	server          *mcp.Server
 	config          *Config
 	historyManager  *ResearchHistoryManager
@@ -40,7 +38,7 @@ type Server struct {
 }
 
 // NewServer creates a new server instance.
-func NewServer(browserClient *browser.BrowserClient, config *Config, cookieManager cookie.Manager) *Server {
+func NewServer(browserClient browser.Client, config *Config, cookieManager cookie.Manager) *Server {
 	// Create MCP server
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
@@ -86,14 +84,14 @@ func NewServer(browserClient *browser.BrowserClient, config *Config, cookieManag
 }
 
 // getBrowserClient は browserClient を mutex で保護して返します。
-func (s *Server) getBrowserClient() *browser.BrowserClient {
+func (s *Server) getBrowserClient() browser.Client {
 	s.clientMu.RLock()
 	defer s.clientMu.RUnlock()
 	return s.browserClient
 }
 
 // setBrowserClient は browserClient を mutex で保護して設定します。
-func (s *Server) setBrowserClient(client *browser.BrowserClient) {
+func (s *Server) setBrowserClient(client browser.Client) {
 	s.clientMu.Lock()
 	defer s.clientMu.Unlock()
 	s.browserClient = client
@@ -270,25 +268,8 @@ IMPORTANT: Cite sources provided in the response.`,
 	}
 	mcp.AddTool(s.server, reauthTool, s.ReauthenticateHandler)
 
-	// Add review_pr tool
-	reviewPRTool := &mcp.Tool{
-		Name: "review_pr",
-		Description: `Review code changes in a local git repository against the base branch.
-
-Runs multiple critics (MissingTest, InfraChange, LargeDiff) and returns structured findings sorted by severity.
-
-Input: Absolute path to git repository. Optionally specify base branch (default: main).
-
-Output: Summary counts, detailed findings with severity/category/suggestion, and any critic errors.`,
-		Annotations: &mcp.ToolAnnotations{
-			Title:           "Review Pull Request",
-			ReadOnlyHint:    true,
-			DestructiveHint: ptrBool(false),
-			IdempotentHint:  true,
-			OpenWorldHint:   ptrBool(false),
-		},
-	}
-	mcp.AddTool(s.server, reviewPRTool, s.ReviewPRHandler)
+	// Add review_pr tool (separated to internal/review package)
+	review.RegisterTools(s.server)
 
 	// Register resources
 	s.registerResources()
@@ -927,66 +908,6 @@ func (s *Server) ReauthenticateHandler(
 	return nil, &ReauthResult{
 		Status:  "setup_completed",
 		Message: "再認証が完了しました。O'Reilly セッションが更新されました。",
-	}, nil
-}
-
-// ReviewPRHandler handles the review_pr MCP tool.
-func (s *Server) ReviewPRHandler(
-	ctx context.Context,
-	_ *mcp.CallToolRequest,
-	args ReviewPRArgs,
-) (*mcp.CallToolResult, *ReviewPRResult, error) {
-	if args.RepoPath == "" {
-		return newToolResultError("repo_path is required"), nil, nil
-	}
-	baseBranch := args.BaseBranch
-	if baseBranch == "" {
-		baseBranch = "main"
-	}
-
-	dp := git.NewGitDiffProvider()
-	critics := []critic.Critic{
-		critic.NewMissingTestCritic(),
-		critic.NewInfraChangeCritic(),
-		critic.NewLargeDiffCritic(),
-	}
-	orch := reviewer.NewOrchestrator(dp, critics...)
-
-	result, err := orch.Run(ctx, args.RepoPath, baseBranch)
-	if err != nil {
-		return newToolResultError(fmt.Sprintf("review failed: %v", err)), nil, nil
-	}
-
-	mcpFindings := make([]ReviewPRFinding, len(result.Findings))
-	for i, f := range result.Findings {
-		mcpFindings[i] = ReviewPRFinding{
-			ID:         f.ID,
-			Severity:   string(f.Severity),
-			Category:   string(f.Category),
-			Message:    f.Message,
-			CriticName: f.CriticName,
-			FilePath:   f.Location.FilePath,
-			Suggestion: f.Suggestion,
-			Confidence: f.Confidence,
-			Metadata:   f.Metadata,
-		}
-	}
-
-	var errStrings []string
-	for _, ce := range result.Errors {
-		errStrings = append(errStrings, fmt.Sprintf("%s: %v", ce.CriticName, ce.Err))
-	}
-
-	return nil, &ReviewPRResult{
-		Summary: ReviewPRSummary{
-			CriticalCount: result.Summary.CriticalCount,
-			WarningCount:  result.Summary.WarningCount,
-			InfoCount:     result.Summary.InfoCount,
-		},
-		Findings:   mcpFindings,
-		BaseBranch: result.BaseBranch,
-		TotalFiles: result.TotalFiles,
-		Errors:     errStrings,
 	}, nil
 }
 
