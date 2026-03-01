@@ -509,29 +509,29 @@ const (
 - [x] P3-002: レート制限ドキュメント追加
 - [x] P3-003: パフォーマンス特性ドキュメント追加
 - [x] P3-004: サーバー実装名の修正 + Instructions 設定
-- [ ] P3-005: 日本語ストップワード対応
+- [x] P3-005: 日本語ストップワード対応
 - [x] P3-006: Middleware の magic string 定数化
 - [x] P3-007: Tool.Title / Prompt.Icons フィールド移行
-- [ ] P3-008: ResourceLink コンテンツタイプ導入
-- [ ] P3-009: LoggingHandler による MCP ログ送信
+- [x] P3-008: ResourceLink コンテンツタイプ導入
+- [x] P3-009: LoggingHandler による MCP ログ送信
 
 ### Phase 5: テストカバレッジ改善
 
-- [ ] T1: browser/cookie テスト追加
-- [ ] T2: middleware テスト追加
-- [ ] T3: browser テストの testify 移行
+- [x] T1: browser/cookie テスト追加
+- [x] T2: middleware テスト追加
+- [x] T3: browser テストの testify 移行
 
 ### Phase 6: アーキテクチャメトリクス改善 (introduce-go-metric で新規追加)
 
 golangci-lint + go-arch-lint 導入時に exclusion 設定で暫定回避した技術的負債。
 exclusion を削除してメトリクスを改善することが目標。
 
-- [ ] M1: `browser/search.go` のリファクタリング
-- [ ] M2: `browser/book.go` の gocognit/gocyclo 削減
-- [ ] M3: `browser/login.go` の gocognit/gocyclo 削減
-- [ ] M4: `config.go` の gocognit/gocyclo/funlen 削減
+- [x] M1: `browser/search.go` のリファクタリング
+- [x] M2: `browser/book.go` の gocognit/gocyclo 削減
+- [x] M3: `browser/login.go` の gocognit/gocyclo 削減 (gocognit 64→31, exclusion維持)
+- [x] M4: `config.go` の gocognit/gocyclo/funlen 削減
 - [x] M5: `prompts.go` の funlen 削減
-- [ ] M6: `internal/git/diff.go` の gocognit 削減
+- [x] M6: `internal/git/diff.go` の gocognit 削減
 - [x] M7: `browser/search.go` SearchContent の gocognit/gocyclo 削減
 - [x] M8: `browser/book.go` convertAPIFlatTOCToLocal の gocognit 削減
 - [x] M9: `browser/book.go` parseHTMLNode の gocognit 削減
