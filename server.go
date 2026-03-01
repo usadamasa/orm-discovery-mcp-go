@@ -412,7 +412,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	// Set default mode from config
 	mode := args.Mode
 	if mode == "" {
-		mode = SearchMode(s.config.DefaultSearchMode)
+		mode = s.config.DefaultSearchMode
 	}
 
 	// Prepare options for BrowserClient
@@ -440,7 +440,6 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		// Retry
 		results, totalResults, err = s.getBrowserClient().SearchContent(args.Query, options)
 	}
-
 	if err != nil {
 		return newToolResultError(sanitizeError(err, "operation", "search", "query", args.Query)), nil, nil
 	}
