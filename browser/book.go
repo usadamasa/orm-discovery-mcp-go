@@ -493,9 +493,9 @@ func handleHeadingNode(n *html.Node, content *ParsedChapterContent) {
 
 // handleParagraphNode processes paragraph elements.
 func handleParagraphNode(n *html.Node, content *ParsedChapterContent) {
-	text := extractTextContent(n)
-	if strings.TrimSpace(text) != "" {
-		content.Paragraphs = append(content.Paragraphs, strings.TrimSpace(text))
+	text := strings.TrimSpace(extractTextContent(n))
+	if text != "" {
+		content.Paragraphs = append(content.Paragraphs, text)
 	}
 }
 

@@ -204,17 +204,6 @@ func (s *Server) StartStdioServer(ctx context.Context) error {
 	return nil
 }
 
-// isAuthError checks if the error is an authentication error.
-func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errMsg := err.Error()
-	return strings.Contains(errMsg, "authentication error") ||
-		strings.Contains(errMsg, "401") ||
-		strings.Contains(errMsg, "403")
-}
-
 // registerHandlers registers the tool and resource handlers.
 func (s *Server) registerHandlers() {
 	// Add search tool
@@ -402,7 +391,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		return newToolResultError(userFacingErrorMessage(ErrorCategoryValidation)), nil, nil
 	}
 	if len(args.Query) > maxQueryLength {
-		return newToolResultError("Query is too long. Please use 500 characters or fewer."), nil, nil
+		return newToolResultError(fmt.Sprintf("Query is too long. Please use %d characters or fewer.", maxQueryLength)), nil, nil
 	}
 
 	// Set default values
@@ -440,7 +429,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	// Execute search using BrowserClient
 	slog.Debug("BrowserClient検索開始", "query", args.Query, "mode", mode, "offset", args.Offset, "rows", args.Rows)
 	results, totalResults, err := s.getBrowserClient().SearchContent(args.Query, options)
-	if err != nil && isAuthError(err) {
+	if err != nil && categorizeError(err) == ErrorCategoryAuth {
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
 		if reauthErr := s.getBrowserClient().Reauthenticate(); reauthErr != nil {
@@ -593,7 +582,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 		return newToolResultError(userFacingErrorMessage(ErrorCategoryValidation)), nil, nil
 	}
 	if len(args.Question) > maxQuestionLength {
-		return newToolResultError("Question is too long. Please use 500 characters or fewer."), nil, nil
+		return newToolResultError(fmt.Sprintf("Question is too long. Please use %d characters or fewer.", maxQuestionLength)), nil, nil
 	}
 
 	// Default timeout (5 minutes)
