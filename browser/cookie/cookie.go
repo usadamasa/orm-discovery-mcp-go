@@ -269,6 +269,39 @@ func (cm *ManagerImpl) cookieMatchesPath(cookie *http.Cookie, path string) bool 
 	return len(path) == len(cookiePath) || cookiePath[len(cookiePath)-1] == '/' || path[len(cookiePath)] == '/'
 }
 
+// SeedDebugCookieIfNeeded はデバッグモードで cookie が存在しない場合にシード元からコピーする。
+// デバッグ環境の初回起動時に、共有 XDG パスのログイン済み cookie を
+// ローカル (per-worktree) にコピーしてブラウザログインを回避する。
+//
+// 条件:
+//   - seedPath が空 or filePath と同一 → 何もしない
+//   - ローカルに cookie が既にある → 何もしない（上書きしない）
+//   - シード元が存在しない → 何もしない（エラーにしない）
+func (cm *ManagerImpl) SeedDebugCookieIfNeeded(seedPath string) error {
+	if seedPath == "" || seedPath == cm.filePath {
+		return nil
+	}
+	if cm.CookieFileExists() {
+		return nil
+	}
+	data, err := os.ReadFile(seedPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			slog.Info("デバッグ用シード元Cookieが見つかりません", "seed_path", seedPath)
+			return nil
+		}
+		return fmt.Errorf("デバッグ用シード元Cookieの読み込みに失敗: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cm.filePath), 0700); err != nil {
+		return fmt.Errorf("Cookieディレクトリの作成に失敗: %w", err)
+	}
+	if err := os.WriteFile(cm.filePath, data, 0600); err != nil {
+		return fmt.Errorf("デバッグ用Cookieのシードに失敗: %w", err)
+	}
+	slog.Info("デバッグ用Cookieをシードしました", "from", seedPath, "to", cm.filePath)
+	return nil
+}
+
 // isImportantCookie は保存すべき重要なCookieかどうかを判定する
 func (cm *ManagerImpl) isImportantCookie(name string) bool {
 	// 除外すべきCookieのリスト（一般的な分析・トラッキング系）

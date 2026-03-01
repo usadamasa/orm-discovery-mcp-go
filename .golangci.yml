@@ -71,3 +71,8 @@ linters:
         linters:
           - funlen
           - gocognit
+
+      # ST1005: 日本語エラーメッセージを許容する (error strings should not be capitalized)
+      - text: "ST1005"
+        linters:
+          - staticcheck
