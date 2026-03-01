@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.0.12](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.11...v0.0.12) - 2026-03-01
+- feat: oreilly_search_content にページネーション対応を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/66
+- fix: HTTPバインドアドレスを127.0.0.1に修正しOrigin検証を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/68
+- introduce agent workflow by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/69
+- update by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/81
+- refactor: URI パースを url.Parse() ベースに統一 (P1-001) by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/82
+- build(deps): bump github.com/modelcontextprotocol/go-sdk from 1.2.0 to 1.3.0 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/74
+- build(deps): bump golang.org/x/net from 0.49.0 to 0.50.0 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/73
+- enable merge group by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/83
+- A1-1: Add Finding schema for PR review system by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/106
+- B1-1: Add git diff retrieval utility by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/107
+- feat: add file classification for PR review system (B1-2, B1-3) by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/108
+- feat: implement Critic interface and MissingTestCritic by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/109
+- feat: implement LargeDiffCritic by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/111
+- chore: analyze tech debt and fix quick wins (P2-004, P2-005, P3-006) by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/112
+- feat: implement InfraChangeCritic by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/110
+- feat: implement review_pr MCP tool with Orchestrator by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/113
+- feat: add dogfood-verify and dogfood-improve skills by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/114
+- fix: improve ChromeDP headless mode and add login diagnosis skill by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/115
+- feat: add --setup-cookies command for manual login cookie capture by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/116
+- refactor: consolidate visible login flow into RunVisibleLogin by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/118
+- fix: add GOFLAGS=-buildvcs=false to lint task to resolve VCS stamping error in worktree by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/119
+- feat: introduce Go architecture metrics with golangci-lint and go-arch-lint by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/120
+- build(deps): bump github.com/modelcontextprotocol/go-sdk by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/121
+- build(deps): bump github.com/modelcontextprotocol/go-sdk from 1.3.0 to 1.3.1 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/117
+- docs: Issue #122 SDK新機能をtech-debt-trackerに統合 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/123
+- refactor: MVR実施 - 構造的問題の解決 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/124
+- refactor: tech-debt-tracker 全項目対応 + /simplify 駆動改善 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/127
+
 ## [v0.0.11](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.10...v0.0.11) - 2026-02-14
 - feat: MCPツール名にoreilly_プレフィックスを追加しToolAnnotationsを設定 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/64
 
