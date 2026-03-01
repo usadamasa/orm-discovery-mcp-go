@@ -2,6 +2,16 @@ package main
 
 import "github.com/usadamasa/orm-discovery-mcp-go/browser"
 
+// ResponseFormat defines the output format for tool results.
+type ResponseFormat string
+
+const (
+	// ResponseFormatJSON returns structured JSON (default).
+	ResponseFormatJSON ResponseFormat = "json"
+	// ResponseFormatMarkdown returns human-readable Markdown.
+	ResponseFormatMarkdown ResponseFormat = "markdown"
+)
+
 // SearchMode defines the exploration mode for oreilly_search_content tool.
 type SearchMode string
 
@@ -38,12 +48,16 @@ type SearchContentArgs struct {
 	// Exploration mode parameters
 	Mode      SearchMode `json:"mode,omitempty" jsonschema:"Exploration mode: 'bfs' (default) returns lightweight results (id, title, authors), 'dfs' returns full detailed results"`
 	Summarize bool       `json:"summarize,omitempty" jsonschema:"In DFS mode, use MCP Sampling to generate a summary of results (reduces context consumption)"`
+
+	// Response format
+	Format ResponseFormat `json:"format,omitempty" jsonschema:"Output format: 'json' (default) or 'markdown' for human-readable output"`
 }
 
 // AskQuestionArgs represents the parameters for the oreilly_ask_question tool.
 type AskQuestionArgs struct {
-	Question           string `json:"question" jsonschema:"Focused technical question in English (under 100 characters preferred),minLength=1,maxLength=500"`
-	MaxWaitTimeSeconds int    `json:"max_wait_time_seconds,omitempty" jsonschema:"Maximum time to wait for answer generation in seconds (default: 300, max: 600)"`
+	Question           string         `json:"question" jsonschema:"Focused technical question in English (under 100 characters preferred),minLength=1,maxLength=500"`
+	MaxWaitTimeSeconds int            `json:"max_wait_time_seconds,omitempty" jsonschema:"Maximum time to wait for answer generation in seconds (default: 300, max: 600)"`
+	Format             ResponseFormat `json:"format,omitempty" jsonschema:"Output format: 'json' (default) or 'markdown' for human-readable output"`
 }
 
 // SearchContentResult represents the structured output for oreilly_search_content tool.

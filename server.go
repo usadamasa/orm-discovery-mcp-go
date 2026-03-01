@@ -447,15 +447,25 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	historyID := s.recordSearchHistoryWithFullResponse(args.Query, options, results, time.Since(start))
 
 	// Build response based on mode
+	var toolResult *mcp.CallToolResult
+	var structured *SearchContentResult
+	var resultErr error
+
 	switch mode {
-	case SearchModeBFS:
-		return s.buildBFSResponse(results, historyID, args.Offset, totalResults)
 	case SearchModeDFS:
-		return s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize, args.Offset, totalResults)
+		toolResult, structured, resultErr = s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize, args.Offset, totalResults)
 	default:
-		// Default to BFS for unknown modes
-		return s.buildBFSResponse(results, historyID, args.Offset, totalResults)
+		toolResult, structured, resultErr = s.buildBFSResponse(results, historyID, args.Offset, totalResults)
 	}
+
+	// Return Markdown format if requested
+	if args.Format == ResponseFormatMarkdown && structured != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: formatSearchResultsMarkdown(structured)}},
+		}, nil, nil
+	}
+
+	return toolResult, structured, resultErr
 }
 
 // buildBFSResponse builds a lightweight response for BFS mode.
@@ -601,7 +611,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	s.recordQuestionHistory(args.Question, answer, time.Since(start))
 
 	// Build StructuredContent response
-	return nil, &AskQuestionResult{
+	structured := &AskQuestionResult{
 		QuestionID:          answer.QuestionID,
 		Question:            args.Question,
 		Answer:              answer.MisoResponse.Data.Answer,
@@ -611,7 +621,16 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 		AffiliationProducts: answer.MisoResponse.Data.AffiliationProducts,
 		FollowupQuestions:   answer.MisoResponse.Data.FollowupQuestions,
 		CitationNote:        "IMPORTANT: When referencing this information, always cite the sources listed above with proper attribution to O'Reilly Media.",
-	}, nil
+	}
+
+	// Return Markdown format if requested
+	if args.Format == ResponseFormatMarkdown {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: formatAskQuestionMarkdown(structured)}},
+		}, nil, nil
+	}
+
+	return nil, structured, nil
 }
 
 // GetBookDetailsResource handles book detail resource requests.
