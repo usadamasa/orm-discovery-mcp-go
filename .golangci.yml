@@ -70,14 +70,6 @@ linters:
           - gocyclo
           - maintidx
 
-      # convertAPIBookDetailToLocal は API 変換の性質上、認知的複雑度が高い
-      # TODO: リファクタリング後に削除する
-      - path: "browser/book\\.go"
-        text: "convertAPIBookDetailToLocal"
-        linters:
-          - gocognit
-          - gocyclo
-
       # E2Eテストは複雑度制限を緩和
       - path: "e2e/"
         linters:

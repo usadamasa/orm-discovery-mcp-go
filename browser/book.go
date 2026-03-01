@@ -123,95 +123,83 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 	return bookDetail, nil
 }
 
+// derefString returns the value of a string pointer, or empty string if nil.
+func derefString(p *string) string {
+	if p != nil {
+		return *p
+	}
+	return ""
+}
+
+// convertAPIAuthor converts an API Author to a local Author.
+func convertAPIAuthor(a api.Author) Author {
+	return Author{Name: derefString(a.Name)}
+}
+
+// convertAPIPublisher converts an API Publisher to a local Publisher.
+func convertAPIPublisher(p api.Publisher) Publisher {
+	pub := Publisher{
+		Name: derefString(p.Name),
+		Slug: derefString(p.Slug),
+	}
+	if p.Id != nil {
+		pub.ID = *p.Id
+	}
+	return pub
+}
+
+// convertAPITopic converts an API Topics to a local Topics.
+func convertAPITopic(t api.Topics) Topics {
+	topic := Topics{
+		Name:           derefString(t.Name),
+		Slug:           derefString(t.Slug),
+		UUID:           derefString(t.Uuid),
+		EpubIdentifier: derefString(t.EpubIdentifier),
+	}
+	if t.Score != nil {
+		topic.Score = float64(*t.Score)
+	}
+	return topic
+}
+
 // convertAPIBookDetailToLocal converts from generated API BookDetailResponse to local BookDetailResponse
 func convertAPIBookDetailToLocal(apiBook *api.BookDetailResponse) *BookDetailResponse {
 	bookDetail := &BookDetailResponse{
-		Metadata: make(map[string]interface{}),
+		ID:          derefString(apiBook.Id),
+		URL:         derefString(apiBook.Url),
+		WebURL:      derefString(apiBook.WebUrl),
+		Title:       derefString(apiBook.Title),
+		Description: derefString(apiBook.Description),
+		ISBN:        derefString(apiBook.Isbn),
+		Cover:       derefString(apiBook.Cover),
+		Issued:      derefString(apiBook.Issued),
+		Language:    derefString(apiBook.Language),
+		Metadata:    make(map[string]interface{}),
 	}
 
-	if apiBook.Id != nil {
-		bookDetail.ID = *apiBook.Id
-	}
-	if apiBook.Url != nil {
-		bookDetail.URL = *apiBook.Url
-	}
-	if apiBook.WebUrl != nil {
-		bookDetail.WebURL = *apiBook.WebUrl
-	}
-	if apiBook.Title != nil {
-		bookDetail.Title = *apiBook.Title
-	}
-	if apiBook.Description != nil {
-		bookDetail.Description = *apiBook.Description
-	}
-	if apiBook.Isbn != nil {
-		bookDetail.ISBN = *apiBook.Isbn
-	}
 	if apiBook.VirtualPages != nil {
 		bookDetail.VirtualPages = *apiBook.VirtualPages
 	}
 	if apiBook.AverageRating != nil {
 		bookDetail.AverageRating = float64(*apiBook.AverageRating)
 	}
-	if apiBook.Cover != nil {
-		bookDetail.Cover = *apiBook.Cover
-	}
-	if apiBook.Issued != nil {
-		bookDetail.Issued = *apiBook.Issued
-	}
-	if apiBook.Language != nil {
-		bookDetail.Language = *apiBook.Language
-	}
 	if apiBook.Metadata != nil {
 		bookDetail.Metadata = *apiBook.Metadata
 	}
 
-	// Convert authors
 	if apiBook.Authors != nil {
-		for _, apiAuthor := range *apiBook.Authors {
-			if apiAuthor.Name != nil {
-				bookDetail.Authors = append(bookDetail.Authors, Author{Name: *apiAuthor.Name})
-			}
+		for _, a := range *apiBook.Authors {
+			bookDetail.Authors = append(bookDetail.Authors, convertAPIAuthor(a))
 		}
 	}
-
-	// Convert publishers
 	if apiBook.Publishers != nil {
-		for _, apiPublisher := range *apiBook.Publishers {
-			publisher := Publisher{}
-			if apiPublisher.Id != nil {
-				publisher.ID = *apiPublisher.Id
-			}
-			if apiPublisher.Name != nil {
-				publisher.Name = *apiPublisher.Name
-			}
-			if apiPublisher.Slug != nil {
-				publisher.Slug = *apiPublisher.Slug
-			}
-			bookDetail.Publishers = append(bookDetail.Publishers, publisher)
+		for _, p := range *apiBook.Publishers {
+			bookDetail.Publishers = append(bookDetail.Publishers, convertAPIPublisher(p))
 		}
 	}
-
-	// Convert topics
 	if apiBook.Topics != nil {
-		for _, apiTopic := range *apiBook.Topics {
-			topic := Topics{}
-			if apiTopic.Name != nil {
-				topic.Name = *apiTopic.Name
-			}
-			if apiTopic.Slug != nil {
-				topic.Slug = *apiTopic.Slug
-			}
-			if apiTopic.Score != nil {
-				topic.Score = float64(*apiTopic.Score)
-			}
-			if apiTopic.Uuid != nil {
-				topic.UUID = *apiTopic.Uuid
-			}
-			if apiTopic.EpubIdentifier != nil {
-				topic.EpubIdentifier = *apiTopic.EpubIdentifier
-			}
-			bookDetail.Topics = append(bookDetail.Topics, topic)
+		for _, t := range *apiBook.Topics {
+			bookDetail.Topics = append(bookDetail.Topics, convertAPITopic(t))
 		}
 	}
 
