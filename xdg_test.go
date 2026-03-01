@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -139,7 +140,7 @@ func TestXDGDirs_EnsureExists(t *testing.T) {
 
 	// ディレクトリがまだ存在しないことを確認
 	for _, dir := range []string{dirs.StateHome, dirs.CacheHome, dirs.ConfigHome} {
-		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Directory should not exist yet: %s", dir)
 		}
 	}

@@ -38,14 +38,20 @@ type Server struct {
 }
 
 // NewServer creates a new server instance.
-func NewServer(browserClient browser.Client, config *Config, cookieManager cookie.Manager) *Server {
+func NewServer(browserClient browser.Client, config *Config, cookieManager cookie.Manager, serverVersion string) *Server {
 	// Create MCP server
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
-			Name:    "Search O'Reilly Learning Platform",
-			Version: "1.0.0",
+			Name:    "orm-discovery-mcp-go",
+			Version: serverVersion,
 		},
-		nil,
+		&mcp.ServerOptions{
+			Instructions: "O'Reilly Learning Platform MCP Server. " +
+				"Use oreilly_search_content to discover books/videos/articles, " +
+				"oreilly_ask_question for AI-powered Q&A, " +
+				"and oreilly://book-* resources for detailed content access. " +
+				"Always cite sources with title, author(s), and O'Reilly Media.",
+		},
 	)
 
 	// Initialize research history manager
@@ -198,31 +204,27 @@ func (s *Server) StartStdioServer(ctx context.Context) error {
 	return nil
 }
 
-// isAuthError checks if the error is an authentication error.
-func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errMsg := err.Error()
-	return strings.Contains(errMsg, "authentication error") ||
-		strings.Contains(errMsg, "401") ||
-		strings.Contains(errMsg, "403")
-}
-
 // registerHandlers registers the tool and resource handlers.
 func (s *Server) registerHandlers() {
 	// Add search tool
 	searchTool := &mcp.Tool{
-		Name: "oreilly_search_content",
+		Name:  "oreilly_search_content",
+		Title: "Search O'Reilly Content",
 		Description: `Search O'Reilly content and return books/videos/articles with product_id for resource access.
 
-Example: "Docker containers" (Good) / "How to use Docker" (Poor)
+Examples:
+- "Docker containers" → books/videos about Docker (Good)
+- "Kubernetes deployment strategies" → specific topic search (Good)
+- "Python vs Go performance" → comparison search (Good)
+- "How to use Docker" → too vague, use keywords instead (Poor)
 
-Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}
+Modes: bfs (default, ~2-5KB, id/title/authors only) or dfs (~50-100KB, full details).
+Rate limit: ~10 requests/minute recommended.
+Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}.
+Set format="markdown" for human-readable output.
 
 IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Search O'Reilly Content",
 			ReadOnlyHint:    true,
 			DestructiveHint: ptrBool(false),
 			IdempotentHint:  true,
@@ -233,16 +235,22 @@ IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 
 	// Add ask question tool
 	askQuestionTool := &mcp.Tool{
-		Name: "oreilly_ask_question",
+		Name:  "oreilly_ask_question",
+		Title: "Ask O'Reilly Answers AI",
 		Description: `Ask technical questions to O'Reilly Answers AI and get sourced responses.
 
-Example: "How to optimize React performance?" (Good) / "Explain everything about React" (Poor)
+Examples:
+- "How to optimize React performance with useMemo?" → specific, focused (Good)
+- "What are the best practices for Go error handling?" → practical question (Good)
+- "Compare REST vs gRPC for microservices" → comparison question (Good)
+- "Explain everything about React" → too broad (Poor)
 
-Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id})
+Rate limit: ~5 requests/minute recommended. Default timeout: 5 minutes.
+Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id}).
+Set format="markdown" for human-readable output.
 
 IMPORTANT: Cite sources provided in the response.`,
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Ask O'Reilly Answers AI",
 			ReadOnlyHint:    true,
 			DestructiveHint: ptrBool(false),
 			IdempotentHint:  true,
@@ -253,13 +261,13 @@ IMPORTANT: Cite sources provided in the response.`,
 
 	// Add reauthenticate tool
 	reauthTool := &mcp.Tool{
-		Name: "oreilly_reauthenticate",
+		Name:  "oreilly_reauthenticate",
+		Title: "Re-authenticate O'Reilly Session",
 		Description: "O'Reillyセッションを再認証します。" +
 			"Cookieが有効な場合は認証済みを返します。" +
 			"Cookieが期限切れの場合はGoogle Chromeを起動してログインページを開きます。" +
 			"ブラウザでログインが完了すると自動的にCookieを保存してサーバーの認証状態を更新します。",
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Re-authenticate O'Reilly Session",
 			ReadOnlyHint:    false,
 			DestructiveHint: ptrBool(false),
 			IdempotentHint:  true,
@@ -372,6 +380,7 @@ func (s *Server) registerResources() {
 // SearchContentHandler handles search requests.
 func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequest, args SearchContentArgs) (*mcp.CallToolResult, *SearchContentResult, error) {
 	slog.Debug("検索リクエスト受信")
+	sessionLog := newSessionLogger(req.Session, "oreilly-search")
 	start := time.Now()
 
 	if s.getBrowserClient() == nil {
@@ -380,15 +389,18 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	if args.Query == "" {
-		return newToolResultError("query parameter is required"), nil, nil
+		return newToolResultError(userFacingErrorMessage(ErrorCategoryValidation)), nil, nil
+	}
+	if len(args.Query) > maxQueryLength {
+		return newToolResultError(fmt.Sprintf("Query is too long. Please use %d characters or fewer.", maxQueryLength)), nil, nil
 	}
 
 	// Set default values
 	if args.Rows <= 0 {
 		args.Rows = 25
 	}
-	if args.Rows > 100 {
-		args.Rows = 100
+	if args.Rows > maxRows {
+		args.Rows = maxRows
 	}
 	if args.Offset < 0 {
 		args.Offset = 0
@@ -397,10 +409,10 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		args.Languages = []string{"en", "ja"}
 	}
 
-	// Set default mode to BFS
+	// Set default mode from config
 	mode := args.Mode
 	if mode == "" {
-		mode = SearchModeBFS
+		mode = s.config.DefaultSearchMode
 	}
 
 	// Prepare options for BrowserClient
@@ -418,61 +430,66 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	// Execute search using BrowserClient
 	slog.Debug("BrowserClient検索開始", "query", args.Query, "mode", mode, "offset", args.Offset, "rows", args.Rows)
 	results, totalResults, err := s.getBrowserClient().SearchContent(args.Query, options)
-	if err != nil && isAuthError(err) {
+	if err != nil && categorizeError(err) == ErrorCategoryAuth {
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
 		if reauthErr := s.getBrowserClient().Reauthenticate(); reauthErr != nil {
-			slog.Error("再認証失敗", "error", reauthErr)
-			return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil, nil
+			return newToolResultError(sanitizeError(reauthErr, "operation", "reauthenticate")), nil, nil
 		}
 
 		// Retry
 		results, totalResults, err = s.getBrowserClient().SearchContent(args.Query, options)
 	}
-
 	if err != nil {
-		slog.Error("BrowserClient検索失敗", "error", err, "query", args.Query)
-		return newToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil, nil
+		return newToolResultError(sanitizeError(err, "operation", "search", "query", args.Query)), nil, nil
 	}
 	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
+	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
 
 	// Record to research history and get the history ID
 	historyID := s.recordSearchHistoryWithFullResponse(args.Query, options, results, time.Since(start))
 
 	// Build response based on mode
+	var toolResult *mcp.CallToolResult
+	var structured *SearchContentResult
+	var resultErr error
+
 	switch mode {
-	case SearchModeBFS:
-		return s.buildBFSResponse(results, historyID, args.Offset, totalResults)
 	case SearchModeDFS:
-		return s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize, args.Offset, totalResults)
+		toolResult, structured, resultErr = s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize, args.Offset, totalResults)
 	default:
-		// Default to BFS for unknown modes
-		return s.buildBFSResponse(results, historyID, args.Offset, totalResults)
+		toolResult, structured, resultErr = s.buildBFSResponse(results, historyID, args.Offset, totalResults)
 	}
+
+	// Return Markdown format if requested
+	if args.Format == ResponseFormatMarkdown && structured != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: formatSearchResultsMarkdown(structured)}},
+		}, nil, nil
+	}
+
+	return toolResult, structured, resultErr
 }
 
 // buildBFSResponse builds a lightweight response for BFS mode.
+// Book results include ResourceLink entries for direct resource navigation.
 func (s *Server) buildBFSResponse(results []map[string]any, historyID string, offset, totalResults int) (*mcp.CallToolResult, *SearchContentResult, error) {
-	// Extract only essential fields: id, title, authors
 	lightweightResults := make([]map[string]any, 0, len(results))
+	var resourceLinks []mcp.Content
+
 	for _, result := range results {
 		lightweight := make(map[string]any)
 
-		// Extract product_id or ISBN
-		if productID, ok := result["product_id"].(string); ok {
-			lightweight["id"] = productID
-		} else if isbn, ok := result["isbn"].(string); ok {
-			lightweight["id"] = isbn
-		} else if id, ok := result["id"].(string); ok {
+		id := extractStringField(result, "product_id", "isbn", "id")
+		if id != "" {
 			lightweight["id"] = id
 		}
 
-		// Extract title
-		if title, ok := result["title"].(string); ok {
+		title, _ := result["title"].(string)
+		if title != "" {
 			lightweight["title"] = title
 		}
 
-		// Extract authors
 		if authors, ok := result["authors"].([]any); ok && len(authors) > 0 {
 			lightweight["authors"] = authors
 		} else if authors, ok := result["authors"].([]string); ok && len(authors) > 0 {
@@ -480,6 +497,19 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		}
 
 		lightweightResults = append(lightweightResults, lightweight)
+
+		// Add ResourceLink for book content types
+		if ct, _ := result["content_type"].(string); id != "" && ct == browser.ContentTypeBook {
+			name := title
+			if name == "" {
+				name = id
+			}
+			resourceLinks = append(resourceLinks, &mcp.ResourceLink{
+				URI:      "oreilly://book-details/" + id,
+				Name:     name,
+				MIMEType: "application/json",
+			})
+		}
 	}
 
 	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
@@ -489,7 +519,7 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		note += fmt.Sprintf(". More results available: use offset=%d to get next page.", nextOffset)
 	}
 
-	return nil, &SearchContentResult{
+	structured := &SearchContentResult{
 		Count:        len(results),
 		Total:        len(results),
 		TotalResults: totalResults,
@@ -499,7 +529,22 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		Mode:         SearchModeBFS,
 		HistoryID:    historyID,
 		Note:         note,
-	}, nil
+	}
+
+	if len(resourceLinks) > 0 {
+		return &mcp.CallToolResult{Content: resourceLinks}, structured, nil
+	}
+	return nil, structured, nil
+}
+
+// extractStringField returns the first non-empty string value from the map for the given keys.
+func extractStringField(m map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := m[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // buildDFSResponse builds a detailed response for DFS mode.
@@ -557,10 +602,14 @@ func (s *Server) buildDFSResponse(
 // AskQuestionHandler processes question requests for O'Reilly Answers.
 func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolRequest, args AskQuestionArgs) (*mcp.CallToolResult, *AskQuestionResult, error) {
 	slog.Debug("質問リクエスト受信")
+	sessionLog := newSessionLogger(req.Session, "oreilly-ask")
 	start := time.Now()
 
 	if args.Question == "" {
-		return newToolResultError("question parameter is required"), nil, nil
+		return newToolResultError(userFacingErrorMessage(ErrorCategoryValidation)), nil, nil
+	}
+	if len(args.Question) > maxQuestionLength {
+		return newToolResultError(fmt.Sprintf("Question is too long. Please use %d characters or fewer.", maxQuestionLength)), nil, nil
 	}
 
 	// Default timeout (5 minutes)
@@ -578,21 +627,22 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	slog.Info("質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
+	sessionLog.InfoContext(ctx, "質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
 
 	// Execute question (with polling)
 	answer, err := s.getBrowserClient().AskQuestion(args.Question, maxWaitTime)
 	if err != nil {
-		slog.Error("質問処理失敗", "error", err, "question", args.Question)
-		return newToolResultError(fmt.Sprintf("failed to ask question: %v", err)), nil, nil
+		return newToolResultError(sanitizeError(err, "operation", "ask_question", "question", args.Question)), nil, nil
 	}
 
 	slog.Info("質問に対する回答を取得しました", "question", args.Question, "question_id", answer.QuestionID)
+	sessionLog.InfoContext(ctx, "回答取得完了", "question", args.Question, "question_id", answer.QuestionID)
 
 	// Record to research history
 	s.recordQuestionHistory(args.Question, answer, time.Since(start))
 
 	// Build StructuredContent response
-	return nil, &AskQuestionResult{
+	structured := &AskQuestionResult{
 		QuestionID:          answer.QuestionID,
 		Question:            args.Question,
 		Answer:              answer.MisoResponse.Data.Answer,
@@ -602,7 +652,16 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 		AffiliationProducts: answer.MisoResponse.Data.AffiliationProducts,
 		FollowupQuestions:   answer.MisoResponse.Data.FollowupQuestions,
 		CitationNote:        "IMPORTANT: When referencing this information, always cite the sources listed above with proper attribution to O'Reilly Media.",
-	}, nil
+	}
+
+	// Return Markdown format if requested
+	if args.Format == ResponseFormatMarkdown {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: formatAskQuestionMarkdown(structured)}},
+		}, nil, nil
+	}
+
+	return nil, structured, nil
 }
 
 // GetBookDetailsResource handles book detail resource requests.
@@ -634,25 +693,12 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, req *mcp.ReadResour
 
 	bookOverview, err := s.getBrowserClient().GetBookDetails(productID)
 	if err != nil {
-		slog.Error("書籍詳細取得失敗", "error", err, "product_id", productID)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get book details: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_book_details", "product_id", productID), nil
 	}
 
 	jsonBytes, err := json.Marshal(bookOverview)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_book_details"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -693,25 +739,12 @@ func (s *Server) GetBookTOCResource(ctx context.Context, req *mcp.ReadResourceRe
 
 	tocResponse, err := s.getBrowserClient().GetBookTOC(productID)
 	if err != nil {
-		slog.Error("書籍目次取得失敗", "error", err, "product_id", productID)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get book TOC: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_book_toc", "product_id", productID), nil
 	}
 
 	jsonBytes, err := json.Marshal(tocResponse)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_book_toc"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -752,25 +785,12 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, req *mcp.Rea
 
 	chapterResponse, err := s.getBrowserClient().GetBookChapterContent(productID, chapterName)
 	if err != nil {
-		slog.Error("書籍チャプター本文取得失敗", "error", err, "product_id", productID, "chapter_name", chapterName)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get book chapter content: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_chapter", "product_id", productID, "chapter_name", chapterName), nil
 	}
 
 	jsonBytes, err := json.Marshal(chapterResponse)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_chapter"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -812,14 +832,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 	// Get answer
 	answer, err := s.getBrowserClient().GetQuestionByID(questionID)
 	if err != nil {
-		slog.Error("回答取得失敗", "error", err, "question_id", questionID)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get answer: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_answer", "question_id", questionID), nil
 	}
 
 	// Build response
@@ -845,13 +858,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_answer"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -882,7 +889,7 @@ func (s *Server) ReauthenticateHandler(
 			s.config.XDGDirs.StateHome,
 		)
 		if err != nil {
-			return newToolResultError(fmt.Sprintf("BrowserClient の生成に失敗しました: %v", err)), nil, nil
+			return newToolResultError(sanitizeError(err, "operation", "create_browser_client")), nil, nil
 		}
 		s.setBrowserClient(client)
 		return nil, &ReauthResult{
@@ -902,13 +909,24 @@ func (s *Server) ReauthenticateHandler(
 	// 2. Reauthenticate() でビジブルブラウザを起動して再認証
 	slog.Info("oreilly_reauthenticate: Reauthenticate() で再認証を開始します")
 	if err := s.getBrowserClient().Reauthenticate(); err != nil {
-		return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", err)), nil, nil
+		return newToolResultError(sanitizeError(err, "operation", "reauthenticate")), nil, nil
 	}
 
 	return nil, &ReauthResult{
 		Status:  "setup_completed",
 		Message: "再認証が完了しました。O'Reilly セッションが更新されました。",
 	}, nil
+}
+
+// newSessionLogger creates an MCP session-scoped logger that sends log
+// notifications to the connected client. Returns a no-op logger if session is unavailable.
+func newSessionLogger(session *mcp.ServerSession, loggerName string) *slog.Logger {
+	if session == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+	return slog.New(mcp.NewLoggingHandler(session, &mcp.LoggingHandlerOptions{
+		LoggerName: loggerName,
+	}))
 }
 
 // Helper functions for tool results

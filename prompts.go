@@ -10,128 +10,97 @@ import (
 
 // registerPrompts registers MCP prompt handlers.
 func (s *Server) registerPrompts() {
-	// learn-technology prompt
+	s.registerLearnTechnologyPrompt()
+	s.registerReviewHistoryPrompt()
+	s.registerContinueResearchPrompt()
+	s.registerResearchTopicPrompt()
+	s.registerDebugErrorPrompt()
+	s.registerSummarizeHistoryPrompt()
+}
+
+func (s *Server) registerLearnTechnologyPrompt() {
 	s.server.AddPrompt(
 		&mcp.Prompt{
 			Name:        "learn-technology",
 			Title:       "Learn a Technology",
 			Description: "Generate a structured learning path for a specific technology.\n\nExample: learn-technology(technology=\"Docker\", experience_level=\"beginner\")\n\nIMPORTANT: Uses oreilly_search_content and book-details resources for learning.",
 			Arguments: []*mcp.PromptArgument{
-				{
-					Name:        "technology",
-					Description: "The technology name to learn (e.g., Docker, Kubernetes, React)",
-					Required:    true,
-				},
-				{
-					Name:        "experience_level",
-					Description: "Experience level: beginner, intermediate, or advanced (default: beginner)",
-					Required:    false,
-				},
+				{Name: "technology", Description: "The technology name to learn (e.g., Docker, Kubernetes, React)", Required: true},
+				{Name: "experience_level", Description: "Experience level: beginner, intermediate, or advanced (default: beginner)", Required: false},
 			},
 		},
 		s.LearnTechnologyPromptHandler,
 	)
+}
 
-	// review-history prompt
+func (s *Server) registerReviewHistoryPrompt() {
 	s.server.AddPrompt(
 		&mcp.Prompt{
 			Name:        "review-history",
 			Title:       "Review Research History",
 			Description: "Review past research history and find related information.\n\nExample: review-history(keyword=\"docker\")\n\nWorkflow: Access orm-mcp://history/recent or search by keyword.",
 			Arguments: []*mcp.PromptArgument{
-				{
-					Name:        "keyword",
-					Description: "Optional keyword to filter research history",
-					Required:    false,
-				},
+				{Name: "keyword", Description: "Optional keyword to filter research history", Required: false},
 			},
 		},
 		s.ReviewHistoryPromptHandler,
 	)
+}
 
-	// continue-research prompt
+func (s *Server) registerContinueResearchPrompt() {
 	s.server.AddPrompt(
 		&mcp.Prompt{
 			Name:        "continue-research",
 			Title:       "Continue Previous Research",
 			Description: "Continue and deepen a previous research.\n\nExample: continue-research(research_id=\"req_abc123\")\n\nWorkflow: Retrieve past research and conduct additional searches.",
 			Arguments: []*mcp.PromptArgument{
-				{
-					Name:        "research_id",
-					Description: "The ID of the research entry to continue (e.g., req_abc123)",
-					Required:    true,
-				},
+				{Name: "research_id", Description: "The ID of the research entry to continue (e.g., req_abc123)", Required: true},
 			},
 		},
 		s.ContinueResearchPromptHandler,
 	)
+}
 
-	// research-topic prompt
+func (s *Server) registerResearchTopicPrompt() {
 	s.server.AddPrompt(
 		&mcp.Prompt{
 			Name:        "research-topic",
 			Title:       "Research a Topic",
 			Description: "Conduct multi-perspective research on a technical topic.\n\nExample: research-topic(topic=\"microservices\", depth=\"detailed\")\n\nIMPORTANT: Combines oreilly_ask_question and oreilly_search_content for comprehensive research.",
 			Arguments: []*mcp.PromptArgument{
-				{
-					Name:        "topic",
-					Description: "The technical topic to research",
-					Required:    true,
-				},
-				{
-					Name:        "depth",
-					Description: "Research depth: overview, detailed, or comprehensive (default: overview)",
-					Required:    false,
-				},
+				{Name: "topic", Description: "The technical topic to research", Required: true},
+				{Name: "depth", Description: "Research depth: overview, detailed, or comprehensive (default: overview)", Required: false},
 			},
 		},
 		s.ResearchTopicPromptHandler,
 	)
+}
 
-	// debug-error prompt
+func (s *Server) registerDebugErrorPrompt() {
 	s.server.AddPrompt(
 		&mcp.Prompt{
 			Name:        "debug-error",
 			Title:       "Debug an Error",
 			Description: "Guide for troubleshooting and debugging errors.\n\nExample: debug-error(error_message=\"NullPointerException\", technology=\"Java\")\n\nIMPORTANT: Uses O'Reilly Answers and documentation for solutions.",
 			Arguments: []*mcp.PromptArgument{
-				{
-					Name:        "error_message",
-					Description: "The error message to debug",
-					Required:    true,
-				},
-				{
-					Name:        "technology",
-					Description: "The technology/language where the error occurred",
-					Required:    true,
-				},
-				{
-					Name:        "context",
-					Description: "Additional context about when/where the error occurs",
-					Required:    false,
-				},
+				{Name: "error_message", Description: "The error message to debug", Required: true},
+				{Name: "technology", Description: "The technology/language where the error occurred", Required: true},
+				{Name: "context", Description: "Additional context about when/where the error occurs", Required: false},
 			},
 		},
 		s.DebugErrorPromptHandler,
 	)
+}
 
-	// summarize-history prompt
+func (s *Server) registerSummarizeHistoryPrompt() {
 	s.server.AddPrompt(
 		&mcp.Prompt{
 			Name:        "summarize-history",
 			Title:       "Summarize Research History",
 			Description: "Summarize a specific research entry with full response data.\n\nExample: summarize-history(history_id=\"req_abc123\")\n\nWorkflow: Access full data via orm-mcp://history/{id}/full and generate a concise summary.",
 			Arguments: []*mcp.PromptArgument{
-				{
-					Name:        "history_id",
-					Description: "The ID of the research entry to summarize (e.g., req_abc123)",
-					Required:    true,
-				},
-				{
-					Name:        "focus",
-					Description: "Optional focus area for the summary (e.g., 'key concepts', 'practical examples')",
-					Required:    false,
-				},
+				{Name: "history_id", Description: "The ID of the research entry to summarize (e.g., req_abc123)", Required: true},
+				{Name: "focus", Description: "Optional focus area for the summary (e.g., 'key concepts', 'practical examples')", Required: false},
 			},
 		},
 		s.SummarizeHistoryPromptHandler,

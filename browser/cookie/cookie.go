@@ -136,7 +136,7 @@ func (cm *ManagerImpl) LoadCookies() error {
 	}
 
 	// http.Cookieとして内部ストレージに保存
-	var httpCookies []*http.Cookie
+	httpCookies := make([]*http.Cookie, 0, len(validCookies))
 	for _, cookie := range validCookies {
 		httpCookie := &http.Cookie{
 			Name:     cookie.Name,
@@ -173,7 +173,7 @@ func (cm *ManagerImpl) DeleteCookieFile() error {
 
 // GetCookiesForURL は指定されたURLに対して適切なCookieを返す
 func (cm *ManagerImpl) GetCookiesForURL(url *url.URL) []*http.Cookie {
-	var result []*http.Cookie
+	result := make([]*http.Cookie, 0, len(cm.cookies))
 	now := time.Now()
 
 	for _, cookie := range cm.cookies {

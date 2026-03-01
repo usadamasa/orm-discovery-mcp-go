@@ -69,7 +69,7 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 		ChapterTitle: chapterTitle,
 		Content:      *parsedContent,
 		SourceURL:    contentURL,
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"extraction_method": "flat_toc_lookup",
 			"processed_at":      time.Now().UTC().Format(time.RFC3339),
 			"word_count":        countWords(parsedContent.Paragraphs),
@@ -123,95 +123,83 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 	return bookDetail, nil
 }
 
+// derefString returns the value of a string pointer, or empty string if nil.
+func derefString(p *string) string {
+	if p != nil {
+		return *p
+	}
+	return ""
+}
+
+// convertAPIAuthor converts an API Author to a local Author.
+func convertAPIAuthor(a api.Author) Author {
+	return Author{Name: derefString(a.Name)}
+}
+
+// convertAPIPublisher converts an API Publisher to a local Publisher.
+func convertAPIPublisher(p api.Publisher) Publisher {
+	pub := Publisher{
+		Name: derefString(p.Name),
+		Slug: derefString(p.Slug),
+	}
+	if p.Id != nil {
+		pub.ID = *p.Id
+	}
+	return pub
+}
+
+// convertAPITopic converts an API Topics to a local Topics.
+func convertAPITopic(t api.Topics) Topics {
+	topic := Topics{
+		Name:           derefString(t.Name),
+		Slug:           derefString(t.Slug),
+		UUID:           derefString(t.Uuid),
+		EpubIdentifier: derefString(t.EpubIdentifier),
+	}
+	if t.Score != nil {
+		topic.Score = float64(*t.Score)
+	}
+	return topic
+}
+
 // convertAPIBookDetailToLocal converts from generated API BookDetailResponse to local BookDetailResponse
 func convertAPIBookDetailToLocal(apiBook *api.BookDetailResponse) *BookDetailResponse {
 	bookDetail := &BookDetailResponse{
-		Metadata: make(map[string]interface{}),
+		ID:          derefString(apiBook.Id),
+		URL:         derefString(apiBook.Url),
+		WebURL:      derefString(apiBook.WebUrl),
+		Title:       derefString(apiBook.Title),
+		Description: derefString(apiBook.Description),
+		ISBN:        derefString(apiBook.Isbn),
+		Cover:       derefString(apiBook.Cover),
+		Issued:      derefString(apiBook.Issued),
+		Language:    derefString(apiBook.Language),
+		Metadata:    make(map[string]any),
 	}
 
-	if apiBook.Id != nil {
-		bookDetail.ID = *apiBook.Id
-	}
-	if apiBook.Url != nil {
-		bookDetail.URL = *apiBook.Url
-	}
-	if apiBook.WebUrl != nil {
-		bookDetail.WebURL = *apiBook.WebUrl
-	}
-	if apiBook.Title != nil {
-		bookDetail.Title = *apiBook.Title
-	}
-	if apiBook.Description != nil {
-		bookDetail.Description = *apiBook.Description
-	}
-	if apiBook.Isbn != nil {
-		bookDetail.ISBN = *apiBook.Isbn
-	}
 	if apiBook.VirtualPages != nil {
 		bookDetail.VirtualPages = *apiBook.VirtualPages
 	}
 	if apiBook.AverageRating != nil {
 		bookDetail.AverageRating = float64(*apiBook.AverageRating)
 	}
-	if apiBook.Cover != nil {
-		bookDetail.Cover = *apiBook.Cover
-	}
-	if apiBook.Issued != nil {
-		bookDetail.Issued = *apiBook.Issued
-	}
-	if apiBook.Language != nil {
-		bookDetail.Language = *apiBook.Language
-	}
 	if apiBook.Metadata != nil {
 		bookDetail.Metadata = *apiBook.Metadata
 	}
 
-	// Convert authors
 	if apiBook.Authors != nil {
-		for _, apiAuthor := range *apiBook.Authors {
-			if apiAuthor.Name != nil {
-				bookDetail.Authors = append(bookDetail.Authors, Author{Name: *apiAuthor.Name})
-			}
+		for _, a := range *apiBook.Authors {
+			bookDetail.Authors = append(bookDetail.Authors, convertAPIAuthor(a))
 		}
 	}
-
-	// Convert publishers
 	if apiBook.Publishers != nil {
-		for _, apiPublisher := range *apiBook.Publishers {
-			publisher := Publisher{}
-			if apiPublisher.Id != nil {
-				publisher.ID = *apiPublisher.Id
-			}
-			if apiPublisher.Name != nil {
-				publisher.Name = *apiPublisher.Name
-			}
-			if apiPublisher.Slug != nil {
-				publisher.Slug = *apiPublisher.Slug
-			}
-			bookDetail.Publishers = append(bookDetail.Publishers, publisher)
+		for _, p := range *apiBook.Publishers {
+			bookDetail.Publishers = append(bookDetail.Publishers, convertAPIPublisher(p))
 		}
 	}
-
-	// Convert topics
 	if apiBook.Topics != nil {
-		for _, apiTopic := range *apiBook.Topics {
-			topic := Topics{}
-			if apiTopic.Name != nil {
-				topic.Name = *apiTopic.Name
-			}
-			if apiTopic.Slug != nil {
-				topic.Slug = *apiTopic.Slug
-			}
-			if apiTopic.Score != nil {
-				topic.Score = float64(*apiTopic.Score)
-			}
-			if apiTopic.Uuid != nil {
-				topic.UUID = *apiTopic.Uuid
-			}
-			if apiTopic.EpubIdentifier != nil {
-				topic.EpubIdentifier = *apiTopic.EpubIdentifier
-			}
-			bookDetail.Topics = append(bookDetail.Topics, topic)
+		for _, t := range *apiBook.Topics {
+			bookDetail.Topics = append(bookDetail.Topics, convertAPITopic(t))
 		}
 	}
 
@@ -258,7 +246,7 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 	}
 
 	// Try to parse as a flat TOC array first
-	var flatTOCArray []map[string]interface{}
+	var flatTOCArray []map[string]any
 	if err := json.Unmarshal(bodyBytes, &flatTOCArray); err == nil {
 		// Convert array to our expected structure
 		return convertFlatTOCArrayToLocal(productID, flatTOCArray), nil
@@ -291,10 +279,27 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 	return tocResponse, nil
 }
 
+// convertFlatTOCItem converts a single API TOC item to local TableOfContentsItem.
+func convertFlatTOCItem(apiItem api.FlatTOCItem) TableOfContentsItem {
+	item := TableOfContentsItem{
+		ID:     derefString(apiItem.Id),
+		Title:  derefString(apiItem.Title),
+		Href:   derefString(apiItem.Href),
+		Parent: derefString(apiItem.Parent),
+	}
+	if apiItem.Level != nil {
+		item.Level = *apiItem.Level
+	}
+	if apiItem.Metadata != nil {
+		item.Metadata = *apiItem.Metadata
+	}
+	return item
+}
+
 // convertAPIFlatTOCToLocal converts from generated API FlatTOCResponse to local TableOfContentsResponse
 func convertAPIFlatTOCToLocal(apiTOC *api.FlatTOCResponse) *TableOfContentsResponse {
 	tocResponse := &TableOfContentsResponse{
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	if apiTOC.BookId != nil {
@@ -313,27 +318,7 @@ func convertAPIFlatTOCToLocal(apiTOC *api.FlatTOCResponse) *TableOfContentsRespo
 	// Convert TOC items
 	if apiTOC.TocItems != nil {
 		for _, apiItem := range *apiTOC.TocItems {
-			item := TableOfContentsItem{}
-			if apiItem.Id != nil {
-				item.ID = *apiItem.Id
-			}
-			if apiItem.Title != nil {
-				item.Title = *apiItem.Title
-			}
-			if apiItem.Href != nil {
-				item.Href = *apiItem.Href
-			}
-			if apiItem.Level != nil {
-				item.Level = *apiItem.Level
-			}
-			if apiItem.Parent != nil {
-				item.Parent = *apiItem.Parent
-			}
-			if apiItem.Metadata != nil {
-				item.Metadata = *apiItem.Metadata
-			}
-
-			tocResponse.TableOfContents = append(tocResponse.TableOfContents, item)
+			tocResponse.TableOfContents = append(tocResponse.TableOfContents, convertFlatTOCItem(apiItem))
 		}
 	}
 
@@ -479,41 +464,62 @@ func (bc *BrowserClient) parseHTMLContent(htmlContent string) (*ParsedChapterCon
 	return content, nil
 }
 
+// handleHeadingNode processes heading elements (h1-h6).
+func handleHeadingNode(n *html.Node, content *ParsedChapterContent) {
+	heading := parseHeading(n)
+	if heading.Text != "" {
+		content.Headings = append(content.Headings, heading)
+	}
+}
+
+// handleParagraphNode processes paragraph elements.
+func handleParagraphNode(n *html.Node, content *ParsedChapterContent) {
+	text := strings.TrimSpace(extractTextContent(n))
+	if text != "" {
+		content.Paragraphs = append(content.Paragraphs, text)
+	}
+}
+
+// handleCodeNode processes code block elements (pre, code).
+func handleCodeNode(n *html.Node, content *ParsedChapterContent) {
+	if n.Data == "pre" || hasClass(n, "highlight") || hasClass(n, "code") {
+		codeBlock := parseCodeBlock(n)
+		if codeBlock.Code != "" {
+			content.CodeBlocks = append(content.CodeBlocks, codeBlock)
+		}
+	}
+}
+
+// handleImageNode processes image elements.
+func handleImageNode(n *html.Node, content *ParsedChapterContent) {
+	img := parseImage(n)
+	if img.Src != "" {
+		content.Images = append(content.Images, img)
+	}
+}
+
+// handleLinkNode processes link elements.
+func handleLinkNode(n *html.Node, content *ParsedChapterContent) {
+	link := parseLink(n)
+	if link.Href != "" && link.Text != "" {
+		content.Links = append(content.Links, link)
+	}
+}
+
 // parseHTMLNode recursively parses HTML nodes
 func parseHTMLNode(n *html.Node, content *ParsedChapterContent, depth int) {
 	if n.Type == html.ElementNode {
 		switch strings.ToLower(n.Data) {
 		case "h1", "h2", "h3", "h4", "h5", "h6":
-			heading := parseHeading(n)
-			if heading.Text != "" {
-				content.Headings = append(content.Headings, heading)
-			}
-
+			handleHeadingNode(n, content)
 		case "p":
-			text := extractTextContent(n)
-			if strings.TrimSpace(text) != "" {
-				content.Paragraphs = append(content.Paragraphs, strings.TrimSpace(text))
-			}
-
+			handleParagraphNode(n, content)
 		case "pre", "code":
-			if n.Data == "pre" || hasClass(n, "highlight") || hasClass(n, "code") {
-				codeBlock := parseCodeBlock(n)
-				if codeBlock.Code != "" {
-					content.CodeBlocks = append(content.CodeBlocks, codeBlock)
-				}
-			}
-
+			handleCodeNode(n, content)
 		case "img":
-			img := parseImage(n)
-			if img.Src != "" {
-				content.Images = append(content.Images, img)
-			}
-
+			handleImageNode(n, content)
 		case "a":
-			link := parseLink(n)
-			if link.Href != "" && link.Text != "" {
-				content.Links = append(content.Links, link)
-			}
+			handleLinkNode(n, content)
 		}
 	}
 
@@ -655,7 +661,7 @@ func organizeSections(headings []ContentHeading, paragraphs []string, codeBlocks
 	for _, heading := range headings {
 		section := ContentSection{
 			Heading: heading,
-			Content: []interface{}{},
+			Content: []any{},
 		}
 
 		// This is a simplified implementation - in practice, you'd need to
@@ -719,13 +725,13 @@ func countWords(paragraphs []string) int {
 }
 
 // convertFlatTOCArrayToLocal converts a flat TOC array response to local TableOfContentsResponse
-func convertFlatTOCArrayToLocal(productID string, flatTOCArray []map[string]interface{}) *TableOfContentsResponse {
+func convertFlatTOCArrayToLocal(productID string, flatTOCArray []map[string]any) *TableOfContentsResponse {
 	tocResponse := &TableOfContentsResponse{
 		BookID:          productID,
 		BookTitle:       "", // Will be determined from first item or other means
 		TableOfContents: []TableOfContentsItem{},
 		TotalChapters:   len(flatTOCArray),
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"extraction_method": "api_flat_toc_array",
 		},
 	}
@@ -733,7 +739,7 @@ func convertFlatTOCArrayToLocal(productID string, flatTOCArray []map[string]inte
 	// Convert array items to our structure
 	for i, apiItem := range flatTOCArray {
 		item := TableOfContentsItem{
-			Metadata: make(map[string]interface{}),
+			Metadata: make(map[string]any),
 		}
 
 		if id, ok := apiItem["id"].(string); ok {

@@ -3,26 +3,20 @@ package browser
 import (
 	"bytes"
 	"compress/gzip"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // === Close Tests ===
 
 func TestBrowserClient_Close(t *testing.T) {
-	// Close() が空の BrowserClient でパニックしないことを確認
 	client := &BrowserClient{}
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("Close() でパニックが発生しました: %v", r)
-		}
-	}()
-
-	client.Close()
+	assert.NotPanics(t, func() { client.Close() })
 }
 
 // === CreateRequestEditor Tests ===
@@ -68,33 +62,20 @@ func TestBrowserClient_CreateRequestEditor(t *testing.T) {
 
 			editor := client.CreateRequestEditor()
 
-			// テスト用のリクエストを作成
 			req, err := http.NewRequest("GET", "https://learning.oreilly.com/api/v1/test", nil)
-			if err != nil {
-				t.Fatalf("リクエスト作成に失敗: %v", err)
-			}
+			require.NoError(t, err)
 
-			// RequestEditorを実行
-			if err := editor(t.Context(), req); err != nil {
-				t.Fatalf("RequestEditor実行に失敗: %v", err)
-			}
+			err = editor(t.Context(), req)
+			require.NoError(t, err)
 
-			// ヘッダーを確認
 			for key, expectedValue := range tt.expectedHeaders {
-				gotValue := req.Header.Get(key)
-				if gotValue != expectedValue {
-					t.Errorf("ヘッダー %s = %v, want %v", key, gotValue, expectedValue)
-				}
+				assert.Equal(t, expectedValue, req.Header.Get(key), "ヘッダー %s", key)
 			}
 
-			// Cookieヘッダーを確認
 			if len(tt.cookies) > 0 {
 				cookieHeader := req.Header.Get("Cookie")
 				for _, cookie := range tt.cookies {
-					expectedCookieStr := cookie.Name + "=" + cookie.Value
-					if !strings.Contains(cookieHeader, expectedCookieStr) {
-						t.Errorf("Cookie %s が含まれていません。Cookie header: %s", expectedCookieStr, cookieHeader)
-					}
+					assert.Contains(t, cookieHeader, cookie.Name+"="+cookie.Value)
 				}
 			}
 		})
@@ -130,22 +111,13 @@ func TestBrowserClient_CreateRequestEditorWithReferer(t *testing.T) {
 
 			editor := client.CreateRequestEditorWithReferer(tt.referer)
 
-			// テスト用のリクエストを作成
 			req, err := http.NewRequest("POST", "https://learning.oreilly.com/api/v1/test", nil)
-			if err != nil {
-				t.Fatalf("リクエスト作成に失敗: %v", err)
-			}
+			require.NoError(t, err)
 
-			// RequestEditorを実行
-			if err := editor(t.Context(), req); err != nil {
-				t.Fatalf("RequestEditor実行に失敗: %v", err)
-			}
+			err = editor(t.Context(), req)
+			require.NoError(t, err)
 
-			// Refererヘッダーを確認
-			gotReferer := req.Header.Get("Referer")
-			if gotReferer != tt.expectedReferer {
-				t.Errorf("Referer = %v, want %v", gotReferer, tt.expectedReferer)
-			}
+			assert.Equal(t, tt.expectedReferer, req.Header.Get("Referer"))
 		})
 	}
 }
@@ -204,7 +176,6 @@ func TestBrowserClient_GetContentFromURL(t *testing.T) {
 					createMockHTTPResponse(200, "<html>test</html>", nil),
 				)
 			},
-			wantError:    false,
 			expectedBody: "<html>test</html>",
 		},
 		{
@@ -215,7 +186,6 @@ func TestBrowserClient_GetContentFromURL(t *testing.T) {
 					createMockHTTPResponse(200, "<?xml version=\"1.0\"?><html>xhtml</html>", nil),
 				)
 			},
-			wantError:    false,
 			expectedBody: "<?xml version=\"1.0\"?><html>xhtml</html>",
 		},
 		{
@@ -226,7 +196,6 @@ func TestBrowserClient_GetContentFromURL(t *testing.T) {
 					createGzipResponse(200, "<html>compressed</html>"),
 				)
 			},
-			wantError:    false,
 			expectedBody: "<html>compressed</html>",
 		},
 		{
@@ -255,9 +224,7 @@ func TestBrowserClient_GetContentFromURL(t *testing.T) {
 			name: "異常系: HTTP通信失敗",
 			url:  "https://learning.oreilly.com/content.html",
 			setupHTTPClient: func() *MockHTTPClient {
-				return NewMockHTTPClient().WithError(
-					io.EOF,
-				)
+				return NewMockHTTPClient().WithError(io.EOF)
 			},
 			wantError:     true,
 			errorContains: "HTTP request failed",
@@ -278,18 +245,13 @@ func TestBrowserClient_GetContentFromURL(t *testing.T) {
 			content, err := client.GetContentFromURL(tt.url)
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("エラーが期待されましたが、エラーが返されませんでした")
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("エラーメッセージに %q が含まれていません。エラー: %v", tt.errorContains, err)
+				require.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
 				}
 			} else {
-				if err != nil {
-					t.Errorf("予期しないエラー: %v", err)
-				}
-				if content != tt.expectedBody {
-					t.Errorf("content = %q, want %q", content, tt.expectedBody)
-				}
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedBody, content)
 			}
 		})
 	}
@@ -316,7 +278,7 @@ func TestGzipTransport_RoundTrip(t *testing.T) {
 			},
 			expectDecompression:     true,
 			expectedBody:            "<html>compressed content</html>",
-			expectedContentEncoding: "", // Content-Encodingヘッダーは削除される
+			expectedContentEncoding: "",
 		},
 		{
 			name: "正常系: 非圧縮レスポンスはそのまま",
@@ -371,52 +333,32 @@ func TestGzipTransport_RoundTrip(t *testing.T) {
 			}
 
 			req, err := http.NewRequest("GET", "https://example.com/test", nil)
-			if err != nil {
-				t.Fatalf("リクエスト作成に失敗: %v", err)
-			}
+			require.NoError(t, err)
 
 			resp, err := gzipTransport.RoundTrip(req)
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("エラーが期待されましたが、エラーが返されませんでした")
-				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("エラーメッセージに %q が含まれていません。エラー: %v", tt.errorContains, err)
+				require.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
 				}
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("予期しないエラー: %v", err)
-			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
 
-			if resp == nil {
-				t.Fatal("レスポンスがnilです")
-			}
-
-			// Content-Encodingヘッダーの確認
 			if tt.expectDecompression {
-				gotEncoding := resp.Header.Get("Content-Encoding")
-				if gotEncoding != tt.expectedContentEncoding {
-					t.Errorf("Content-Encoding = %q, want %q", gotEncoding, tt.expectedContentEncoding)
-				}
+				assert.Equal(t, tt.expectedContentEncoding, resp.Header.Get("Content-Encoding"))
 			}
 
-			// レスポンスボディの読み込みと検証
 			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("レスポンスボディの読み込みに失敗: %v", err)
-			}
+			require.NoError(t, err)
 			defer func() {
-				if cerr := resp.Body.Close(); cerr != nil {
-					t.Logf("レスポンスボディのクローズに失敗: %v", cerr)
-				}
+				_ = resp.Body.Close()
 			}()
 
-			gotBody := string(bodyBytes)
-			if gotBody != tt.expectedBody {
-				t.Errorf("body = %q, want %q", gotBody, tt.expectedBody)
-			}
+			assert.Equal(t, tt.expectedBody, string(bodyBytes))
 		})
 	}
 }
@@ -429,7 +371,7 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 		setupHTTPClient     func() *MockHTTPClient
 		cookies             []*http.Cookie
 		wantErr             bool
-		wantUnauthenticated bool // 401/403 による errUnauthenticated を期待するか
+		wantUnauthenticated bool
 	}{
 		{
 			name: "正常系: 200レスポンスで認証成功",
@@ -477,7 +419,7 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 			},
 			cookies:             []*http.Cookie{},
 			wantErr:             true,
-			wantUnauthenticated: false, // ネットワークエラーは errUnauthenticated ではない
+			wantUnauthenticated: false,
 		},
 		{
 			name: "異常系: 500レスポンスで認証失敗 (予期しないステータス)",
@@ -516,14 +458,15 @@ func TestBrowserClient_ValidateAuthenticationViaHTTP(t *testing.T) {
 
 			err := client.validateAuthenticationViaHTTP()
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("validateAuthenticationViaHTTP() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if tt.wantUnauthenticated && !errors.Is(err, errUnauthenticated) {
-				t.Errorf("validateAuthenticationViaHTTP() error = %v, want errUnauthenticated", err)
-			}
-			if !tt.wantUnauthenticated && errors.Is(err, errUnauthenticated) {
-				t.Errorf("validateAuthenticationViaHTTP() got errUnauthenticated but wanted different error type")
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantUnauthenticated {
+					assert.ErrorIs(t, err, errUnauthenticated)
+				} else {
+					assert.NotErrorIs(t, err, errUnauthenticated)
+				}
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

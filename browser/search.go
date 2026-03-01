@@ -9,32 +9,30 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
 )
 
-// normalizeSearchResult converts api.RawSearchResult to a map suitable for consumption
-func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interface{} {
-	// URL normalization
-	itemURL := ""
-	if raw.WebUrl != nil {
-		itemURL = *raw.WebUrl
+// firstString returns the value of the first non-nil, non-empty string pointer.
+func firstString(ptrs ...*string) string {
+	for _, p := range ptrs {
+		if p != nil && *p != "" {
+			return *p
+		}
 	}
-	if itemURL == "" && raw.Url != nil {
-		itemURL = *raw.Url
-	}
-	if itemURL == "" && raw.LearningUrl != nil {
-		itemURL = *raw.LearningUrl
-	}
-	if itemURL == "" && raw.Link != nil {
-		itemURL = *raw.Link
-	}
+	return ""
+}
+
+// normalizeURL extracts and normalizes a URL from the raw search result.
+func normalizeURL(raw api.RawSearchResult) string {
+	itemURL := firstString(raw.WebUrl, raw.Url, raw.LearningUrl, raw.Link)
 	if itemURL == "" && raw.ProductId != nil && *raw.ProductId != "" {
 		itemURL = "https://learning.oreilly.com/library/view/-/" + *raw.ProductId + "/"
 	}
-	if itemURL != "" && !strings.HasPrefix(itemURL, "http") {
-		if strings.HasPrefix(itemURL, "/") {
-			itemURL = "https://learning.oreilly.com" + itemURL
-		}
+	if itemURL != "" && !strings.HasPrefix(itemURL, "http") && strings.HasPrefix(itemURL, "/") {
+		itemURL = "https://learning.oreilly.com" + itemURL
 	}
+	return itemURL
+}
 
-	// Authors normalization
+// extractAuthors collects authors from the 4 possible source fields.
+func extractAuthors(raw api.RawSearchResult) []Author {
 	var authors []Author
 	if raw.Authors != nil {
 		for _, author := range *raw.Authors {
@@ -56,127 +54,58 @@ func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interf
 			authors = append(authors, Author{Name: name})
 		}
 	}
+	return authors
+}
 
-	// Content type determination
-	contentType := ""
-	if raw.ContentType != nil {
-		contentType = *raw.ContentType
-	}
-	if contentType == "" && raw.Type != nil {
-		contentType = *raw.Type
-	}
-	if contentType == "" && raw.Format != nil {
-		contentType = *raw.Format
-	}
-	if contentType == "" && raw.ProductType != nil {
-		contentType = *raw.ProductType
-	}
-	if contentType == "" {
-		if strings.Contains(itemURL, "/video") {
-			contentType = "video"
-		} else if strings.Contains(itemURL, "/library/view/") || strings.Contains(itemURL, "/book/") {
-			contentType = "book"
-		} else {
-			contentType = "unknown"
-		}
-	}
+// Content type constants for search result classification.
+const (
+	ContentTypeBook    = "book"
+	ContentTypeVideo   = "video"
+	ContentTypeUnknown = "unknown"
+)
 
-	// Title extraction
-	title := ""
-	if raw.Title != nil {
-		title = *raw.Title
+// inferContentType determines content type from explicit fields or URL heuristics.
+func inferContentType(raw api.RawSearchResult, itemURL string) string {
+	ct := firstString(raw.ContentType, raw.Type, raw.Format, raw.ProductType)
+	if ct != "" {
+		return ct
 	}
-	if title == "" && raw.Name != nil {
-		title = *raw.Name
+	if strings.Contains(itemURL, "/video") {
+		return ContentTypeVideo
 	}
-	if title == "" && raw.DisplayTitle != nil {
-		title = *raw.DisplayTitle
+	if strings.Contains(itemURL, "/library/view/") || strings.Contains(itemURL, "/book/") {
+		return ContentTypeBook
 	}
-	if title == "" && raw.ProductName != nil {
-		title = *raw.ProductName
-	}
+	return ContentTypeUnknown
+}
 
-	// Description extraction
-	description := ""
-	if raw.Description != nil {
-		description = *raw.Description
-	}
-	if description == "" && raw.Summary != nil {
-		description = *raw.Summary
-	}
-	if description == "" && raw.Excerpt != nil {
-		description = *raw.Excerpt
-	}
-	if description == "" && raw.DescriptionWithMarkups != nil {
-		description = *raw.DescriptionWithMarkups
-	}
-	if description == "" && raw.ShortDescription != nil {
-		description = *raw.ShortDescription
-	}
+// normalizeSearchResult converts api.RawSearchResult to a map suitable for consumption
+func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]any {
+	itemURL := normalizeURL(raw)
 
-	// Publisher extraction
-	publisher := ""
-	if raw.Publisher != nil {
-		publisher = *raw.Publisher
-	}
-	if publisher == "" && raw.Publishers != nil && len(*raw.Publishers) > 0 {
-		publisher = (*raw.Publishers)[0]
-	}
-	if publisher == "" && raw.Imprint != nil {
-		publisher = *raw.Imprint
-	}
-	if publisher == "" && raw.PublisherName != nil {
-		publisher = *raw.PublisherName
-	}
-
-	// Published date extraction
-	publishedDate := ""
-	if raw.PublishedDate != nil {
-		publishedDate = *raw.PublishedDate
-	}
-	if publishedDate == "" && raw.PublicationDate != nil {
-		publishedDate = *raw.PublicationDate
-	}
-	if publishedDate == "" && raw.DatePublished != nil {
-		publishedDate = *raw.DatePublished
-	}
-	if publishedDate == "" && raw.PubDate != nil {
-		publishedDate = *raw.PubDate
-	}
-
-	// ID generation
-	id := ""
-	if raw.ProductId != nil {
-		id = *raw.ProductId
-	}
-	if id == "" && raw.Id != nil {
-		id = *raw.Id
-	}
-	if id == "" && raw.Ourn != nil {
-		id = *raw.Ourn
-	}
-	if id == "" && raw.Isbn != nil {
-		id = *raw.Isbn
-	}
+	id := firstString(raw.ProductId, raw.Id, raw.Ourn, raw.Isbn)
 	if id == "" {
 		id = fmt.Sprintf("api_result_%d", index)
 	}
 
-	return map[string]interface{}{
-		"id":           id,
-		"title":        title,
-		"authors":      authors,
-		"content_type": contentType,
-		"description":  description,
-		"url":          itemURL,
-		"ourn": func() string {
-			if raw.Ourn != nil {
-				return *raw.Ourn
-			}
-			return ""
-		}(),
+	publisher := firstString(raw.Publisher)
+	if publisher == "" && raw.Publishers != nil && len(*raw.Publishers) > 0 {
+		publisher = (*raw.Publishers)[0]
+	}
+	if publisher == "" {
+		publisher = firstString(raw.Imprint, raw.PublisherName)
+	}
+
+	return map[string]any{
+		"id":             id,
+		"title":          firstString(raw.Title, raw.Name, raw.DisplayTitle, raw.ProductName),
+		"authors":        extractAuthors(raw),
+		"content_type":   inferContentType(raw, itemURL),
+		"description":    firstString(raw.Description, raw.Summary, raw.Excerpt, raw.DescriptionWithMarkups, raw.ShortDescription),
+		"url":            itemURL,
+		"ourn":           firstString(raw.Ourn),
 		"publisher":      publisher,
-		"published_date": publishedDate,
+		"published_date": firstString(raw.PublishedDate, raw.PublicationDate, raw.DatePublished, raw.PubDate),
 		"source":         "api_search_oreilly",
 	}
 }
@@ -234,54 +163,61 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, offset, tzOff
 	return resp.JSON200, totalCount, nil
 }
 
+// searchOptions holds parsed search parameters with defaults applied.
+type searchOptions struct {
+	rows         int
+	offset       int
+	tzOffset     int
+	aiaOnly      bool
+	featureFlags string
+	report       bool
+	isTopics     bool
+}
+
+// parseSearchOptions extracts search parameters from the options map, applying defaults.
+func parseSearchOptions(options map[string]any) searchOptions {
+	opts := searchOptions{
+		rows:         100,
+		offset:       0,
+		tzOffset:     -9, // JST
+		featureFlags: "improveSearchFilters",
+		report:       true,
+	}
+
+	if r, ok := options["rows"].(int); ok && r > 0 {
+		opts.rows = r
+	}
+	if o, ok := options["offset"].(int); ok && o > 0 {
+		opts.offset = o
+	}
+	if tz, ok := options["tzOffset"].(int); ok {
+		opts.tzOffset = tz
+	}
+	if aia, ok := options["aia_only"].(bool); ok {
+		opts.aiaOnly = aia
+	}
+	if ff, ok := options["feature_flags"].(string); ok && ff != "" {
+		opts.featureFlags = ff
+	}
+	if rep, ok := options["report"].(bool); ok {
+		opts.report = rep
+	}
+	if topics, ok := options["isTopics"].(bool); ok {
+		opts.isTopics = topics
+	}
+
+	return opts
+}
+
 // SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します。
 // Returns normalized results and total count of matching results.
-func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, int, error) {
+func (bc *BrowserClient) SearchContent(query string, options map[string]any) ([]map[string]any, int, error) {
 	slog.Info("API検索を開始します", "query", query)
 
-	// オプションのデフォルト値を設定
-	rows := 100
-	if r, ok := options["rows"].(int); ok && r > 0 {
-		rows = r
-	}
-
-	offset := 0
-	if o, ok := options["offset"].(int); ok && o > 0 {
-		offset = o
-	}
-
-	// 言語オプションは現在使用していないため、将来の拡張用として保持
-	_ = options["languages"] // 未使用警告を回避
-
-	tzOffset := -9 // JST
-	if tz, ok := options["tzOffset"].(int); ok {
-		tzOffset = tz
-	}
-
-	aiaOnly := false
-	if aia, ok := options["aia_only"].(bool); ok {
-		aiaOnly = aia
-	}
-
-	featureFlags := "improveSearchFilters"
-	if ff, ok := options["feature_flags"].(string); ok && ff != "" {
-		featureFlags = ff
-	}
-
-	report := true
-	if rep, ok := options["report"].(bool); ok {
-		report = rep
-	}
-
-	isTopics := false
-	if topics, ok := options["isTopics"].(bool); ok {
-		isTopics = topics
-	}
+	opts := parseSearchOptions(options)
 
 	// Use OpenAPI generated client for search
-	var results []map[string]interface{}
-
-	apiResponse, totalCount, err := bc.makeHTTPSearchRequest(query, rows, offset, tzOffset, aiaOnly, featureFlags, report, isTopics)
+	apiResponse, totalCount, err := bc.makeHTTPSearchRequest(query, opts.rows, opts.offset, opts.tzOffset, opts.aiaOnly, opts.featureFlags, opts.report, opts.isTopics)
 	if err != nil {
 		slog.Error("API検索に失敗しました", "error", err, "query", query)
 		return nil, 0, fmt.Errorf("API search failed: %w", err)
@@ -302,8 +238,9 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 	slog.Debug("API検索レスポンス取得", "result_count", len(rawResults), "total_count", totalCount)
 
 	// Normalize results using Go instead of JavaScript
+	results := make([]map[string]any, 0, len(rawResults))
 	for i, rawResult := range rawResults {
-		if i >= rows {
+		if i >= opts.rows {
 			break
 		}
 		normalized := normalizeSearchResult(rawResult, i)

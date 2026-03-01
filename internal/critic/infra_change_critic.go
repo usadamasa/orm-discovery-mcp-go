@@ -30,7 +30,7 @@ func (c *InfraChangeCritic) Review(_ context.Context, input ReviewInput) ([]mode
 		return nil, nil
 	}
 
-	var findings []model.Finding
+	findings := make([]model.Finding, 0, len(input.ClassifiedFiles))
 	for _, f := range input.ClassifiedFiles {
 		if f.Category != git.FileCategoryInfra {
 			continue

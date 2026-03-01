@@ -110,34 +110,8 @@ func (g *GitDiffProvider) GetDiff(repoPath string, opts DiffOptions) (*DiffResul
 			Status:  entry.status,
 		}
 
-		// Look up stat by path (try both path and oldPath for renames)
-		statKey := entry.path
-		if entry.oldPath != "" {
-			// For renames, numstat uses "oldpath => newpath" or just newpath
-			renameKey := entry.oldPath + " => " + entry.path
-			if s, ok := stats[renameKey]; ok {
-				fd.Additions = s.additions
-				fd.Deletions = s.deletions
-				fd.IsBinary = s.isBinary
-				statKey = "" // already handled
-			}
-		}
-		if statKey != "" {
-			if s, ok := stats[statKey]; ok {
-				fd.Additions = s.additions
-				fd.Deletions = s.deletions
-				fd.IsBinary = s.isBinary
-			}
-		}
-
-		// Assign patch text for this file
-		if p, ok := patches[entry.path]; ok {
-			fd.Patch = p
-		} else if entry.oldPath != "" {
-			if p, ok := patches[entry.oldPath]; ok {
-				fd.Patch = p
-			}
-		}
+		applyStatToFileDiff(&fd, entry, stats)
+		applyPatchToFileDiff(&fd, entry, patches)
 
 		result.Files = append(result.Files, fd)
 		result.TotalAdditions += fd.Additions
@@ -145,6 +119,40 @@ func (g *GitDiffProvider) GetDiff(repoPath string, opts DiffOptions) (*DiffResul
 	}
 
 	return result, nil
+}
+
+// applyStatToFileDiff looks up numstat information for the entry and applies it to fd.
+// For renames, it tries the "oldpath => newpath" key first, then falls back to the new path.
+func applyStatToFileDiff(fd *FileDiff, entry nameStatusEntry, stats map[string]fileStat) {
+	statKey := entry.path
+	if entry.oldPath != "" {
+		renameKey := entry.oldPath + " => " + entry.path
+		if s, ok := stats[renameKey]; ok {
+			fd.Additions = s.additions
+			fd.Deletions = s.deletions
+			fd.IsBinary = s.isBinary
+			return
+		}
+	}
+	if s, ok := stats[statKey]; ok {
+		fd.Additions = s.additions
+		fd.Deletions = s.deletions
+		fd.IsBinary = s.isBinary
+	}
+}
+
+// applyPatchToFileDiff assigns patch text for the entry.
+// For renames, it falls back to the old path if the new path has no patch.
+func applyPatchToFileDiff(fd *FileDiff, entry nameStatusEntry, patches map[string]string) {
+	if p, ok := patches[entry.path]; ok {
+		fd.Patch = p
+		return
+	}
+	if entry.oldPath != "" {
+		if p, ok := patches[entry.oldPath]; ok {
+			fd.Patch = p
+		}
+	}
 }
 
 // buildDiffRef returns the arguments for the diff reference based on options.
@@ -211,8 +219,8 @@ func parseDiffNameStatus(output string) []nameStatusEntry {
 		return nil
 	}
 
-	var entries []nameStatusEntry
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	entries := make([]nameStatusEntry, 0, len(lines))
 	for _, line := range lines {
 		if line == "" {
 			continue

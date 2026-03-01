@@ -2,6 +2,16 @@ package main
 
 import "github.com/usadamasa/orm-discovery-mcp-go/browser"
 
+// ResponseFormat defines the output format for tool results.
+type ResponseFormat string
+
+const (
+	// ResponseFormatJSON returns structured JSON (default).
+	ResponseFormatJSON ResponseFormat = "json"
+	// ResponseFormatMarkdown returns human-readable Markdown.
+	ResponseFormatMarkdown ResponseFormat = "markdown"
+)
+
 // SearchMode defines the exploration mode for oreilly_search_content tool.
 type SearchMode string
 
@@ -14,10 +24,17 @@ const (
 	SearchModeDFS SearchMode = "dfs"
 )
 
+// Input validation constants.
+const (
+	maxQueryLength    = 500
+	maxQuestionLength = 500
+	maxRows           = 100
+)
+
 // SearchContentArgs represents the parameters for the oreilly_search_content tool.
 type SearchContentArgs struct {
-	Query        string   `json:"query" jsonschema:"2-5 focused keywords for specific technologies or frameworks. Avoid full sentences."`
-	Rows         int      `json:"rows,omitempty" jsonschema:"Number of results per page (default: 25, max: 100)"`
+	Query        string   `json:"query" jsonschema:"2-5 focused keywords for specific technologies or frameworks. Avoid full sentences.,minLength=1,maxLength=500"`
+	Rows         int      `json:"rows,omitempty" jsonschema:"Number of results per page (default: 25, max: 100),minimum=1,maximum=100"`
 	Languages    []string `json:"languages,omitempty" jsonschema:"Languages to search in (default: en and ja)"`
 	TzOffset     int      `json:"tzOffset,omitempty" jsonschema:"Timezone offset (default: -9 for JST)"`
 	AiaOnly      bool     `json:"aia_only,omitempty" jsonschema:"Search only AI-assisted content (default: false)"`
@@ -31,12 +48,16 @@ type SearchContentArgs struct {
 	// Exploration mode parameters
 	Mode      SearchMode `json:"mode,omitempty" jsonschema:"Exploration mode: 'bfs' (default) returns lightweight results (id, title, authors), 'dfs' returns full detailed results"`
 	Summarize bool       `json:"summarize,omitempty" jsonschema:"In DFS mode, use MCP Sampling to generate a summary of results (reduces context consumption)"`
+
+	// Response format
+	Format ResponseFormat `json:"format,omitempty" jsonschema:"Output format: 'json' (default) or 'markdown' for human-readable output"`
 }
 
 // AskQuestionArgs represents the parameters for the oreilly_ask_question tool.
 type AskQuestionArgs struct {
-	Question           string `json:"question" jsonschema:"Focused technical question in English (under 100 characters preferred)"`
-	MaxWaitTimeSeconds int    `json:"max_wait_time_seconds,omitempty" jsonschema:"Maximum time to wait for answer generation in seconds (default: 300, max: 600)"`
+	Question           string         `json:"question" jsonschema:"Focused technical question in English (under 100 characters preferred),minLength=1,maxLength=500"`
+	MaxWaitTimeSeconds int            `json:"max_wait_time_seconds,omitempty" jsonschema:"Maximum time to wait for answer generation in seconds (default: 300, max: 600)"`
+	Format             ResponseFormat `json:"format,omitempty" jsonschema:"Output format: 'json' (default) or 'markdown' for human-readable output"`
 }
 
 // SearchContentResult represents the structured output for oreilly_search_content tool.

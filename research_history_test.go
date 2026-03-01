@@ -38,6 +38,26 @@ func TestExtractKeywords(t *testing.T) {
 			query:    "how to do the thing",
 			expected: []string{"thing"},
 		},
+		{
+			name:     "japanese katakana query",
+			query:    "Kubernetes ベストプラクティス",
+			expected: []string{"kubernetes", "ベストプラクティス"},
+		},
+		{
+			name:     "japanese mixed query",
+			query:    "Docker コンテナ管理",
+			expected: []string{"docker", "コンテナ管理"},
+		},
+		{
+			name:     "japanese with particles filtered",
+			query:    "これ は テスト です",
+			expected: []string{"テスト"},
+		},
+		{
+			name:     "single kanji keyword",
+			query:    "本 の 検索",
+			expected: []string{"本", "検索"},
+		},
 	}
 
 	for _, tt := range tests {

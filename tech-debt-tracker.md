@@ -493,48 +493,58 @@ const (
 ### Phase 2: 堅牢性 (P1)
 
 - [x] P1-001: URI パースを `url.Parse()` ベースに統一
-- [ ] P1-002: Markdown レスポンス形式サポート
+- [x] P1-002: Markdown レスポンス形式サポート
 
 ### Phase 3: 品質改善 (P2)
 
-- [ ] P2-001: エラーメッセージの分離
+- [x] P2-001: エラーメッセージの分離
 - [x] P2-002: デフォルト rows 値の変更
-- [ ] P2-003: 入力バリデーション強化
+- [x] P2-003: 入力バリデーション強化
 - [x] P2-004: `os.IsNotExist` → `errors.Is` 修正
 - [x] P2-005: Timeout magic numbers の定数化
 
 ### Phase 4: ドキュメント/仕上げ (P3)
 
-- [ ] P3-001: ツール説明の例を拡充
-- [ ] P3-002: レート制限ドキュメント追加
-- [ ] P3-003: パフォーマンス特性ドキュメント追加
-- [ ] P3-004: サーバー実装名の修正 + Instructions 設定
-- [ ] P3-005: 日本語ストップワード対応
+- [x] P3-001: ツール説明の例を拡充
+- [x] P3-002: レート制限ドキュメント追加
+- [x] P3-003: パフォーマンス特性ドキュメント追加
+- [x] P3-004: サーバー実装名の修正 + Instructions 設定
+- [x] P3-005: 日本語ストップワード対応
 - [x] P3-006: Middleware の magic string 定数化
-- [ ] P3-007: Tool.Title / Prompt.Icons フィールド移行
-- [ ] P3-008: ResourceLink コンテンツタイプ導入
-- [ ] P3-009: LoggingHandler による MCP ログ送信
+- [x] P3-007: Tool.Title / Prompt.Icons フィールド移行
+- [x] P3-008: ResourceLink コンテンツタイプ導入
+- [x] P3-009: LoggingHandler による MCP ログ送信
 
 ### Phase 5: テストカバレッジ改善
 
-- [ ] T1: browser/cookie テスト追加
-- [ ] T2: middleware テスト追加
-- [ ] T3: browser テストの testify 移行
+- [x] T1: browser/cookie テスト追加
+- [x] T2: middleware テスト追加
+- [x] T3: browser テストの testify 移行
 
 ### Phase 6: アーキテクチャメトリクス改善 (introduce-go-metric で新規追加)
 
 golangci-lint + go-arch-lint 導入時に exclusion 設定で暫定回避した技術的負債。
 exclusion を削除してメトリクスを改善することが目標。
 
-- [ ] M1: `browser/search.go` のリファクタリング
-- [ ] M2: `browser/book.go` の gocognit/gocyclo 削減
-- [ ] M3: `browser/login.go` の gocognit/gocyclo 削減
-- [ ] M4: `config.go` の gocognit/gocyclo/funlen 削減
-- [ ] M5: `prompts.go` の funlen 削減
-- [ ] M6: `internal/git/diff.go` の gocognit 削減
-- [ ] M7: `browser/search.go` SearchContent の gocognit/gocyclo 削減
-- [ ] M8: `browser/book.go` convertAPIFlatTOCToLocal の gocognit 削減
-- [ ] M9: `browser/book.go` parseHTMLNode の gocognit 削減
+- [x] M1: `browser/search.go` のリファクタリング
+- [x] M2: `browser/book.go` の gocognit/gocyclo 削減
+- [x] M3: `browser/login.go` の gocognit/gocyclo 削減 (gocognit 64→31, exclusion維持)
+- [x] M4: `config.go` の gocognit/gocyclo/funlen 削減
+- [x] M5: `prompts.go` の funlen 削減
+- [x] M6: `internal/git/diff.go` の gocognit 削減
+- [x] M7: `browser/search.go` SearchContent の gocognit/gocyclo 削減
+- [x] M8: `browser/book.go` convertAPIFlatTOCToLocal の gocognit 削減
+- [x] M9: `browser/book.go` parseHTMLNode の gocognit 削減
+
+### Phase 7: /simplify 駆動の改善
+
+`/simplify` レビューエージェントの指摘に基づく追加改善。
+
+- [x] S1: `DefaultSearchMode` を `SearchContentHandler` に接続 (dead config field 解消)
+- [x] S2: `Config.DefaultSearchMode` を `string` → `SearchMode` 型に変更 (型安全化)
+- [x] S3: `interface{}` → `any` 移行 (browser/types.go, search.go, book.go)
+- [x] S4: スライス事前割り当て (prealloc 7箇所)
+- [x] S5: `os.IsNotExist` → `errors.Is` 移行 (xdg_test.go)
 
 ---
 

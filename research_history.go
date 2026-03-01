@@ -379,40 +379,47 @@ func (m *ResearchHistoryManager) getEntriesByIDs(ids []string) []ResearchEntry {
 	return result
 }
 
-// extractKeywords はクエリからキーワードを抽出する
+// stopWords は英語・日本語のストップワード (キーワード抽出時に除外する語)
+var stopWords = map[string]bool{
+	// English
+	"a": true, "an": true, "the": true, "and": true, "or": true,
+	"is": true, "are": true, "was": true, "were": true, "be": true,
+	"to": true, "of": true, "in": true, "for": true, "on": true,
+	"with": true, "at": true, "by": true, "from": true, "as": true,
+	"how": true, "what": true, "why": true, "when": true, "where": true,
+	"which": true, "who": true, "that": true, "this": true, "it": true,
+	"i": true, "you": true, "we": true, "they": true, "he": true, "she": true,
+	"do": true, "does": true, "did": true, "can": true, "could": true,
+	"will": true, "would": true, "should": true, "have": true, "has": true,
+	"": true,
+	// Japanese particles (助詞)
+	"は": true, "が": true, "の": true, "に": true, "を": true,
+	"で": true, "と": true, "も": true, "や": true, "へ": true,
+	"か": true, "な": true, "ね": true, "よ": true,
+	"から": true, "まで": true, "より": true, "ので": true, "のに": true,
+	"けど": true, "だけ": true, "しか": true,
+	// Japanese demonstratives / copula
+	"これ": true, "それ": true, "あれ": true,
+	"この": true, "その": true, "あの": true,
+	"です": true, "ます": true,
+}
+
+// wordSplitter は Unicode 文字・数字以外で分割する正規表現
+var wordSplitter = regexp.MustCompile(`[^\p{L}\p{N}]+`)
+
+// extractKeywords はクエリからキーワードを抽出する (英語・日本語対応)
 func extractKeywords(query string) []string {
-	// 小文字に変換
 	query = strings.ToLower(query)
+	words := wordSplitter.Split(query, -1)
 
-	// 単語以外の文字で分割
-	re := regexp.MustCompile(`[^a-z0-9]+`)
-	words := re.Split(query, -1)
-
-	// ストップワードを定義
-	stopWords := map[string]bool{
-		"a": true, "an": true, "the": true, "and": true, "or": true,
-		"is": true, "are": true, "was": true, "were": true, "be": true,
-		"to": true, "of": true, "in": true, "for": true, "on": true,
-		"with": true, "at": true, "by": true, "from": true, "as": true,
-		"how": true, "what": true, "why": true, "when": true, "where": true,
-		"which": true, "who": true, "that": true, "this": true, "it": true,
-		"i": true, "you": true, "we": true, "they": true, "he": true, "she": true,
-		"do": true, "does": true, "did": true, "can": true, "could": true,
-		"will": true, "would": true, "should": true, "have": true, "has": true,
-		"": true,
-	}
-
-	// 重複を除去しつつキーワードを収集
 	seen := make(map[string]bool)
 	keywords := make([]string, 0)
 	for _, word := range words {
+		// バイト長 < 2 で単一 ASCII 文字を除外 (CJK 1文字は 3バイト以上なので通過)
 		if len(word) < 2 {
 			continue
 		}
-		if stopWords[word] {
-			continue
-		}
-		if seen[word] {
+		if stopWords[word] || seen[word] {
 			continue
 		}
 		seen[word] = true
