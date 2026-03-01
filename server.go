@@ -380,6 +380,7 @@ func (s *Server) registerResources() {
 // SearchContentHandler handles search requests.
 func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequest, args SearchContentArgs) (*mcp.CallToolResult, *SearchContentResult, error) {
 	slog.Debug("検索リクエスト受信")
+	sessionLog := newSessionLogger(req.Session, "oreilly-search")
 	start := time.Now()
 
 	if s.getBrowserClient() == nil {
@@ -444,6 +445,9 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		return newToolResultError(sanitizeError(err, "operation", "search", "query", args.Query)), nil, nil
 	}
 	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
+	if sessionLog != nil {
+		sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
+	}
 
 	// Record to research history and get the history ID
 	historyID := s.recordSearchHistoryWithFullResponse(args.Query, options, results, time.Since(start))
@@ -601,6 +605,7 @@ func (s *Server) buildDFSResponse(
 // AskQuestionHandler processes question requests for O'Reilly Answers.
 func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolRequest, args AskQuestionArgs) (*mcp.CallToolResult, *AskQuestionResult, error) {
 	slog.Debug("質問リクエスト受信")
+	sessionLog := newSessionLogger(req.Session, "oreilly-ask")
 	start := time.Now()
 
 	if args.Question == "" {
@@ -625,6 +630,9 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	slog.Info("質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
+	if sessionLog != nil {
+		sessionLog.InfoContext(ctx, "質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
+	}
 
 	// Execute question (with polling)
 	answer, err := s.getBrowserClient().AskQuestion(args.Question, maxWaitTime)
@@ -633,6 +641,9 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	slog.Info("質問に対する回答を取得しました", "question", args.Question, "question_id", answer.QuestionID)
+	if sessionLog != nil {
+		sessionLog.InfoContext(ctx, "回答取得完了", "question", args.Question, "question_id", answer.QuestionID)
+	}
 
 	// Record to research history
 	s.recordQuestionHistory(args.Question, answer, time.Since(start))
@@ -912,6 +923,17 @@ func (s *Server) ReauthenticateHandler(
 		Status:  "setup_completed",
 		Message: "再認証が完了しました。O'Reilly セッションが更新されました。",
 	}, nil
+}
+
+// newSessionLogger creates an MCP session-scoped logger that sends log
+// notifications to the connected client. Returns nil if session is unavailable.
+func newSessionLogger(session *mcp.ServerSession, loggerName string) *slog.Logger {
+	if session == nil {
+		return nil
+	}
+	return slog.New(mcp.NewLoggingHandler(session, &mcp.LoggingHandlerOptions{
+		LoggerName: loggerName,
+	}))
 }
 
 // Helper functions for tool results
