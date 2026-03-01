@@ -409,10 +409,10 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		args.Languages = []string{"en", "ja"}
 	}
 
-	// Set default mode to BFS
+	// Set default mode from config
 	mode := args.Mode
 	if mode == "" {
-		mode = SearchModeBFS
+		mode = SearchMode(s.config.DefaultSearchMode)
 	}
 
 	// Prepare options for BrowserClient
