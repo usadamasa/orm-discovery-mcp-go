@@ -69,7 +69,7 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 		ChapterTitle: chapterTitle,
 		Content:      *parsedContent,
 		SourceURL:    contentURL,
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"extraction_method": "flat_toc_lookup",
 			"processed_at":      time.Now().UTC().Format(time.RFC3339),
 			"word_count":        countWords(parsedContent.Paragraphs),
@@ -174,7 +174,7 @@ func convertAPIBookDetailToLocal(apiBook *api.BookDetailResponse) *BookDetailRes
 		Cover:       derefString(apiBook.Cover),
 		Issued:      derefString(apiBook.Issued),
 		Language:    derefString(apiBook.Language),
-		Metadata:    make(map[string]interface{}),
+		Metadata:    make(map[string]any),
 	}
 
 	if apiBook.VirtualPages != nil {
@@ -246,7 +246,7 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 	}
 
 	// Try to parse as a flat TOC array first
-	var flatTOCArray []map[string]interface{}
+	var flatTOCArray []map[string]any
 	if err := json.Unmarshal(bodyBytes, &flatTOCArray); err == nil {
 		// Convert array to our expected structure
 		return convertFlatTOCArrayToLocal(productID, flatTOCArray), nil
@@ -299,7 +299,7 @@ func convertFlatTOCItem(apiItem api.FlatTOCItem) TableOfContentsItem {
 // convertAPIFlatTOCToLocal converts from generated API FlatTOCResponse to local TableOfContentsResponse
 func convertAPIFlatTOCToLocal(apiTOC *api.FlatTOCResponse) *TableOfContentsResponse {
 	tocResponse := &TableOfContentsResponse{
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	if apiTOC.BookId != nil {
@@ -661,7 +661,7 @@ func organizeSections(headings []ContentHeading, paragraphs []string, codeBlocks
 	for _, heading := range headings {
 		section := ContentSection{
 			Heading: heading,
-			Content: []interface{}{},
+			Content: []any{},
 		}
 
 		// This is a simplified implementation - in practice, you'd need to
@@ -725,13 +725,13 @@ func countWords(paragraphs []string) int {
 }
 
 // convertFlatTOCArrayToLocal converts a flat TOC array response to local TableOfContentsResponse
-func convertFlatTOCArrayToLocal(productID string, flatTOCArray []map[string]interface{}) *TableOfContentsResponse {
+func convertFlatTOCArrayToLocal(productID string, flatTOCArray []map[string]any) *TableOfContentsResponse {
 	tocResponse := &TableOfContentsResponse{
 		BookID:          productID,
 		BookTitle:       "", // Will be determined from first item or other means
 		TableOfContents: []TableOfContentsItem{},
 		TotalChapters:   len(flatTOCArray),
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"extraction_method": "api_flat_toc_array",
 		},
 	}
@@ -739,7 +739,7 @@ func convertFlatTOCArrayToLocal(productID string, flatTOCArray []map[string]inte
 	// Convert array items to our structure
 	for i, apiItem := range flatTOCArray {
 		item := TableOfContentsItem{
-			Metadata: make(map[string]interface{}),
+			Metadata: make(map[string]any),
 		}
 
 		if id, ok := apiItem["id"].(string); ok {

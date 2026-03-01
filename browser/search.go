@@ -80,7 +80,7 @@ func inferContentType(raw api.RawSearchResult, itemURL string) string {
 }
 
 // normalizeSearchResult converts api.RawSearchResult to a map suitable for consumption
-func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interface{} {
+func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]any {
 	itemURL := normalizeURL(raw)
 
 	id := firstString(raw.ProductId, raw.Id, raw.Ourn, raw.Isbn)
@@ -96,7 +96,7 @@ func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interf
 		publisher = firstString(raw.Imprint, raw.PublisherName)
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":             id,
 		"title":          firstString(raw.Title, raw.Name, raw.DisplayTitle, raw.ProductName),
 		"authors":        extractAuthors(raw),
@@ -175,7 +175,7 @@ type searchOptions struct {
 }
 
 // parseSearchOptions extracts search parameters from the options map, applying defaults.
-func parseSearchOptions(options map[string]interface{}) searchOptions {
+func parseSearchOptions(options map[string]any) searchOptions {
 	opts := searchOptions{
 		rows:         100,
 		offset:       0,
@@ -211,13 +211,13 @@ func parseSearchOptions(options map[string]interface{}) searchOptions {
 
 // SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します。
 // Returns normalized results and total count of matching results.
-func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, int, error) {
+func (bc *BrowserClient) SearchContent(query string, options map[string]any) ([]map[string]any, int, error) {
 	slog.Info("API検索を開始します", "query", query)
 
 	opts := parseSearchOptions(options)
 
 	// Use OpenAPI generated client for search
-	var results []map[string]interface{}
+	var results []map[string]any
 
 	apiResponse, totalCount, err := bc.makeHTTPSearchRequest(query, opts.rows, opts.offset, opts.tzOffset, opts.aiaOnly, opts.featureFlags, opts.report, opts.isTopics)
 	if err != nil {

@@ -55,22 +55,22 @@ type BrowserClient struct {
 
 // TableOfContentsItem represents a single item in the table of contents
 type TableOfContentsItem struct {
-	ID       string                 `json:"id"`
-	Title    string                 `json:"title"`
-	Href     string                 `json:"href"`
-	Level    int                    `json:"level"`
-	Parent   string                 `json:"parent,omitempty"`
-	Children []TableOfContentsItem  `json:"children,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	ID       string                `json:"id"`
+	Title    string                `json:"title"`
+	Href     string                `json:"href"`
+	Level    int                   `json:"level"`
+	Parent   string                `json:"parent,omitempty"`
+	Children []TableOfContentsItem `json:"children,omitempty"`
+	Metadata map[string]any        `json:"metadata,omitempty"`
 }
 
 // TableOfContentsResponse represents the complete table of contents response
 type TableOfContentsResponse struct {
-	BookID          string                 `json:"book_id"`
-	BookTitle       string                 `json:"book_title"`
-	TableOfContents []TableOfContentsItem  `json:"table_of_contents"`
-	TotalChapters   int                    `json:"total_chapters"`
-	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+	BookID          string                `json:"book_id"`
+	BookTitle       string                `json:"book_title"`
+	TableOfContents []TableOfContentsItem `json:"table_of_contents"`
+	TotalChapters   int                   `json:"total_chapters"`
+	Metadata        map[string]any        `json:"metadata,omitempty"`
 }
 
 // Author is used locally for normalization
@@ -94,31 +94,31 @@ type Topics struct {
 
 // BookDetailResponse represents comprehensive book metadata from O'Reilly API
 type BookDetailResponse struct {
-	ID            string                 `json:"id"`
-	URL           string                 `json:"url"`
-	WebURL        string                 `json:"web_url"`
-	Title         string                 `json:"title"`
-	Description   string                 `json:"description"`
-	Authors       []Author               `json:"authors"`
-	Publishers    []Publisher            `json:"publishers"`
-	ISBN          string                 `json:"isbn"`
-	VirtualPages  int                    `json:"virtual_pages"`
-	AverageRating float64                `json:"average_rating"`
-	Cover         string                 `json:"cover"`
-	Issued        string                 `json:"issued"`
-	Topics        []Topics               `json:"topics"`
-	Language      string                 `json:"language"`
-	Metadata      map[string]interface{} `json:"metadata"`
+	ID            string         `json:"id"`
+	URL           string         `json:"url"`
+	WebURL        string         `json:"web_url"`
+	Title         string         `json:"title"`
+	Description   string         `json:"description"`
+	Authors       []Author       `json:"authors"`
+	Publishers    []Publisher    `json:"publishers"`
+	ISBN          string         `json:"isbn"`
+	VirtualPages  int            `json:"virtual_pages"`
+	AverageRating float64        `json:"average_rating"`
+	Cover         string         `json:"cover"`
+	Issued        string         `json:"issued"`
+	Topics        []Topics       `json:"topics"`
+	Language      string         `json:"language"`
+	Metadata      map[string]any `json:"metadata"`
 }
 
 // ChapterContentResponse represents structured chapter content with parsed HTML
 type ChapterContentResponse struct {
-	BookID       string                 `json:"book_id"`
-	ChapterName  string                 `json:"chapter_name"`
-	ChapterTitle string                 `json:"chapter_title"`
-	Content      ParsedChapterContent   `json:"content"`
-	SourceURL    string                 `json:"source_url"`
-	Metadata     map[string]interface{} `json:"metadata"`
+	BookID       string               `json:"book_id"`
+	ChapterName  string               `json:"chapter_name"`
+	ChapterTitle string               `json:"chapter_title"`
+	Content      ParsedChapterContent `json:"content"`
+	SourceURL    string               `json:"source_url"`
+	Metadata     map[string]any       `json:"metadata"`
 }
 
 // ParsedChapterContent represents structured content parsed from HTML
@@ -135,7 +135,7 @@ type ParsedChapterContent struct {
 // ContentSection represents a section of content with heading and content
 type ContentSection struct {
 	Heading ContentHeading `json:"heading"`
-	Content []interface{}  `json:"content"` // Can contain strings, CodeBlocks, or ImageReferences
+	Content []any          `json:"content"` // Can contain strings, CodeBlocks, or ImageReferences
 }
 
 // ContentHeading represents a heading element
