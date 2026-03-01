@@ -81,7 +81,7 @@ func runMCPServer() {
 		browserClient = bc
 		slog.Info("ブラウザクライアントの初期化が完了しました")
 	}
-	s := NewServer(browserClient, cfg, cookieManager)
+	s := NewServer(browserClient, cfg, cookieManager, version)
 	defer s.Close() // Clean up browser on process exit (includes clients created in degraded mode)
 
 	if cfg.Transport == "http" {

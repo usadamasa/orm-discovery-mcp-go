@@ -38,14 +38,20 @@ type Server struct {
 }
 
 // NewServer creates a new server instance.
-func NewServer(browserClient browser.Client, config *Config, cookieManager cookie.Manager) *Server {
+func NewServer(browserClient browser.Client, config *Config, cookieManager cookie.Manager, serverVersion string) *Server {
 	// Create MCP server
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
-			Name:    "Search O'Reilly Learning Platform",
-			Version: "1.0.0",
+			Name:    "orm-discovery-mcp-go",
+			Version: serverVersion,
 		},
-		nil,
+		&mcp.ServerOptions{
+			Instructions: "O'Reilly Learning Platform MCP Server. " +
+				"Use oreilly_search_content to discover books/videos/articles, " +
+				"oreilly_ask_question for AI-powered Q&A, " +
+				"and oreilly://book-* resources for detailed content access. " +
+				"Always cite sources with title, author(s), and O'Reilly Media.",
+		},
 	)
 
 	// Initialize research history manager
@@ -213,7 +219,8 @@ func isAuthError(err error) bool {
 func (s *Server) registerHandlers() {
 	// Add search tool
 	searchTool := &mcp.Tool{
-		Name: "oreilly_search_content",
+		Name:  "oreilly_search_content",
+		Title: "Search O'Reilly Content",
 		Description: `Search O'Reilly content and return books/videos/articles with product_id for resource access.
 
 Example: "Docker containers" (Good) / "How to use Docker" (Poor)
@@ -222,7 +229,6 @@ Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapt
 
 IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Search O'Reilly Content",
 			ReadOnlyHint:    true,
 			DestructiveHint: ptrBool(false),
 			IdempotentHint:  true,
@@ -233,7 +239,8 @@ IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 
 	// Add ask question tool
 	askQuestionTool := &mcp.Tool{
-		Name: "oreilly_ask_question",
+		Name:  "oreilly_ask_question",
+		Title: "Ask O'Reilly Answers AI",
 		Description: `Ask technical questions to O'Reilly Answers AI and get sourced responses.
 
 Example: "How to optimize React performance?" (Good) / "Explain everything about React" (Poor)
@@ -242,7 +249,6 @@ Response: Markdown answer, sources, related resources, question_id (use with ore
 
 IMPORTANT: Cite sources provided in the response.`,
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Ask O'Reilly Answers AI",
 			ReadOnlyHint:    true,
 			DestructiveHint: ptrBool(false),
 			IdempotentHint:  true,
@@ -253,13 +259,13 @@ IMPORTANT: Cite sources provided in the response.`,
 
 	// Add reauthenticate tool
 	reauthTool := &mcp.Tool{
-		Name: "oreilly_reauthenticate",
+		Name:  "oreilly_reauthenticate",
+		Title: "Re-authenticate O'Reilly Session",
 		Description: "O'Reillyセッションを再認証します。" +
 			"Cookieが有効な場合は認証済みを返します。" +
 			"Cookieが期限切れの場合はGoogle Chromeを起動してログインページを開きます。" +
 			"ブラウザでログインが完了すると自動的にCookieを保存してサーバーの認証状態を更新します。",
 		Annotations: &mcp.ToolAnnotations{
-			Title:           "Re-authenticate O'Reilly Session",
 			ReadOnlyHint:    false,
 			DestructiveHint: ptrBool(false),
 			IdempotentHint:  true,
