@@ -223,9 +223,16 @@ func (s *Server) registerHandlers() {
 		Title: "Search O'Reilly Content",
 		Description: `Search O'Reilly content and return books/videos/articles with product_id for resource access.
 
-Example: "Docker containers" (Good) / "How to use Docker" (Poor)
+Examples:
+- "Docker containers" → books/videos about Docker (Good)
+- "Kubernetes deployment strategies" → specific topic search (Good)
+- "Python vs Go performance" → comparison search (Good)
+- "How to use Docker" → too vague, use keywords instead (Poor)
 
-Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}
+Modes: bfs (default, ~2-5KB, id/title/authors only) or dfs (~50-100KB, full details).
+Rate limit: ~10 requests/minute recommended.
+Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}.
+Set format="markdown" for human-readable output.
 
 IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 		Annotations: &mcp.ToolAnnotations{
@@ -243,9 +250,15 @@ IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 		Title: "Ask O'Reilly Answers AI",
 		Description: `Ask technical questions to O'Reilly Answers AI and get sourced responses.
 
-Example: "How to optimize React performance?" (Good) / "Explain everything about React" (Poor)
+Examples:
+- "How to optimize React performance with useMemo?" → specific, focused (Good)
+- "What are the best practices for Go error handling?" → practical question (Good)
+- "Compare REST vs gRPC for microservices" → comparison question (Good)
+- "Explain everything about React" → too broad (Poor)
 
-Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id})
+Rate limit: ~5 requests/minute recommended. Default timeout: 5 minutes.
+Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id}).
+Set format="markdown" for human-readable output.
 
 IMPORTANT: Cite sources provided in the response.`,
 		Annotations: &mcp.ToolAnnotations{
