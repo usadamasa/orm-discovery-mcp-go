@@ -105,11 +105,3 @@ orm-discovery-mcp-go/
 - **ChromeDP Lifecycle**: See `.claude/skills/chromedp-lifecycle.md`
 - **Plugin Structure**: See `.claude/rules/plugin-marketplace.md`
 
-## Future Development
-
-### API Expansion Opportunities
-
-- Enhanced search filters and pagination
-- User-specific content access (playlists, bookmarks)
-- In-book search functionality
-- Content summarization features
