@@ -26,4 +26,17 @@ paths:
 ## ID 規則
 
 - 形式: `{type}-{YYYYMMDD}-{4桁hex}` (例: `task-20260301-a3f2`)
-- type: `task`, `idea`, `issue`
+- type: `task`, `idea`, `issue`, `audit`
+
+## 監査ログ
+
+- `audit-log.jsonl` は **append-only**。エントリを削除・編集しない
+- `audit` 実行ごとに自動的に記録される (手動記録は不要)
+- `/backlog-manage retrospective` で振り返りと改善提案を生成できる
+
+## 定期監査
+
+- セッション開始時に `/backlog-manage audit` の実行を検討する
+- PR 作成前にバックログの整合性を確認する
+- `session-handoff` 作成後は次のセッションで audit が未追跡を検出する
+- audit の Patch は必ずユーザー確認後に適用する (自動削除・自動作成しない)
