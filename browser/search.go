@@ -234,54 +234,63 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, offset, tzOff
 	return resp.JSON200, totalCount, nil
 }
 
+// searchOptions holds parsed search parameters with defaults applied.
+type searchOptions struct {
+	rows         int
+	offset       int
+	tzOffset     int
+	aiaOnly      bool
+	featureFlags string
+	report       bool
+	isTopics     bool
+}
+
+// parseSearchOptions extracts search parameters from the options map, applying defaults.
+func parseSearchOptions(options map[string]interface{}) searchOptions {
+	opts := searchOptions{
+		rows:         100,
+		offset:       0,
+		tzOffset:     -9, // JST
+		featureFlags: "improveSearchFilters",
+		report:       true,
+	}
+
+	if r, ok := options["rows"].(int); ok && r > 0 {
+		opts.rows = r
+	}
+	if o, ok := options["offset"].(int); ok && o > 0 {
+		opts.offset = o
+	}
+	if tz, ok := options["tzOffset"].(int); ok {
+		opts.tzOffset = tz
+	}
+	if aia, ok := options["aia_only"].(bool); ok {
+		opts.aiaOnly = aia
+	}
+	if ff, ok := options["feature_flags"].(string); ok && ff != "" {
+		opts.featureFlags = ff
+	}
+	if rep, ok := options["report"].(bool); ok {
+		opts.report = rep
+	}
+	if topics, ok := options["isTopics"].(bool); ok {
+		opts.isTopics = topics
+	}
+
+	return opts
+}
+
 // SearchContent は O'Reilly Learning Platform の内部 API を使用して検索を実行します。
 // Returns normalized results and total count of matching results.
 func (bc *BrowserClient) SearchContent(query string, options map[string]interface{}) ([]map[string]interface{}, int, error) {
 	slog.Info("API検索を開始します", "query", query)
 
-	// オプションのデフォルト値を設定
-	rows := 100
-	if r, ok := options["rows"].(int); ok && r > 0 {
-		rows = r
-	}
-
-	offset := 0
-	if o, ok := options["offset"].(int); ok && o > 0 {
-		offset = o
-	}
-
-	// 言語オプションは現在使用していないため、将来の拡張用として保持
-	_ = options["languages"] // 未使用警告を回避
-
-	tzOffset := -9 // JST
-	if tz, ok := options["tzOffset"].(int); ok {
-		tzOffset = tz
-	}
-
-	aiaOnly := false
-	if aia, ok := options["aia_only"].(bool); ok {
-		aiaOnly = aia
-	}
-
-	featureFlags := "improveSearchFilters"
-	if ff, ok := options["feature_flags"].(string); ok && ff != "" {
-		featureFlags = ff
-	}
-
-	report := true
-	if rep, ok := options["report"].(bool); ok {
-		report = rep
-	}
-
-	isTopics := false
-	if topics, ok := options["isTopics"].(bool); ok {
-		isTopics = topics
-	}
+	opts := parseSearchOptions(options)
 
 	// Use OpenAPI generated client for search
 	var results []map[string]interface{}
 
-	apiResponse, totalCount, err := bc.makeHTTPSearchRequest(query, rows, offset, tzOffset, aiaOnly, featureFlags, report, isTopics)
+	apiResponse, totalCount, err := bc.makeHTTPSearchRequest(query, opts.rows, opts.offset, opts.tzOffset, opts.aiaOnly, opts.featureFlags, opts.report, opts.isTopics)
 	if err != nil {
 		slog.Error("API検索に失敗しました", "error", err, "query", query)
 		return nil, 0, fmt.Errorf("API search failed: %w", err)
@@ -303,7 +312,7 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]interfac
 
 	// Normalize results using Go instead of JavaScript
 	for i, rawResult := range rawResults {
-		if i >= rows {
+		if i >= opts.rows {
 			break
 		}
 		normalized := normalizeSearchResult(rawResult, i)

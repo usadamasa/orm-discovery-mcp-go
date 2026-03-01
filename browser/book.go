@@ -291,6 +291,30 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 	return tocResponse, nil
 }
 
+// convertFlatTOCItem converts a single API TOC item to local TableOfContentsItem.
+func convertFlatTOCItem(apiItem api.FlatTOCItem) TableOfContentsItem {
+	item := TableOfContentsItem{}
+	if apiItem.Id != nil {
+		item.ID = *apiItem.Id
+	}
+	if apiItem.Title != nil {
+		item.Title = *apiItem.Title
+	}
+	if apiItem.Href != nil {
+		item.Href = *apiItem.Href
+	}
+	if apiItem.Level != nil {
+		item.Level = *apiItem.Level
+	}
+	if apiItem.Parent != nil {
+		item.Parent = *apiItem.Parent
+	}
+	if apiItem.Metadata != nil {
+		item.Metadata = *apiItem.Metadata
+	}
+	return item
+}
+
 // convertAPIFlatTOCToLocal converts from generated API FlatTOCResponse to local TableOfContentsResponse
 func convertAPIFlatTOCToLocal(apiTOC *api.FlatTOCResponse) *TableOfContentsResponse {
 	tocResponse := &TableOfContentsResponse{
@@ -313,27 +337,7 @@ func convertAPIFlatTOCToLocal(apiTOC *api.FlatTOCResponse) *TableOfContentsRespo
 	// Convert TOC items
 	if apiTOC.TocItems != nil {
 		for _, apiItem := range *apiTOC.TocItems {
-			item := TableOfContentsItem{}
-			if apiItem.Id != nil {
-				item.ID = *apiItem.Id
-			}
-			if apiItem.Title != nil {
-				item.Title = *apiItem.Title
-			}
-			if apiItem.Href != nil {
-				item.Href = *apiItem.Href
-			}
-			if apiItem.Level != nil {
-				item.Level = *apiItem.Level
-			}
-			if apiItem.Parent != nil {
-				item.Parent = *apiItem.Parent
-			}
-			if apiItem.Metadata != nil {
-				item.Metadata = *apiItem.Metadata
-			}
-
-			tocResponse.TableOfContents = append(tocResponse.TableOfContents, item)
+			tocResponse.TableOfContents = append(tocResponse.TableOfContents, convertFlatTOCItem(apiItem))
 		}
 	}
 
@@ -479,41 +483,62 @@ func (bc *BrowserClient) parseHTMLContent(htmlContent string) (*ParsedChapterCon
 	return content, nil
 }
 
+// handleHeadingNode processes heading elements (h1-h6).
+func handleHeadingNode(n *html.Node, content *ParsedChapterContent) {
+	heading := parseHeading(n)
+	if heading.Text != "" {
+		content.Headings = append(content.Headings, heading)
+	}
+}
+
+// handleParagraphNode processes paragraph elements.
+func handleParagraphNode(n *html.Node, content *ParsedChapterContent) {
+	text := extractTextContent(n)
+	if strings.TrimSpace(text) != "" {
+		content.Paragraphs = append(content.Paragraphs, strings.TrimSpace(text))
+	}
+}
+
+// handleCodeNode processes code block elements (pre, code).
+func handleCodeNode(n *html.Node, content *ParsedChapterContent) {
+	if n.Data == "pre" || hasClass(n, "highlight") || hasClass(n, "code") {
+		codeBlock := parseCodeBlock(n)
+		if codeBlock.Code != "" {
+			content.CodeBlocks = append(content.CodeBlocks, codeBlock)
+		}
+	}
+}
+
+// handleImageNode processes image elements.
+func handleImageNode(n *html.Node, content *ParsedChapterContent) {
+	img := parseImage(n)
+	if img.Src != "" {
+		content.Images = append(content.Images, img)
+	}
+}
+
+// handleLinkNode processes link elements.
+func handleLinkNode(n *html.Node, content *ParsedChapterContent) {
+	link := parseLink(n)
+	if link.Href != "" && link.Text != "" {
+		content.Links = append(content.Links, link)
+	}
+}
+
 // parseHTMLNode recursively parses HTML nodes
 func parseHTMLNode(n *html.Node, content *ParsedChapterContent, depth int) {
 	if n.Type == html.ElementNode {
 		switch strings.ToLower(n.Data) {
 		case "h1", "h2", "h3", "h4", "h5", "h6":
-			heading := parseHeading(n)
-			if heading.Text != "" {
-				content.Headings = append(content.Headings, heading)
-			}
-
+			handleHeadingNode(n, content)
 		case "p":
-			text := extractTextContent(n)
-			if strings.TrimSpace(text) != "" {
-				content.Paragraphs = append(content.Paragraphs, strings.TrimSpace(text))
-			}
-
+			handleParagraphNode(n, content)
 		case "pre", "code":
-			if n.Data == "pre" || hasClass(n, "highlight") || hasClass(n, "code") {
-				codeBlock := parseCodeBlock(n)
-				if codeBlock.Code != "" {
-					content.CodeBlocks = append(content.CodeBlocks, codeBlock)
-				}
-			}
-
+			handleCodeNode(n, content)
 		case "img":
-			img := parseImage(n)
-			if img.Src != "" {
-				content.Images = append(content.Images, img)
-			}
-
+			handleImageNode(n, content)
 		case "a":
-			link := parseLink(n)
-			if link.Href != "" && link.Text != "" {
-				content.Links = append(content.Links, link)
-			}
+			handleLinkNode(n, content)
 		}
 	}
 

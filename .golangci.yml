@@ -70,14 +70,6 @@ linters:
           - gocyclo
           - maintidx
 
-      # SearchContent は検索オプション処理の性質上、認知的・循環的複雑度が高い
-      # TODO: リファクタリング後に削除する
-      - path: "browser/search\\.go"
-        text: "SearchContent"
-        linters:
-          - gocognit
-          - gocyclo
-
       # convertAPIBookDetailToLocal は API 変換の性質上、認知的複雑度が高い
       # TODO: リファクタリング後に削除する
       - path: "browser/book\\.go"
@@ -85,20 +77,6 @@ linters:
         linters:
           - gocognit
           - gocyclo
-
-      # convertAPIFlatTOCToLocal は TOC 変換の性質上、認知的複雑度が高い
-      # TODO: リファクタリング後に削除する
-      - path: "browser/book\\.go"
-        text: "convertAPIFlatTOCToLocal"
-        linters:
-          - gocognit
-
-      # parseHTMLNode は HTML ツリー再帰処理の性質上、認知的複雑度が高い
-      # TODO: リファクタリング後に削除する
-      - path: "browser/book\\.go"
-        text: "parseHTMLNode"
-        linters:
-          - gocognit
 
       # LoadConfig は環境変数ロードの性質上、複雑度・文ステートメント数が高い
       # TODO: リファクタリング後に削除する
