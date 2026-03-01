@@ -57,6 +57,13 @@ func extractAuthors(raw api.RawSearchResult) []Author {
 	return authors
 }
 
+// Content type constants for search result classification.
+const (
+	ContentTypeBook    = "book"
+	ContentTypeVideo   = "video"
+	ContentTypeUnknown = "unknown"
+)
+
 // inferContentType determines content type from explicit fields or URL heuristics.
 func inferContentType(raw api.RawSearchResult, itemURL string) string {
 	ct := firstString(raw.ContentType, raw.Type, raw.Format, raw.ProductType)
@@ -64,12 +71,12 @@ func inferContentType(raw api.RawSearchResult, itemURL string) string {
 		return ct
 	}
 	if strings.Contains(itemURL, "/video") {
-		return "video"
+		return ContentTypeVideo
 	}
 	if strings.Contains(itemURL, "/library/view/") || strings.Contains(itemURL, "/book/") {
-		return "book"
+		return ContentTypeBook
 	}
-	return "unknown"
+	return ContentTypeUnknown
 }
 
 // normalizeSearchResult converts api.RawSearchResult to a map suitable for consumption

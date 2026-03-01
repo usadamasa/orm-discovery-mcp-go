@@ -71,20 +71,18 @@ func envInt(key string, defaultVal, minVal int) int {
 }
 
 // parseLogLevel converts a log level string to slog.Level.
+// Supports standard levels (DEBUG, INFO, WARN, ERROR) plus "WARNING" as alias.
 func parseLogLevel(s string) slog.Level {
-	switch strings.ToUpper(s) {
-	case "DEBUG":
-		return slog.LevelDebug
-	case "INFO":
-		return slog.LevelInfo
-	case "WARN", "WARNING":
+	// "WARNING" is a common alias not supported by slog.Level.UnmarshalText
+	if strings.EqualFold(s, "WARNING") {
 		return slog.LevelWarn
-	case "ERROR":
-		return slog.LevelError
-	default:
+	}
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(s)); err != nil {
 		log.Printf("不明なログレベル: %s (INFOを使用)", s)
 		return slog.LevelInfo
 	}
+	return level
 }
 
 // parseAllowedOrigins splits a comma-separated string into trimmed, non-empty origins.

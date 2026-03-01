@@ -445,9 +445,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		return newToolResultError(sanitizeError(err, "operation", "search", "query", args.Query)), nil, nil
 	}
 	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
-	if sessionLog != nil {
-		sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
-	}
+	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
 
 	// Record to research history and get the history ID
 	historyID := s.recordSearchHistoryWithFullResponse(args.Query, options, results, time.Since(start))
@@ -502,7 +500,7 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		lightweightResults = append(lightweightResults, lightweight)
 
 		// Add ResourceLink for book content types
-		if ct, _ := result["content_type"].(string); id != "" && ct == "book" {
+		if ct, _ := result["content_type"].(string); id != "" && ct == browser.ContentTypeBook {
 			name := title
 			if name == "" {
 				name = id
@@ -630,9 +628,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	slog.Info("質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
-	if sessionLog != nil {
-		sessionLog.InfoContext(ctx, "質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
-	}
+	sessionLog.InfoContext(ctx, "質問処理開始", "question", args.Question, "max_wait_time", maxWaitTime)
 
 	// Execute question (with polling)
 	answer, err := s.getBrowserClient().AskQuestion(args.Question, maxWaitTime)
@@ -641,9 +637,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	}
 
 	slog.Info("質問に対する回答を取得しました", "question", args.Question, "question_id", answer.QuestionID)
-	if sessionLog != nil {
-		sessionLog.InfoContext(ctx, "回答取得完了", "question", args.Question, "question_id", answer.QuestionID)
-	}
+	sessionLog.InfoContext(ctx, "回答取得完了", "question", args.Question, "question_id", answer.QuestionID)
 
 	// Record to research history
 	s.recordQuestionHistory(args.Question, answer, time.Since(start))
@@ -926,10 +920,10 @@ func (s *Server) ReauthenticateHandler(
 }
 
 // newSessionLogger creates an MCP session-scoped logger that sends log
-// notifications to the connected client. Returns nil if session is unavailable.
+// notifications to the connected client. Returns a no-op logger if session is unavailable.
 func newSessionLogger(session *mcp.ServerSession, loggerName string) *slog.Logger {
 	if session == nil {
-		return nil
+		return slog.New(slog.DiscardHandler)
 	}
 	return slog.New(mcp.NewLoggingHandler(session, &mcp.LoggingHandlerOptions{
 		LoggerName: loggerName,

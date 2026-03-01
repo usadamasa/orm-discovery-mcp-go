@@ -281,21 +281,14 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 
 // convertFlatTOCItem converts a single API TOC item to local TableOfContentsItem.
 func convertFlatTOCItem(apiItem api.FlatTOCItem) TableOfContentsItem {
-	item := TableOfContentsItem{}
-	if apiItem.Id != nil {
-		item.ID = *apiItem.Id
-	}
-	if apiItem.Title != nil {
-		item.Title = *apiItem.Title
-	}
-	if apiItem.Href != nil {
-		item.Href = *apiItem.Href
+	item := TableOfContentsItem{
+		ID:     derefString(apiItem.Id),
+		Title:  derefString(apiItem.Title),
+		Href:   derefString(apiItem.Href),
+		Parent: derefString(apiItem.Parent),
 	}
 	if apiItem.Level != nil {
 		item.Level = *apiItem.Level
-	}
-	if apiItem.Parent != nil {
-		item.Parent = *apiItem.Parent
 	}
 	if apiItem.Metadata != nil {
 		item.Metadata = *apiItem.Metadata

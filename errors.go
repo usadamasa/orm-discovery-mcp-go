@@ -74,7 +74,9 @@ func userFacingErrorMessage(category ErrorCategory) string {
 // sanitizeError logs the internal error details and returns a user-facing message.
 func sanitizeError(err error, logAttrs ...any) string {
 	category := categorizeError(err)
-	attrs := append([]any{"error", err, "category", string(category)}, logAttrs...)
+	attrs := make([]any, 0, 4+len(logAttrs))
+	attrs = append(attrs, "error", err, "category", string(category))
+	attrs = append(attrs, logAttrs...)
 	slog.Error("Operation failed", attrs...)
 	return userFacingErrorMessage(category)
 }
