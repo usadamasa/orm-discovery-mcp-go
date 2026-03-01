@@ -386,15 +386,18 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	if args.Query == "" {
-		return newToolResultError("query parameter is required"), nil, nil
+		return newToolResultError(userFacingErrorMessage(ErrorCategoryValidation)), nil, nil
+	}
+	if len(args.Query) > maxQueryLength {
+		return newToolResultError("Query is too long. Please use 500 characters or fewer."), nil, nil
 	}
 
 	// Set default values
 	if args.Rows <= 0 {
 		args.Rows = 25
 	}
-	if args.Rows > 100 {
-		args.Rows = 100
+	if args.Rows > maxRows {
+		args.Rows = maxRows
 	}
 	if args.Offset < 0 {
 		args.Offset = 0
@@ -564,7 +567,10 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	start := time.Now()
 
 	if args.Question == "" {
-		return newToolResultError("question parameter is required"), nil, nil
+		return newToolResultError(userFacingErrorMessage(ErrorCategoryValidation)), nil, nil
+	}
+	if len(args.Question) > maxQuestionLength {
+		return newToolResultError("Question is too long. Please use 500 characters or fewer."), nil, nil
 	}
 
 	// Default timeout (5 minutes)

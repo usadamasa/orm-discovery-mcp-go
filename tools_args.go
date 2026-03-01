@@ -14,10 +14,17 @@ const (
 	SearchModeDFS SearchMode = "dfs"
 )
 
+// Input validation constants.
+const (
+	maxQueryLength    = 500
+	maxQuestionLength = 500
+	maxRows           = 100
+)
+
 // SearchContentArgs represents the parameters for the oreilly_search_content tool.
 type SearchContentArgs struct {
-	Query        string   `json:"query" jsonschema:"2-5 focused keywords for specific technologies or frameworks. Avoid full sentences."`
-	Rows         int      `json:"rows,omitempty" jsonschema:"Number of results per page (default: 25, max: 100)"`
+	Query        string   `json:"query" jsonschema:"2-5 focused keywords for specific technologies or frameworks. Avoid full sentences.,minLength=1,maxLength=500"`
+	Rows         int      `json:"rows,omitempty" jsonschema:"Number of results per page (default: 25, max: 100),minimum=1,maximum=100"`
 	Languages    []string `json:"languages,omitempty" jsonschema:"Languages to search in (default: en and ja)"`
 	TzOffset     int      `json:"tzOffset,omitempty" jsonschema:"Timezone offset (default: -9 for JST)"`
 	AiaOnly      bool     `json:"aia_only,omitempty" jsonschema:"Search only AI-assisted content (default: false)"`
@@ -35,7 +42,7 @@ type SearchContentArgs struct {
 
 // AskQuestionArgs represents the parameters for the oreilly_ask_question tool.
 type AskQuestionArgs struct {
-	Question           string `json:"question" jsonschema:"Focused technical question in English (under 100 characters preferred)"`
+	Question           string `json:"question" jsonschema:"Focused technical question in English (under 100 characters preferred),minLength=1,maxLength=500"`
 	MaxWaitTimeSeconds int    `json:"max_wait_time_seconds,omitempty" jsonschema:"Maximum time to wait for answer generation in seconds (default: 300, max: 600)"`
 }
 

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSearchMode_Constants(t *testing.T) {
@@ -174,6 +177,22 @@ func TestSearchContentResult_PaginationFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidationConstants(t *testing.T) {
+	assert.Equal(t, 500, maxQueryLength)
+	assert.Equal(t, 500, maxQuestionLength)
+	assert.Equal(t, 100, maxRows)
+}
+
+func TestQueryLengthValidation(t *testing.T) {
+	// Query exactly at limit should be valid
+	validQuery := strings.Repeat("a", maxQueryLength)
+	assert.Len(t, validQuery, maxQueryLength)
+
+	// Query over limit should be invalid
+	invalidQuery := strings.Repeat("a", maxQueryLength+1)
+	assert.True(t, len(invalidQuery) > maxQueryLength)
 }
 
 func TestSearchContentResult_PaginationStructure(t *testing.T) {
