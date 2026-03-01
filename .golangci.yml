@@ -87,13 +87,6 @@ linters:
           - gocyclo
           - funlen
 
-      # GetDiff は git diff オプション処理の性質上、認知的複雑度が高い
-      # TODO: リファクタリング後に削除する
-      - path: "internal/git/diff\\.go"
-        text: "GetDiff"
-        linters:
-          - gocognit
-
       # E2Eテストは複雑度制限を緩和
       - path: "e2e/"
         linters:
