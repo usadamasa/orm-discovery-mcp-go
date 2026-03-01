@@ -60,16 +60,6 @@ linters:
         linters:
           - nestif
 
-      # normalizeSearchResult (~170行) は API nil-safe 正規化の性質上
-      # TODO: リファクタリング後に削除する
-      - path: "browser/search\\.go"
-        text: "normalizeSearchResult"
-        linters:
-          - funlen
-          - gocognit
-          - gocyclo
-          - maintidx
-
       # E2Eテストは複雑度制限を緩和
       - path: "e2e/"
         linters:

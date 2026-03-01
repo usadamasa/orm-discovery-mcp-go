@@ -9,32 +9,30 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
 )
 
-// normalizeSearchResult converts api.RawSearchResult to a map suitable for consumption
-func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interface{} {
-	// URL normalization
-	itemURL := ""
-	if raw.WebUrl != nil {
-		itemURL = *raw.WebUrl
+// firstString returns the value of the first non-nil, non-empty string pointer.
+func firstString(ptrs ...*string) string {
+	for _, p := range ptrs {
+		if p != nil && *p != "" {
+			return *p
+		}
 	}
-	if itemURL == "" && raw.Url != nil {
-		itemURL = *raw.Url
-	}
-	if itemURL == "" && raw.LearningUrl != nil {
-		itemURL = *raw.LearningUrl
-	}
-	if itemURL == "" && raw.Link != nil {
-		itemURL = *raw.Link
-	}
+	return ""
+}
+
+// normalizeURL extracts and normalizes a URL from the raw search result.
+func normalizeURL(raw api.RawSearchResult) string {
+	itemURL := firstString(raw.WebUrl, raw.Url, raw.LearningUrl, raw.Link)
 	if itemURL == "" && raw.ProductId != nil && *raw.ProductId != "" {
 		itemURL = "https://learning.oreilly.com/library/view/-/" + *raw.ProductId + "/"
 	}
-	if itemURL != "" && !strings.HasPrefix(itemURL, "http") {
-		if strings.HasPrefix(itemURL, "/") {
-			itemURL = "https://learning.oreilly.com" + itemURL
-		}
+	if itemURL != "" && !strings.HasPrefix(itemURL, "http") && strings.HasPrefix(itemURL, "/") {
+		itemURL = "https://learning.oreilly.com" + itemURL
 	}
+	return itemURL
+}
 
-	// Authors normalization
+// extractAuthors collects authors from the 4 possible source fields.
+func extractAuthors(raw api.RawSearchResult) []Author {
 	var authors []Author
 	if raw.Authors != nil {
 		for _, author := range *raw.Authors {
@@ -56,127 +54,51 @@ func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interf
 			authors = append(authors, Author{Name: name})
 		}
 	}
+	return authors
+}
 
-	// Content type determination
-	contentType := ""
-	if raw.ContentType != nil {
-		contentType = *raw.ContentType
+// inferContentType determines content type from explicit fields or URL heuristics.
+func inferContentType(raw api.RawSearchResult, itemURL string) string {
+	ct := firstString(raw.ContentType, raw.Type, raw.Format, raw.ProductType)
+	if ct != "" {
+		return ct
 	}
-	if contentType == "" && raw.Type != nil {
-		contentType = *raw.Type
+	if strings.Contains(itemURL, "/video") {
+		return "video"
 	}
-	if contentType == "" && raw.Format != nil {
-		contentType = *raw.Format
+	if strings.Contains(itemURL, "/library/view/") || strings.Contains(itemURL, "/book/") {
+		return "book"
 	}
-	if contentType == "" && raw.ProductType != nil {
-		contentType = *raw.ProductType
-	}
-	if contentType == "" {
-		if strings.Contains(itemURL, "/video") {
-			contentType = "video"
-		} else if strings.Contains(itemURL, "/library/view/") || strings.Contains(itemURL, "/book/") {
-			contentType = "book"
-		} else {
-			contentType = "unknown"
-		}
-	}
+	return "unknown"
+}
 
-	// Title extraction
-	title := ""
-	if raw.Title != nil {
-		title = *raw.Title
-	}
-	if title == "" && raw.Name != nil {
-		title = *raw.Name
-	}
-	if title == "" && raw.DisplayTitle != nil {
-		title = *raw.DisplayTitle
-	}
-	if title == "" && raw.ProductName != nil {
-		title = *raw.ProductName
-	}
+// normalizeSearchResult converts api.RawSearchResult to a map suitable for consumption
+func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]interface{} {
+	itemURL := normalizeURL(raw)
 
-	// Description extraction
-	description := ""
-	if raw.Description != nil {
-		description = *raw.Description
-	}
-	if description == "" && raw.Summary != nil {
-		description = *raw.Summary
-	}
-	if description == "" && raw.Excerpt != nil {
-		description = *raw.Excerpt
-	}
-	if description == "" && raw.DescriptionWithMarkups != nil {
-		description = *raw.DescriptionWithMarkups
-	}
-	if description == "" && raw.ShortDescription != nil {
-		description = *raw.ShortDescription
-	}
-
-	// Publisher extraction
-	publisher := ""
-	if raw.Publisher != nil {
-		publisher = *raw.Publisher
-	}
-	if publisher == "" && raw.Publishers != nil && len(*raw.Publishers) > 0 {
-		publisher = (*raw.Publishers)[0]
-	}
-	if publisher == "" && raw.Imprint != nil {
-		publisher = *raw.Imprint
-	}
-	if publisher == "" && raw.PublisherName != nil {
-		publisher = *raw.PublisherName
-	}
-
-	// Published date extraction
-	publishedDate := ""
-	if raw.PublishedDate != nil {
-		publishedDate = *raw.PublishedDate
-	}
-	if publishedDate == "" && raw.PublicationDate != nil {
-		publishedDate = *raw.PublicationDate
-	}
-	if publishedDate == "" && raw.DatePublished != nil {
-		publishedDate = *raw.DatePublished
-	}
-	if publishedDate == "" && raw.PubDate != nil {
-		publishedDate = *raw.PubDate
-	}
-
-	// ID generation
-	id := ""
-	if raw.ProductId != nil {
-		id = *raw.ProductId
-	}
-	if id == "" && raw.Id != nil {
-		id = *raw.Id
-	}
-	if id == "" && raw.Ourn != nil {
-		id = *raw.Ourn
-	}
-	if id == "" && raw.Isbn != nil {
-		id = *raw.Isbn
-	}
+	id := firstString(raw.ProductId, raw.Id, raw.Ourn, raw.Isbn)
 	if id == "" {
 		id = fmt.Sprintf("api_result_%d", index)
 	}
 
+	publisher := firstString(raw.Publisher)
+	if publisher == "" && raw.Publishers != nil && len(*raw.Publishers) > 0 {
+		publisher = (*raw.Publishers)[0]
+	}
+	if publisher == "" {
+		publisher = firstString(raw.Imprint, raw.PublisherName)
+	}
+
 	return map[string]interface{}{
-		"id":           id,
-		"title":        title,
-		"authors":      authors,
-		"content_type": contentType,
-		"description":  description,
-		"url":          itemURL,
-		"ourn": func() string {
-			if raw.Ourn != nil {
-				return *raw.Ourn
-			}
-			return ""
-		}(),
+		"id":             id,
+		"title":          firstString(raw.Title, raw.Name, raw.DisplayTitle, raw.ProductName),
+		"authors":        extractAuthors(raw),
+		"content_type":   inferContentType(raw, itemURL),
+		"description":    firstString(raw.Description, raw.Summary, raw.Excerpt, raw.DescriptionWithMarkups, raw.ShortDescription),
+		"url":            itemURL,
+		"ourn":           firstString(raw.Ourn),
 		"publisher":      publisher,
-		"published_date": publishedDate,
+		"published_date": firstString(raw.PublishedDate, raw.PublicationDate, raw.DatePublished, raw.PubDate),
 		"source":         "api_search_oreilly",
 	}
 }
