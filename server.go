@@ -428,8 +428,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
 		if reauthErr := s.getBrowserClient().Reauthenticate(); reauthErr != nil {
-			slog.Error("再認証失敗", "error", reauthErr)
-			return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", reauthErr)), nil, nil
+			return newToolResultError(sanitizeError(reauthErr, "operation", "reauthenticate")), nil, nil
 		}
 
 		// Retry
@@ -437,8 +436,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	if err != nil {
-		slog.Error("BrowserClient検索失敗", "error", err, "query", args.Query)
-		return newToolResultError(fmt.Sprintf("failed to search O'Reilly: %v", err)), nil, nil
+		return newToolResultError(sanitizeError(err, "operation", "search", "query", args.Query)), nil, nil
 	}
 	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
 
@@ -588,8 +586,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	// Execute question (with polling)
 	answer, err := s.getBrowserClient().AskQuestion(args.Question, maxWaitTime)
 	if err != nil {
-		slog.Error("質問処理失敗", "error", err, "question", args.Question)
-		return newToolResultError(fmt.Sprintf("failed to ask question: %v", err)), nil, nil
+		return newToolResultError(sanitizeError(err, "operation", "ask_question", "question", args.Question)), nil, nil
 	}
 
 	slog.Info("質問に対する回答を取得しました", "question", args.Question, "question_id", answer.QuestionID)
@@ -640,25 +637,12 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, req *mcp.ReadResour
 
 	bookOverview, err := s.getBrowserClient().GetBookDetails(productID)
 	if err != nil {
-		slog.Error("書籍詳細取得失敗", "error", err, "product_id", productID)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get book details: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_book_details", "product_id", productID), nil
 	}
 
 	jsonBytes, err := json.Marshal(bookOverview)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_book_details"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -699,25 +683,12 @@ func (s *Server) GetBookTOCResource(ctx context.Context, req *mcp.ReadResourceRe
 
 	tocResponse, err := s.getBrowserClient().GetBookTOC(productID)
 	if err != nil {
-		slog.Error("書籍目次取得失敗", "error", err, "product_id", productID)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get book TOC: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_book_toc", "product_id", productID), nil
 	}
 
 	jsonBytes, err := json.Marshal(tocResponse)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_book_toc"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -758,25 +729,12 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, req *mcp.Rea
 
 	chapterResponse, err := s.getBrowserClient().GetBookChapterContent(productID, chapterName)
 	if err != nil {
-		slog.Error("書籍チャプター本文取得失敗", "error", err, "product_id", productID, "chapter_name", chapterName)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get book chapter content: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_chapter", "product_id", productID, "chapter_name", chapterName), nil
 	}
 
 	jsonBytes, err := json.Marshal(chapterResponse)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_chapter"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -818,14 +776,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 	// Get answer
 	answer, err := s.getBrowserClient().GetQuestionByID(questionID)
 	if err != nil {
-		slog.Error("回答取得失敗", "error", err, "question_id", questionID)
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to get answer: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "get_answer", "question_id", questionID), nil
 	}
 
 	// Build response
@@ -851,13 +802,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
+		return errorResourceContents(req.Params.URI, err, "operation", "marshal_answer"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -888,7 +833,7 @@ func (s *Server) ReauthenticateHandler(
 			s.config.XDGDirs.StateHome,
 		)
 		if err != nil {
-			return newToolResultError(fmt.Sprintf("BrowserClient の生成に失敗しました: %v", err)), nil, nil
+			return newToolResultError(sanitizeError(err, "operation", "create_browser_client")), nil, nil
 		}
 		s.setBrowserClient(client)
 		return nil, &ReauthResult{
@@ -908,7 +853,7 @@ func (s *Server) ReauthenticateHandler(
 	// 2. Reauthenticate() でビジブルブラウザを起動して再認証
 	slog.Info("oreilly_reauthenticate: Reauthenticate() で再認証を開始します")
 	if err := s.getBrowserClient().Reauthenticate(); err != nil {
-		return newToolResultError(fmt.Sprintf("再認証に失敗しました: %v", err)), nil, nil
+		return newToolResultError(sanitizeError(err, "operation", "reauthenticate")), nil, nil
 	}
 
 	return nil, &ReauthResult{
