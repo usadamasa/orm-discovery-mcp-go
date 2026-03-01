@@ -116,7 +116,7 @@ func handleReviewPR(
 		}
 	}
 
-	var errStrings []string
+	errStrings := make([]string, 0, len(result.Errors))
 	for _, ce := range result.Errors {
 		errStrings = append(errStrings, fmt.Sprintf("%s: %v", ce.CriticName, ce.Err))
 	}

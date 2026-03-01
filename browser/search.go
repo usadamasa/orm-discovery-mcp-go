@@ -217,8 +217,6 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]any) ([]
 	opts := parseSearchOptions(options)
 
 	// Use OpenAPI generated client for search
-	var results []map[string]any
-
 	apiResponse, totalCount, err := bc.makeHTTPSearchRequest(query, opts.rows, opts.offset, opts.tzOffset, opts.aiaOnly, opts.featureFlags, opts.report, opts.isTopics)
 	if err != nil {
 		slog.Error("API検索に失敗しました", "error", err, "query", query)
@@ -240,6 +238,7 @@ func (bc *BrowserClient) SearchContent(query string, options map[string]any) ([]
 	slog.Debug("API検索レスポンス取得", "result_count", len(rawResults), "total_count", totalCount)
 
 	// Normalize results using Go instead of JavaScript
+	results := make([]map[string]any, 0, len(rawResults))
 	for i, rawResult := range rawResults {
 		if i >= opts.rows {
 			break

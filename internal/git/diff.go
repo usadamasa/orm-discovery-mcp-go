@@ -219,8 +219,8 @@ func parseDiffNameStatus(output string) []nameStatusEntry {
 		return nil
 	}
 
-	var entries []nameStatusEntry
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
+	entries := make([]nameStatusEntry, 0, len(lines))
 	for _, line := range lines {
 		if line == "" {
 			continue
