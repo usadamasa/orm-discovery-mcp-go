@@ -536,6 +536,16 @@ exclusion を削除してメトリクスを改善することが目標。
 - [x] M8: `browser/book.go` convertAPIFlatTOCToLocal の gocognit 削減
 - [x] M9: `browser/book.go` parseHTMLNode の gocognit 削減
 
+### Phase 7: /simplify 駆動の改善
+
+`/simplify` レビューエージェントの指摘に基づく追加改善。
+
+- [x] S1: `DefaultSearchMode` を `SearchContentHandler` に接続 (dead config field 解消)
+- [x] S2: `Config.DefaultSearchMode` を `string` → `SearchMode` 型に変更 (型安全化)
+- [x] S3: `interface{}` → `any` 移行 (browser/types.go, search.go, book.go)
+- [x] S4: スライス事前割り当て (prealloc 7箇所)
+- [x] S5: `os.IsNotExist` → `errors.Is` 移行 (xdg_test.go)
+
 ---
 
 ## アーキテクチャメトリクス技術的負債
