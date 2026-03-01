@@ -233,6 +233,82 @@ func TestManagerImpl_LoadCookies_AllExpired(t *testing.T) {
 	assert.Contains(t, err.Error(), "no valid cookies found")
 }
 
+func TestManagerImpl_SeedDebugCookieIfNeeded(t *testing.T) {
+	// ヘルパー: 有効な cookie JSON を作成
+	createCookieFile := func(t *testing.T, path string) {
+		t.Helper()
+		dir := filepath.Dir(path)
+		require.NoError(t, os.MkdirAll(dir, 0700))
+		content := `{"cookies":[{"name":"orm-jwt","value":"seed-token","domain":".oreilly.com","path":"/"}],"saved_at":"2026-01-01T00:00:00Z"}`
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+	}
+
+	t.Run("seed source exists, local missing → copies", func(t *testing.T) {
+		seedDir := t.TempDir()
+		localDir := t.TempDir()
+
+		seedPath := filepath.Join(seedDir, cookieFileName)
+		createCookieFile(t, seedPath)
+
+		cm := NewCookieManager(localDir)
+		err := cm.SeedDebugCookieIfNeeded(seedPath)
+		require.NoError(t, err)
+		assert.True(t, cm.CookieFileExists(), "local cookie should exist after seed")
+
+		// コピー内容を検証
+		seedData, _ := os.ReadFile(seedPath)
+		localData, _ := os.ReadFile(filepath.Join(localDir, cookieFileName))
+		assert.Equal(t, seedData, localData)
+	})
+
+	t.Run("seed source exists, local exists → no overwrite", func(t *testing.T) {
+		seedDir := t.TempDir()
+		localDir := t.TempDir()
+
+		seedPath := filepath.Join(seedDir, cookieFileName)
+		createCookieFile(t, seedPath)
+
+		// ローカルに別の cookie を作成
+		localPath := filepath.Join(localDir, cookieFileName)
+		localContent := `{"cookies":[{"name":"orm-jwt","value":"local-token","domain":".oreilly.com","path":"/"}],"saved_at":"2026-01-01T00:00:00Z"}`
+		require.NoError(t, os.WriteFile(localPath, []byte(localContent), 0600))
+
+		cm := NewCookieManager(localDir)
+		err := cm.SeedDebugCookieIfNeeded(seedPath)
+		require.NoError(t, err)
+
+		// ローカルの内容が上書きされていないことを確認
+		data, _ := os.ReadFile(localPath)
+		assert.Equal(t, localContent, string(data))
+	})
+
+	t.Run("seed source missing → no error", func(t *testing.T) {
+		localDir := t.TempDir()
+
+		cm := NewCookieManager(localDir)
+		err := cm.SeedDebugCookieIfNeeded("/nonexistent/path/cookies.json")
+		assert.NoError(t, err)
+		assert.False(t, cm.CookieFileExists())
+	})
+
+	t.Run("seedPath empty → no-op", func(t *testing.T) {
+		localDir := t.TempDir()
+
+		cm := NewCookieManager(localDir)
+		err := cm.SeedDebugCookieIfNeeded("")
+		assert.NoError(t, err)
+		assert.False(t, cm.CookieFileExists())
+	})
+
+	t.Run("seedPath equals filePath → no-op", func(t *testing.T) {
+		localDir := t.TempDir()
+
+		cm := NewCookieManager(localDir)
+		err := cm.SeedDebugCookieIfNeeded(cm.filePath)
+		assert.NoError(t, err)
+	})
+}
+
 func TestIsImportantCookie(t *testing.T) {
 	tmpDir := t.TempDir()
 	cm := NewCookieManager(tmpDir)

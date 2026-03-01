@@ -69,6 +69,16 @@ func runMCPServer() {
 	// Create cookie manager (using CacheHome)
 	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
+	// デバッグモード: 共有 XDG パスからデバッグ用 cookie をシード
+	if debugDir := getEnv("ORM_MCP_GO_DEBUG_DIR"); debugDir != "" {
+		defaultDirs, err := GetXDGDirs("")
+		if err != nil {
+			slog.Warn("デフォルトXDGディレクトリの取得に失敗しました", "error", err)
+		} else if err := cookieManager.SeedDebugCookieIfNeeded(defaultDirs.CookiePath()); err != nil {
+			slog.Warn("デバッグ用Cookieのシードに失敗しました", "error", err)
+		}
+	}
+
 	// Create browser client and login (using StateHome for Chrome temp data)
 	// browser.Client インターフェースとして宣言し、エラー時は nil (interface nil) のまま渡す。
 	// typed nil (*BrowserClient(nil)) を渡すと == nil チェックが正しく動作しないため。
