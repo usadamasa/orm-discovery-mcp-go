@@ -78,15 +78,6 @@ linters:
           - gocognit
           - gocyclo
 
-      # LoadConfig は環境変数ロードの性質上、複雑度・文ステートメント数が高い
-      # TODO: リファクタリング後に削除する
-      - path: "config\\.go"
-        text: "LoadConfig"
-        linters:
-          - gocognit
-          - gocyclo
-          - funlen
-
       # E2Eテストは複雑度制限を緩和
       - path: "e2e/"
         linters:

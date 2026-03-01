@@ -41,150 +41,102 @@ type Config struct {
 	AllowedOrigins []string // 許可する Origin のリスト (ALLOWED_ORIGINS 環境変数、カンマ区切り)
 }
 
-// LoadConfig は.envファイルと環境変数から設定を読み込みます
-func LoadConfig() (*Config, error) {
-	// ポート番号の取得（デフォルト: 8080）
-	port := "8080"
-	if portStr := getEnv("PORT"); portStr != "" {
-		port = portStr
+// envString returns the environment variable value, or defaultVal if unset.
+func envString(key, defaultVal string) string {
+	if v := getEnv(key); v != "" {
+		return v
 	}
+	return defaultVal
+}
 
-	// デバッグモードの取得（デフォルト: false）
-	debug := false
-	if debugStr := getEnv("ORM_MCP_GO_DEBUG"); debugStr != "" {
-		if d, err := strconv.ParseBool(debugStr); err == nil {
-			debug = d
+// envBool returns the environment variable parsed as bool, or defaultVal on error/unset.
+func envBool(key string, defaultVal bool) bool {
+	if v := getEnv(key); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
 		}
 	}
+	return defaultVal
+}
 
-	transport := "stdio"
-	if transportStr := getEnv("TRANSPORT"); transportStr != "" {
-		transport = transportStr
+// envInt returns the environment variable parsed as int, or defaultVal if invalid/unset.
+// Values below minVal are treated as invalid and return defaultVal.
+func envInt(key string, defaultVal, minVal int) int {
+	if v := getEnv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= minVal {
+			return n
+		}
 	}
+	return defaultVal
+}
 
+// parseLogLevel converts a log level string to slog.Level.
+func parseLogLevel(s string) slog.Level {
+	switch strings.ToUpper(s) {
+	case "DEBUG":
+		return slog.LevelDebug
+	case "INFO":
+		return slog.LevelInfo
+	case "WARN", "WARNING":
+		return slog.LevelWarn
+	case "ERROR":
+		return slog.LevelError
+	default:
+		log.Printf("不明なログレベル: %s (INFOを使用)", s)
+		return slog.LevelInfo
+	}
+}
+
+// parseAllowedOrigins splits a comma-separated string into trimmed, non-empty origins.
+func parseAllowedOrigins(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var origins []string
+	for o := range strings.SplitSeq(s, ",") {
+		if trimmed := strings.TrimSpace(o); trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+	return origins
+}
+
+// LoadConfig は.envファイルと環境変数から設定を読み込みます
+func LoadConfig() (*Config, error) {
 	// XDGディレクトリの解決
-	// ORM_MCP_GO_DEBUG_DIR: デバッグ用に全ディレクトリを上書きする環境変数
-	// 注意: この時点ではslogが未初期化のため、エラーはstderrにのみ出力される
 	debugDir := getEnv("ORM_MCP_GO_DEBUG_DIR")
 	xdgDirs, err := GetXDGDirs(debugDir)
 	if err != nil {
 		log.Fatalf("XDGディレクトリの解決に失敗しました: %v", err)
 	}
-	// ディレクトリを作成
 	if err := xdgDirs.EnsureExists(); err != nil {
 		log.Fatalf("XDGディレクトリの作成に失敗しました: %v", err)
 	}
 
-	// ログレベルの設定（デフォルト: INFO）
 	logLevel := slog.LevelInfo
-	if logLevelStr := getEnv("ORM_MCP_GO_LOG_LEVEL"); logLevelStr != "" {
-		switch strings.ToUpper(logLevelStr) {
-		case "DEBUG":
-			logLevel = slog.LevelDebug
-		case "INFO":
-			logLevel = slog.LevelInfo
-		case "WARN", "WARNING":
-			logLevel = slog.LevelWarn
-		case "ERROR":
-			logLevel = slog.LevelError
-		default:
-			// この時点ではまだslogが設定されていないため、標準的なログ出力を使用
-			log.Printf("不明なログレベル: %s (INFOを使用)", logLevelStr)
-		}
-	}
-
-	// ログファイルパスの取得（XDG Base Directory Specification準拠）
-	logFile := xdgDirs.LogPath()
-
-	// ログローテーション設定の取得
-	logMaxSizeMB := 10
-	if sizeStr := getEnv("ORM_MCP_GO_LOG_MAX_SIZE_MB"); sizeStr != "" {
-		if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
-			logMaxSizeMB = size
-		}
-	}
-
-	logMaxBackups := 3
-	if backupsStr := getEnv("ORM_MCP_GO_LOG_MAX_BACKUPS"); backupsStr != "" {
-		if backups, err := strconv.Atoi(backupsStr); err == nil && backups > 0 {
-			logMaxBackups = backups
-		}
-	}
-
-	logMaxAgeDays := 30
-	if ageStr := getEnv("ORM_MCP_GO_LOG_MAX_AGE_DAYS"); ageStr != "" {
-		if age, err := strconv.Atoi(ageStr); err == nil && age > 0 {
-			logMaxAgeDays = age
-		}
-	}
-
-	// Research History 設定
-	historyMaxEntries := 1000
-	if entriesStr := getEnv("ORM_MCP_GO_HISTORY_MAX_ENTRIES"); entriesStr != "" {
-		if entries, err := strconv.Atoi(entriesStr); err == nil && entries > 0 {
-			historyMaxEntries = entries
-		}
-	}
-
-	// Search Mode 設定
-	defaultSearchMode := "bfs"
-	if modeStr := getEnv("ORM_MCP_GO_DEFAULT_MODE"); modeStr != "" {
-		if modeStr == "bfs" || modeStr == "dfs" {
-			defaultSearchMode = modeStr
-		}
-	}
-
-	// Sampling 設定
-	enableSampling := true
-	if samplingStr := getEnv("ORM_MCP_GO_ENABLE_SAMPLING"); samplingStr != "" {
-		if enabled, err := strconv.ParseBool(samplingStr); err == nil {
-			enableSampling = enabled
-		}
-	}
-
-	samplingMaxTokens := 500
-	if tokensStr := getEnv("ORM_MCP_GO_SAMPLING_MAX_TOKENS"); tokensStr != "" {
-		if tokens, err := strconv.Atoi(tokensStr); err == nil && tokens > 0 {
-			samplingMaxTokens = tokens
-		}
-	}
-
-	// HTTP サーバー設定
-	bindAddress := "127.0.0.1"
-	if addr := getEnv("BIND_ADDRESS"); addr != "" {
-		bindAddress = addr
-	}
-
-	var allowedOrigins []string
-	if origins := getEnv("ALLOWED_ORIGINS"); origins != "" {
-		for o := range strings.SplitSeq(origins, ",") {
-			if trimmed := strings.TrimSpace(o); trimmed != "" {
-				allowedOrigins = append(allowedOrigins, trimmed)
-			}
-		}
+	if s := getEnv("ORM_MCP_GO_LOG_LEVEL"); s != "" {
+		logLevel = parseLogLevel(s)
 	}
 
 	config := &Config{
-		Port:              port,
-		Debug:             debug,
-		Transport:         transport,
+		Port:              envString("PORT", "8080"),
+		Debug:             envBool("ORM_MCP_GO_DEBUG", false),
+		Transport:         envString("TRANSPORT", "stdio"),
 		XDGDirs:           xdgDirs,
 		LogLevel:          logLevel,
-		LogFile:           logFile,
-		LogMaxSizeMB:      logMaxSizeMB,
-		LogMaxBackups:     logMaxBackups,
-		LogMaxAgeDays:     logMaxAgeDays,
-		HistoryMaxEntries: historyMaxEntries,
-		DefaultSearchMode: defaultSearchMode,
-		EnableSampling:    enableSampling,
-		SamplingMaxTokens: samplingMaxTokens,
-		BindAddress:       bindAddress,
-		AllowedOrigins:    allowedOrigins,
+		LogFile:           xdgDirs.LogPath(),
+		LogMaxSizeMB:      envInt("ORM_MCP_GO_LOG_MAX_SIZE_MB", 10, 1),
+		LogMaxBackups:     envInt("ORM_MCP_GO_LOG_MAX_BACKUPS", 3, 1),
+		LogMaxAgeDays:     envInt("ORM_MCP_GO_LOG_MAX_AGE_DAYS", 30, 1),
+		HistoryMaxEntries: envInt("ORM_MCP_GO_HISTORY_MAX_ENTRIES", 1000, 1),
+		DefaultSearchMode: envString("ORM_MCP_GO_DEFAULT_MODE", "bfs"),
+		EnableSampling:    envBool("ORM_MCP_GO_ENABLE_SAMPLING", true),
+		SamplingMaxTokens: envInt("ORM_MCP_GO_SAMPLING_MAX_TOKENS", 500, 1),
+		BindAddress:       envString("BIND_ADDRESS", "127.0.0.1"),
+		AllowedOrigins:    parseAllowedOrigins(getEnv("ALLOWED_ORIGINS")),
 	}
 
-	// slogの設定
 	setupLogger(config)
-
 	return config, nil
 }
 
