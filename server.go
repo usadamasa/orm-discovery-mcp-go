@@ -471,27 +471,24 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 }
 
 // buildBFSResponse builds a lightweight response for BFS mode.
+// Book results include ResourceLink entries for direct resource navigation.
 func (s *Server) buildBFSResponse(results []map[string]any, historyID string, offset, totalResults int) (*mcp.CallToolResult, *SearchContentResult, error) {
-	// Extract only essential fields: id, title, authors
 	lightweightResults := make([]map[string]any, 0, len(results))
+	var resourceLinks []mcp.Content
+
 	for _, result := range results {
 		lightweight := make(map[string]any)
 
-		// Extract product_id or ISBN
-		if productID, ok := result["product_id"].(string); ok {
-			lightweight["id"] = productID
-		} else if isbn, ok := result["isbn"].(string); ok {
-			lightweight["id"] = isbn
-		} else if id, ok := result["id"].(string); ok {
+		id := extractStringField(result, "product_id", "isbn", "id")
+		if id != "" {
 			lightweight["id"] = id
 		}
 
-		// Extract title
-		if title, ok := result["title"].(string); ok {
+		title, _ := result["title"].(string)
+		if title != "" {
 			lightweight["title"] = title
 		}
 
-		// Extract authors
 		if authors, ok := result["authors"].([]any); ok && len(authors) > 0 {
 			lightweight["authors"] = authors
 		} else if authors, ok := result["authors"].([]string); ok && len(authors) > 0 {
@@ -499,6 +496,19 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		}
 
 		lightweightResults = append(lightweightResults, lightweight)
+
+		// Add ResourceLink for book content types
+		if ct, _ := result["content_type"].(string); id != "" && ct == "book" {
+			name := title
+			if name == "" {
+				name = id
+			}
+			resourceLinks = append(resourceLinks, &mcp.ResourceLink{
+				URI:      "oreilly://book-details/" + id,
+				Name:     name,
+				MIMEType: "application/json",
+			})
+		}
 	}
 
 	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
@@ -508,7 +518,7 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		note += fmt.Sprintf(". More results available: use offset=%d to get next page.", nextOffset)
 	}
 
-	return nil, &SearchContentResult{
+	structured := &SearchContentResult{
 		Count:        len(results),
 		Total:        len(results),
 		TotalResults: totalResults,
@@ -518,7 +528,22 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		Mode:         SearchModeBFS,
 		HistoryID:    historyID,
 		Note:         note,
-	}, nil
+	}
+
+	if len(resourceLinks) > 0 {
+		return &mcp.CallToolResult{Content: resourceLinks}, structured, nil
+	}
+	return nil, structured, nil
+}
+
+// extractStringField returns the first non-empty string value from the map for the given keys.
+func extractStringField(m map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := m[key].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // buildDFSResponse builds a detailed response for DFS mode.
