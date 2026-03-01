@@ -146,6 +146,82 @@ func RunVisibleLogin(tempDir string, cm cookie.Manager) error {
 	return nil
 }
 
+// startChromeForLogin launches Chrome with a remote debugging port and returns the command,
+// port, processDone channel, and any startup error.
+func startChromeForLogin(chromePath, tempDir string) (*exec.Cmd, string, chan error, error) {
+	port, err := findAvailablePort()
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("CDPデバッグポートの取得に失敗しました: %w", err)
+	}
+
+	if err := os.MkdirAll(tempDir, 0700); err != nil {
+		return nil, "", nil, fmt.Errorf("一時ディレクトリの作成に失敗しました: %w", err)
+	}
+
+	cmd := exec.Command(
+		chromePath,
+		"--remote-debugging-port="+port,
+		"--user-data-dir="+tempDir,
+		"--no-first-run",
+		"--no-default-browser-check",
+	)
+	if err := cmd.Start(); err != nil {
+		return nil, "", nil, fmt.Errorf("chromeの起動に失敗しました: %w", err)
+	}
+	slog.Info("Chrome を起動しました", "pid", cmd.Process.Pid, "cdp_port", port)
+
+	processDone := make(chan error, 1)
+	go func() {
+		processDone <- cmd.Wait()
+	}()
+
+	return cmd, port, processDone, nil
+}
+
+// extractAndValidateCookies extracts cookies from the CDP session and validates
+// that authentication cookies (orm-jwt or groot_sessionid) are present.
+// Returns nil cookies if validation fails (caller should continue polling).
+func extractAndValidateCookies(ctx context.Context) ([]*http.Cookie, error) {
+	var cookies []*http.Cookie
+	err := chromedp.Run(ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		cookiesResp, err := network.GetCookies().Do(ctx)
+		if err != nil {
+			return err
+		}
+		cookies = make([]*http.Cookie, len(cookiesResp))
+		for i, c := range cookiesResp {
+			cookies[i] = &http.Cookie{
+				Name:     c.Name,
+				Value:    c.Value,
+				Domain:   c.Domain,
+				Path:     c.Path,
+				Secure:   c.Secure,
+				HttpOnly: c.HTTPOnly,
+			}
+			if !c.Session && c.Expires > 0 {
+				cookies[i].Expires = time.Unix(int64(c.Expires), 0)
+			}
+		}
+		slog.Info("Cookieを取得しました", "count", len(cookies))
+		return nil
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("cookie取得に失敗しました: %w", err)
+	}
+
+	if len(cookies) == 0 {
+		slog.Debug("Cookieが空です。ポーリングを継続します")
+		return nil, nil
+	}
+	for _, c := range cookies {
+		if c.Name == "orm-jwt" || c.Name == "groot_sessionid" {
+			return cookies, nil
+		}
+	}
+	slog.Debug("認証Cookie (orm-jwt/groot_sessionid) が見つかりません。ポーリングを継続します")
+	return nil, nil
+}
+
 // runVisibleLogin はビジブルChromeを起動し、ユーザーが手動ログインするまで待機する。
 // ログイン完了は learning.oreilly.com への URL 遷移で検知する。
 // exec.Command + NewRemoteAllocator を使用することで Akamai のボット検知を回避する。
@@ -160,38 +236,10 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 		return nil, fmt.Errorf("chromeの検索に失敗しました: %w", err)
 	}
 
-	// CDPデバッグポートを動的に割り当てる (固定ポートでは複数インスタンス起動時に衝突する)
-	port, err := findAvailablePort()
+	cmd, port, processDone, err := startChromeForLogin(chromePath, tempDir)
 	if err != nil {
-		return nil, fmt.Errorf("CDPデバッグポートの取得に失敗しました: %w", err)
+		return nil, err
 	}
-
-	// 一時ディレクトリを事前に作成する (Chrome が存在しないディレクトリを user-data-dir に指定するとエラーになる場合がある)
-	if err := os.MkdirAll(tempDir, 0700); err != nil {
-		return nil, fmt.Errorf("一時ディレクトリの作成に失敗しました: %w", err)
-	}
-
-	// 一時プロファイルで Chrome を起動する
-	// ログイン後に Chrome を終了し一時ディレクトリを削除する
-	cmd := exec.Command(
-		chromePath,
-		"--remote-debugging-port="+port,
-		"--user-data-dir="+tempDir,
-		"--no-first-run",
-		"--no-default-browser-check",
-	)
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("chromeの起動に失敗しました: %w", err)
-	}
-	slog.Info("Chrome を起動しました", "pid", cmd.Process.Pid, "cdp_port", port)
-
-	// goroutine で cmd.Wait() を走らせ、Chrome プロセスの終了を検知する。
-	// バッファサイズ 1 は、goroutine が cmd.Wait() の結果を書き込めるようにするため必須。
-	// バッファなしだと、select で processDone を消費する前に goroutine がブロックされる。
-	processDone := make(chan error, 1)
-	go func() {
-		processDone <- cmd.Wait()
-	}()
 	processExited := false
 
 	defer func() {
@@ -199,7 +247,6 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 			if killErr := cmd.Process.Kill(); killErr != nil {
 				slog.Warn("Chrome プロセスの終了に失敗", "error", killErr)
 			}
-			// goroutine の cmd.Wait() 完了を待つ (ゾンビプロセス回収)
 			<-processDone
 		}
 		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
@@ -207,7 +254,6 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 		}
 	}()
 
-	// CDP 接続待機
 	wsURL, err := WaitForCDPWithTimeout(port, CDPWaitTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("CDP 接続に失敗しました: %w", err)
@@ -223,7 +269,6 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 	loginCtx, loginCancel := context.WithTimeout(chromeCtx, VisibleLoginTimeout)
 	defer loginCancel()
 
-	// ログインページに遷移
 	if err := chromedp.Run(loginCtx, chromedp.Navigate("https://www.oreilly.com/member/login/")); err != nil {
 		return nil, fmt.Errorf("ログインページへの遷移に失敗しました: %w", err)
 	}
@@ -233,7 +278,6 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 		"timeout_minutes", int(VisibleLoginTimeout.Minutes()),
 	)
 
-	// 2秒間隔でポーリング: learning.oreilly.com への遷移を検知
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -259,53 +303,13 @@ func runVisibleLogin(tempDir string) ([]*http.Cookie, error) {
 			if strings.Contains(currentURL, "learning.oreilly.com") {
 				slog.Info("ログイン完了を確認しました", "url", currentURL)
 
-				// Cookie を取得
-				var cookies []*http.Cookie
-				err := chromedp.Run(loginCtx, chromedp.ActionFunc(func(ctx context.Context) error {
-					cookiesResp, err := network.GetCookies().Do(ctx)
-					if err != nil {
-						return err
-					}
-					cookies = make([]*http.Cookie, len(cookiesResp))
-					for i, c := range cookiesResp {
-						cookies[i] = &http.Cookie{
-							Name:     c.Name,
-							Value:    c.Value,
-							Domain:   c.Domain,
-							Path:     c.Path,
-							Secure:   c.Secure,
-							HttpOnly: c.HTTPOnly,
-						}
-						// CDP Cookie の Expires (float64 Unix epoch秒) を http.Cookie.Expires に変換する。
-						// Session Cookie (c.Session == true) は有効期限なしのため変換しない。
-						if !c.Session && c.Expires > 0 {
-							cookies[i].Expires = time.Unix(int64(c.Expires), 0)
-						}
-					}
-					slog.Info("Cookieを取得しました", "count", len(cookies))
-					return nil
-				}))
+				cookies, err := extractAndValidateCookies(loginCtx)
 				if err != nil {
-					return nil, fmt.Errorf("cookie取得に失敗しました: %w", err)
+					return nil, err
 				}
-
-				// 空Cookieチェックと認証Cookie存在確認
-				if len(cookies) == 0 {
-					slog.Debug("Cookieが空です。ポーリングを継続します")
+				if cookies == nil {
 					continue
 				}
-				hasAuthCookie := false
-				for _, c := range cookies {
-					if c.Name == "orm-jwt" || c.Name == "groot_sessionid" {
-						hasAuthCookie = true
-						break
-					}
-				}
-				if !hasAuthCookie {
-					slog.Debug("認証Cookie (orm-jwt/groot_sessionid) が見つかりません。ポーリングを継続します")
-					continue
-				}
-
 				return cookies, nil
 			}
 		}

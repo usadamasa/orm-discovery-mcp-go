@@ -47,13 +47,11 @@ linters:
           - nestif
           - maintidx
 
-      # runVisibleLogin (goroutine管理) は構造上の必然
+      # runVisibleLogin: select/channel polling loop は構造上の必然 (gocognit 64→31)
       - path: "browser/login\\.go"
         text: "runVisibleLogin"
         linters:
-          - funlen
           - gocognit
-          - gocyclo
 
       # nestif は text フィールドで関数名マッチ不可のためファイル単位で除外
       - path: "browser/login\\.go"
