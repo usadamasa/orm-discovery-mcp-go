@@ -15,7 +15,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
-	"github.com/usadamasa/orm-discovery-mcp-go/internal/review"
 )
 
 // HTTP server timeout constants.
@@ -275,9 +274,6 @@ IMPORTANT: Cite sources provided in the response.`,
 		},
 	}
 	mcp.AddTool(s.server, reauthTool, s.ReauthenticateHandler)
-
-	// Add review_pr tool (separated to internal/review package)
-	review.RegisterTools(s.server)
 
 	// Register resources
 	s.registerResources()

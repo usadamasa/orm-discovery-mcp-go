@@ -1,14 +1,5 @@
 # Tasks
 
-> このファイルは自動生成です。手動編集しないでください。
+> Generated: 2026-03-01 17:45
 
-## Active Tasks
-
-*No active tasks.*
-
-## Recently Completed
-
-*No completed tasks.*
-
----
-*Last generated: 2026-03-01*
+No active tasks.

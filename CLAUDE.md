@@ -38,7 +38,7 @@ task check  # Quick quality check
 
 ## Architecture Overview
 
-**O'Reilly Learning Platform MCP Server** - Provides programmatic access to O'Reilly content through modern browser automation and API integration.
+**O'Reilly Learning Platform MCP Server** - 情報検索基盤として他エージェントが O'Reilly コンテンツを活用できるよう支援する MCP サーバー。Browser automation and API integration を活用。
 
 ### Core Components
 
@@ -94,6 +94,8 @@ orm-discovery-mcp-go/
 │   ├── book.go          # Book content retrieval
 │   ├── types.go         # Type definitions
 │   └── cookie/          # Cookie management
+├── internal/
+│   └── version/         # Version information
 ├── .claude/rules/       # Context-specific rules
 ├── .claude-plugin/      # Plugin configuration
 └── plugins/agents/      # Agent definitions

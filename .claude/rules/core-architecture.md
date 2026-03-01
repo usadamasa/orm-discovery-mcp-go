@@ -6,7 +6,7 @@
 
 ## プロジェクト概要
 
-O'Reilly Learning Platform へのプログラマティックアクセスを提供する MCP (Model Context Protocol) サーバー。モダンなブラウザ自動化と API 統合を活用。
+O'Reilly Learning Platform へのプログラマティックアクセスを提供する MCP (Model Context Protocol) サーバー。モダンなブラウザ自動化と API 統合を活用。情報検索基盤として他エージェントが O'Reilly コンテンツを活用できるよう支援することを主目的とする。
 
 ## Core Components
 
