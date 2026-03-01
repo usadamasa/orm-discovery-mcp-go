@@ -1,0 +1,44 @@
+name: VOC Report
+description: Voice of Customer - ツール利用時のフィードバック
+labels: ["voc"]
+body:
+  - type: dropdown
+    id: voc_type
+    attributes:
+      label: Type
+      description: VOCの種類
+      options:
+        - bug
+        - enhancement
+        - question
+    validations:
+      required: true
+  - type: input
+    id: tool
+    attributes:
+      label: Tool
+      description: 関連するMCPツール名
+      placeholder: oreilly_search_content
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: 問題の詳細な説明
+    validations:
+      required: true
+  - type: textarea
+    id: error_detail
+    attributes:
+      label: Error Detail
+      description: エラーの詳細（該当する場合）
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: 発生時のコンテキスト（JSON形式）
+      render: json
+  - type: textarea
+    id: suggested_action
+    attributes:
+      label: Suggested Action
+      description: 推奨される対応策

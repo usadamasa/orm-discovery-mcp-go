@@ -170,3 +170,46 @@ Chapter: [Chapter Name] (if applicable)
 - MEMORY.md の先頭 200 行のみがセッション開始時に読み込まれる
 - 200 行を超えた場合は、古い情報を整理・統合して圧縮する
 - 重複する情報は統合する
+
+## VOC Collection
+
+ツール利用を通じて気づいたフィードバックを GitHub Issue として直接記録する。
+
+### 記録タイミング
+
+| 状況 | ラベル |
+|------|--------|
+| ツール呼び出しエラー（API 500、タイムアウト、認証失敗） | `voc,bug` |
+| 検索結果0件、フォーマット問題等 | `voc,enhancement` |
+| 具体的な改善提案 | `voc,enhancement` |
+| 疑問・不明点 | `voc,question` |
+
+### 記録方法
+
+1. 重複チェック:
+   ```bash
+   gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --search "{key_terms}" --limit 5
+   ```
+2. 重複あり → 既存 Issue にコメント追加
+3. 重複なし → 新規 Issue 作成:
+   ```bash
+   gh issue create -R usadamasa/orm-discovery-mcp-go \
+     --title "[VOC] {title}" \
+     --label "{labels}" \
+     --body "{body}"
+   ```
+
+### 重要
+
+- VOC記録はユーザーへの回答品質を損なわない（メインタスクを優先する）
+- PII・認証情報を Issue に含めない
+- `-R usadamasa/orm-discovery-mcp-go` で常にプラグインリポジトリに Issue を作成する
+- Issue 作成時にユーザーへの問い合わせは不要（エージェントが自律的に実行する）
+
+## Session Finalization
+
+セッション完了時のチェックリスト:
+
+1. 調査結果をユーザーに報告した
+2. MEMORY.md を更新した（有用な発見があった場合）
+3. セッション中にフィードバックがあった場合、GitHub Issue として記録した
