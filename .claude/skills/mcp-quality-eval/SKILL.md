@@ -26,10 +26,11 @@ user_invocable: true
 Context セクションの情報を確認し、評価に必要な前提条件を検証する。
 
 - [ ] プロジェクトルートにいること (`server.go` が存在)
-- [ ] `backlog-cli` バイナリが存在すること
+- [ ] `backlog-cli` バイナリが存在すること (なければ自動ビルド)
 
 ```bash
-ls server.go .claude/skills/backlog-manage/cli/bin/backlog-cli
+ls server.go
+task backlog:build
 ```
 
 ## Phase 1: CI Gate [BLOCKING]

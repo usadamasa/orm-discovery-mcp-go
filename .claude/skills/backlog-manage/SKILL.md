@@ -22,10 +22,10 @@ user_invocable: true
 
 ## Setup
 
-ビルド済みバイナリがない場合:
+バイナリが未ビルドの場合は自動的にビルドされる:
 
 ```bash
-cd .claude/skills/backlog-manage/cli && go build -o bin/backlog-cli . && cd -
+task backlog:build
 ```
 
 以下の `backlog-cli` コマンドはプロジェクトルートから実行する (デフォルトで `--dir .backlog` を使用)。

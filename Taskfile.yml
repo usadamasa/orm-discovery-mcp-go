@@ -212,6 +212,19 @@ tasks:
     cmds:
       - bats scripts/**/tests/*.bats
 
+  # === Backlog CLI ===
+  backlog:build:
+    desc: backlog-cli バイナリをビルド（未ビルド時に自動実行）
+    dir: .claude/skills/backlog-manage/cli
+    sources:
+      - '**/*.go'
+      - 'go.mod'
+    generates:
+      - 'bin/backlog-cli'
+    cmds:
+      - mkdir -p bin
+      - go build -o bin/backlog-cli .
+
   # === Composite Tasks ===
   dev:
     desc: 開発用タスク（フォーマット + リント + テスト）
