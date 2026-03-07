@@ -73,42 +73,33 @@ type TableOfContentsResponse struct {
 	Metadata        map[string]any        `json:"metadata,omitempty"`
 }
 
-// Author is used locally for normalization
+// Author is used for search result normalization
 type Author struct {
 	Name string `json:"name"`
 }
 
-type Publisher struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+// BookResource represents an external resource associated with a book
+type BookResource struct {
+	URL         string `json:"url"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
 }
 
-type Topics struct {
-	Name           string  `json:"name"`
-	Slug           string  `json:"slug"`
-	Score          float64 `json:"score"`
-	UUID           string  `json:"uuid"`
-	EpubIdentifier string  `json:"epub_identifier,omitempty"`
-}
-
-// BookDetailResponse represents comprehensive book metadata from O'Reilly API
+// BookDetailResponse represents book metadata from O'Reilly v2 epubs API
 type BookDetailResponse struct {
-	ID            string         `json:"id"`
-	URL           string         `json:"url"`
-	WebURL        string         `json:"web_url"`
-	Title         string         `json:"title"`
-	Description   string         `json:"description"`
-	Authors       []Author       `json:"authors"`
-	Publishers    []Publisher    `json:"publishers"`
-	ISBN          string         `json:"isbn"`
-	VirtualPages  int            `json:"virtual_pages"`
-	AverageRating float64        `json:"average_rating"`
-	Cover         string         `json:"cover"`
-	Issued        string         `json:"issued"`
-	Topics        []Topics       `json:"topics"`
-	Language      string         `json:"language"`
-	Metadata      map[string]any `json:"metadata"`
+	OURN            string            `json:"ourn"`
+	Identifier      string            `json:"identifier"`
+	ISBN            string            `json:"isbn"`
+	URL             string            `json:"url"`
+	ContentFormat   string            `json:"content_format"`
+	Title           string            `json:"title"`
+	Descriptions    map[string]string `json:"descriptions"`
+	PublicationDate string            `json:"publication_date"`
+	VirtualPages    int               `json:"virtual_pages"`
+	PageCount       int               `json:"page_count"`
+	Language        string            `json:"language"`
+	Resources       []BookResource    `json:"resources,omitempty"`
+	Tags            []string          `json:"tags,omitempty"`
 }
 
 // ChapterContentResponse represents structured chapter content with parsed HTML

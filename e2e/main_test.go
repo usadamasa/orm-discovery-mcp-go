@@ -18,11 +18,10 @@ func TestMain(m *testing.M) {
 	cfg := LoadTestConfig()
 	sharedConfig = cfg
 
-	// Cookie不在時はE2Eテストをスキップする (ビジブルブラウザが起動してしまうため)
+	// Cookie不在時はE2Eテストを失敗させる (APIへの疎通確認が目的のため)
 	cookieManager := cookie.NewCookieManager(cfg.TmpDir)
 	if !cookieManager.CookieFileExists() {
-		log.Println("Cookie not found, skipping E2E tests")
-		os.Exit(0)
+		log.Fatalf("Cookie not found at %s. E2E tests require authentication. Run 'bin/orm-discovery-mcp-go --login' first, then set ORM_MCP_GO_TMP_DIR to the cookie directory.", cfg.TmpDir)
 	}
 
 	// Create shared client (only once for all tests)

@@ -248,7 +248,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://book-details/{product_id}",
 			Name:        "O'Reilly Book Details",
-			Description: "Get book info (title, authors, date, description, topics, TOC). Cite sources when referencing.",
+			Description: "Get book info (title, ISBN, description, publication date). Cite sources when referencing.",
 			MIMEType:    "application/json",
 		},
 		s.GetBookDetailsResource,

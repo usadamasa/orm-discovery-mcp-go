@@ -77,8 +77,10 @@ tasks:
       - go test $(go list ./... | grep -v /e2e) -v -short
 
   test:e2e:
-    desc: E2Eテストを実行（認証情報必須、race検査付き）
+    desc: E2Eテストを実行（認証情報必須、race検査付き、ログインテスト除外）
     deps: [lint]
+    env:
+      ORM_MCP_GO_TMP_DIR: '{{.ROOT_DIR}}/tmp'
     sources:
       - '**/*_e2e_test.go'
       - '**/*_test.go'
@@ -86,6 +88,19 @@ tasks:
       - 'go.sum'
     cmds:
       - go test ./... -tags=e2e -v -race
+
+  test:e2e:login:
+    desc: ログイン関連E2Eテストを実行（ビジブルブラウザが起動し手動操作が必要）
+    deps: [lint]
+    env:
+      ORM_MCP_GO_TMP_DIR: '{{.ROOT_DIR}}/tmp'
+    sources:
+      - '**/*_e2e_test.go'
+      - '**/*_test.go'
+      - 'go.mod'
+      - 'go.sum'
+    cmds:
+      - go test ./e2e/... -tags='e2e e2e_login' -v -race
 
   test:coverage:
     desc: カバレッジ付きでテストを実行
