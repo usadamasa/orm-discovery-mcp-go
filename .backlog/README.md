@@ -1,9 +1,9 @@
-> Generated: 2026-03-07 11:03
+> Generated: 2026-03-07 15:56
 
 # Backlog Summary
 
 | Type | Active | Done |
 |------|--------|------|
 | Tasks | 3 | 6 |
-| Ideas | 15 | 1 |
-| Issues | 3 | 5 |
+| Ideas | 17 | 2 |
+| Issues | 9 | 11 |

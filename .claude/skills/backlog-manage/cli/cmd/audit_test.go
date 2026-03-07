@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/usadamasa/backlog-cli/internal/model"
 	"github.com/usadamasa/backlog-cli/internal/store"
@@ -144,6 +146,157 @@ func TestRunAuditScoreLine(t *testing.T) {
 
 	if !strings.Contains(output, "Score: 3/4") {
 		t.Errorf("expected score line:\n%s", output)
+	}
+}
+
+func TestRunAuditRunClean(t *testing.T) {
+	dir := setupTestDir(t)
+	// Create valid JSONL files
+	task := model.NewTask(model.GenerateID("task"), "test task", "desc", "p2", nil)
+	if err := store.Append(filepath.Join(dir, "tasks.jsonl"), task); err != nil {
+		t.Fatalf("store.Append tasks: %v", err)
+	}
+	idea := model.NewIdea(model.GenerateID("idea"), "test idea", "desc", nil)
+	if err := store.Append(filepath.Join(dir, "ideas.jsonl"), idea); err != nil {
+		t.Fatalf("store.Append ideas: %v", err)
+	}
+	issue := model.NewIssue(model.GenerateID("issue"), "test issue", "desc", "low", nil)
+	if err := store.Append(filepath.Join(dir, "issues.jsonl"), issue); err != nil {
+		t.Fatalf("store.Append issues: %v", err)
+	}
+
+	output := captureStdout(t, func() {
+		if err := RunAudit(dir, []string{"--run"}); err != nil {
+			t.Fatalf("RunAudit --run: %v", err)
+		}
+	})
+
+	// Should create audit-log.jsonl with an entry
+	entries, err := store.ReadAll[model.AuditEntry](filepath.Join(dir, "audit-log.jsonl"))
+	if err != nil {
+		t.Fatalf("ReadAll audit-log: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(entries))
+	}
+
+	// All checks except untracked_handoffs should pass in a clean state
+	// (untracked_handoffs depends on actual home directory state)
+	for _, f := range entries[0].Findings {
+		if f.Check == "untracked_handoffs" {
+			continue
+		}
+		if f.Status != "pass" {
+			t.Errorf("expected pass for %s, got %s: %s", f.Check, f.Status, f.Detail)
+		}
+	}
+
+	if !strings.Contains(output, "jsonl_integrity") {
+		t.Errorf("expected jsonl_integrity in output:\n%s", output)
+	}
+}
+
+func TestRunAuditRunStaleIdea(t *testing.T) {
+	dir := setupTestDir(t)
+	// Create valid JSONL files
+	task := model.NewTask(model.GenerateID("task"), "test task", "desc", "p2", nil)
+	if err := store.Append(filepath.Join(dir, "tasks.jsonl"), task); err != nil {
+		t.Fatalf("store.Append tasks: %v", err)
+	}
+	issue := model.NewIssue(model.GenerateID("issue"), "test issue", "desc", "low", nil)
+	if err := store.Append(filepath.Join(dir, "issues.jsonl"), issue); err != nil {
+		t.Fatalf("store.Append issues: %v", err)
+	}
+
+	// Create idea with created_at 31 days ago
+	oldTime := time.Now().UTC().Add(-31 * 24 * time.Hour).Format(time.RFC3339)
+	staleIdea := model.Idea{
+		ID:          "idea-20260101-0001",
+		Type:        "idea",
+		Title:       "stale idea",
+		Description: "old",
+		Status:      "active",
+		Tags:        []string{},
+		Source:      "manual",
+		SourceRef:   json.RawMessage("null"),
+		PromotedTo:  json.RawMessage("null"),
+		CreatedAt:   oldTime,
+		CreatedBy:   "manual",
+		DoneAt:      json.RawMessage("null"),
+	}
+	if err := store.Append(filepath.Join(dir, "ideas.jsonl"), staleIdea); err != nil {
+		t.Fatalf("store.Append ideas: %v", err)
+	}
+
+	captureStdout(t, func() {
+		if err := RunAudit(dir, []string{"--run"}); err != nil {
+			t.Fatalf("RunAudit --run: %v", err)
+		}
+	})
+
+	entries, err := store.ReadAll[model.AuditEntry](filepath.Join(dir, "audit-log.jsonl"))
+	if err != nil {
+		t.Fatalf("ReadAll audit-log: %v", err)
+	}
+
+	found := false
+	for _, f := range entries[0].Findings {
+		if f.Check == "stale_ideas" {
+			found = true
+			if f.Status != "warn" {
+				t.Errorf("expected warn for stale_ideas, got %s: %s", f.Status, f.Detail)
+			}
+		}
+	}
+	if !found {
+		t.Error("stale_ideas check not found in findings")
+	}
+}
+
+func TestRunAuditRunBackupFile(t *testing.T) {
+	dir := setupTestDir(t)
+	// Create valid JSONL files
+	task := model.NewTask(model.GenerateID("task"), "test task", "desc", "p2", nil)
+	if err := store.Append(filepath.Join(dir, "tasks.jsonl"), task); err != nil {
+		t.Fatalf("store.Append tasks: %v", err)
+	}
+	idea := model.NewIdea(model.GenerateID("idea"), "test idea", "desc", nil)
+	if err := store.Append(filepath.Join(dir, "ideas.jsonl"), idea); err != nil {
+		t.Fatalf("store.Append ideas: %v", err)
+	}
+	issue := model.NewIssue(model.GenerateID("issue"), "test issue", "desc", "low", nil)
+	if err := store.Append(filepath.Join(dir, "issues.jsonl"), issue); err != nil {
+		t.Fatalf("store.Append issues: %v", err)
+	}
+
+	// Create a .bak file
+	bakPath := filepath.Join(dir, "tasks.jsonl.bak")
+	if err := os.WriteFile(bakPath, []byte("backup"), 0644); err != nil {
+		t.Fatalf("WriteFile bak: %v", err)
+	}
+
+	captureStdout(t, func() {
+		if err := RunAudit(dir, []string{"--run"}); err != nil {
+			t.Fatalf("RunAudit --run: %v", err)
+		}
+	})
+
+	entries, err := store.ReadAll[model.AuditEntry](filepath.Join(dir, "audit-log.jsonl"))
+	if err != nil {
+		t.Fatalf("ReadAll audit-log: %v", err)
+	}
+
+	found := false
+	for _, f := range entries[0].Findings {
+		if f.Check == "backup_files" {
+			found = true
+			if f.Status != "warn" {
+				t.Errorf("expected warn for backup_files, got %s: %s", f.Status, f.Detail)
+			}
+		}
+	}
+	if !found {
+		t.Error("backup_files check not found in findings")
 	}
 }
 

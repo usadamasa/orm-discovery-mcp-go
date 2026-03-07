@@ -1,4 +1,4 @@
-> Generated: 2026-03-07 11:03
+> Generated: 2026-03-07 15:14
 
 # Ideas
 
@@ -19,3 +19,5 @@
 | idea-20260301-p6q5 | クエリパターン分析リソース | analytics, track-a-reinterpret, resource | active |
 | idea-20260301-q7r6 | 検索クエリ自動改善ヒント | analytics, track-a-reinterpret, search-enhancement | active |
 | idea-20260301-r8s7 | 調査セッション継続性向上 | analytics, track-a-reinterpret | active |
+| idea-20260307-7196 | history/recent スリム化 | context-efficiency, performance | active |
+| idea-20260307-4bfa | MCP Prompts が Claude Code で利用可能になったら func_prompts を SKIP から通常テストに戻す | quality-eval, mcp-prompts | active |

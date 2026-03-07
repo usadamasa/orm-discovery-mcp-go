@@ -16,20 +16,20 @@ user_invocable: true
 ## Context
 
 - Branch: !`git branch --show-current`
-- Git status: !`git status --short | head -5`
-- MCP tools registered: !`grep -c 'mcp.AddTool' server.go 2>/dev/null || echo "N/A"`
-- Backlog items: !`wc -l .backlog/tasks.jsonl .backlog/ideas.jsonl .backlog/issues.jsonl 2>/dev/null | tail -1 || echo "N/A"`
-- MEMORY.md lines: !`wc -l < "$(echo ~/.claude/projects/*/memory/MEMORY.md | head -1)" 2>/dev/null || echo "N/A"`
+- Git status: !`git status --short`
+- MCP tools registered: Phase 0 で server.go を確認
+- Backlog items: Phase 0 で .backlog/*.jsonl を確認
 
 ## Phase 0: Pre-flight
 
 Context セクションの情報を確認し、評価に必要な前提条件を検証する。
 
 - [ ] プロジェクトルートにいること (`server.go` が存在)
-- [ ] `backlog-cli` バイナリが存在すること
+- [ ] `backlog-cli` バイナリが存在すること (なければ自動ビルド)
 
 ```bash
-ls server.go .claude/skills/backlog-manage/cli/bin/backlog-cli
+ls server.go
+task backlog:build
 ```
 
 ## Phase 1: CI Gate [BLOCKING]
@@ -45,17 +45,20 @@ Phase 1 の結果を記録: `ci_status = PASS | FAIL`
 
 ## Phase 2: Parallel Dimension Evaluation
 
-4 つのディメンションを並列で評価する。subagent を活用して並列化する。
+4 つのディメンションを評価する。静的チェックは subagent で並列化、ライブテストはメインエージェントが直接実行する。
 
 **並列化戦略**:
-- 2B + 2C + 2D(D1,D2,D4) は並列実行可 (全て静的チェック)
-- 2A 完了後に 2D(D3 ライブシナリオ = agent-behavioral-eval) を開始 (subagent リソース競合回避)
+- 2A はメインエージェントが直接実行 (MCP ツール権限の都合)
+- 2B + 2C + 2D(D1,D2,D4) は subagent で並列実行可 (全て静的チェック)
+- 2A 完了後に 2D(D3 ライブシナリオ = agent-behavioral-eval) を開始
 
 ### 2A: Functional Correctness
 
 dogfood-verify の Phase 3-4 を委譲する。
 
-`orm-discovery-mcp-go:oreilly-researcher` subagent で以下を順に実行:
+**重要**: メインエージェントが直接 MCP ツールを呼び出す。subagent 経由だと Claude の permission system で MCP ツール呼び出しが deny されるため。
+
+以下を順に実行:
 
 1. **認証確認**: `oreilly_reauthenticate` ツールを呼び出す
    - 失敗 -> 2A 全体を FAIL (認証エラー) とし、残りの 2A テストをスキップ
@@ -63,10 +66,11 @@ dogfood-verify の Phase 3-4 を委譲する。
    - 成功条件: 結果が返り、認証エラーなし
 3. **oreilly_ask_question**: 「What is Docker?」(最大待機 60 秒)
    - 成功条件: answer フィールドが存在 (タイムアウトは WARNING)
-4. **Resources チェーン**: 2 の結果から product_id を取得し book-details にアクセス
+4. **Resources チェーン**: 2 の結果から product_id を取得し `ReadMcpResourceTool` で book-details にアクセス
    - 成功条件: タイトル・著者情報が返る
-5. **Prompts**: learn-technology (technology="Go") を実行
-   - 成功条件: 学習パスが生成される
+5. **Prompts**: learn-technology (technology="Go") を JSON-RPC で確認
+   - `bin/orm-discovery-mcp-go` に initialize + prompts/get を送信し、結果を検証
+   - 成功条件: description と messages が返る
 
 各テストの結果を記録: `func_results = {test_name: PASS|FAIL|WARN|SKIP}`
 
@@ -131,7 +135,7 @@ head -40 plugins/agents/oreilly-researcher.md
 |---|----------|--------------|
 | 1 | Available Tools | `## Available Tools` |
 | 2 | Available Resources | `## Available Resources` |
-| 3 | BFS/DFS Mode Selection | `## BFS/DFS Mode Selection` |
+| 3 | BFS/DFS Mode Selection Criteria | `## BFS/DFS Mode Selection Criteria` |
 | 4 | Research Workflows | `## Research Workflows` |
 | 5 | Output Format | `## Output Format` |
 | 6 | Citation Requirements | `## Citation Requirements` |
@@ -160,11 +164,7 @@ head -40 plugins/agents/oreilly-researcher.md
 
 #### D4: Memory Hygiene (静的)
 
-MEMORY.md の行数を確認:
-
-```bash
-wc -l < "$(echo ~/.claude/projects/*/memory/MEMORY.md | head -1)"
-```
+auto memory の MEMORY.md 行数を確認する。Read tool で MEMORY.md を読み、行数をカウントする。
 
 - PASS: 200 行未満
 - WARN: 200 行以上
@@ -202,10 +202,20 @@ severity 自動判定:
   --tags "quality-eval"
 ```
 
-### Step 4: Backlog Audit (Phase 1-3 のみ)
+### Step 4: Backlog Health Check
 
-backlog-manage の audit を Phase 1-3 (Analyze -> Diff -> Report) のみ実行する。
-Phase 4 (Patch) は実行しない。
+`backlog-cli audit --run` を実行し、バックログの健全性を自動チェックする。
+
+```bash
+.claude/skills/backlog-manage/cli/bin/backlog-cli audit --run
+```
+
+このコマンドは以下の 5 チェックを実行し、結果を audit-log.jsonl に自動記録する:
+- JSONL 整合性 (tasks/ideas/issues)
+- アイデア滞留 (30 日超)
+- 残留バックアップファイル
+- MD サマリ同期
+- 未追跡ハンドオフ
 
 結果を記録: `backlog_health = {passed: N, total: M}`
 
@@ -261,7 +271,7 @@ backlog-manage の audit-log と同一スキーマ (id プレフィックスが 
     {"check": "func_search", "status": "pass|fail", "detail": "..."},
     {"check": "func_ask", "status": "pass|fail|warn", "detail": "..."},
     {"check": "func_resources", "status": "pass|fail", "detail": "..."},
-    {"check": "func_prompts", "status": "pass|fail", "detail": "..."},
+    {"check": "func_prompts", "status": "skip", "detail": "MCP Prompts not available in Claude Code subagent"},
     {"check": "ctx_guardrail", "status": "pass|fail|warn", "detail": "..."},
     {"check": "skill_sync", "status": "pass|warn", "detail": "..."},
     {"check": "agent_drift", "status": "pass|fail", "detail": "..."},

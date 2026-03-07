@@ -22,10 +22,10 @@ user_invocable: true
 
 ## Setup
 
-ビルド済みバイナリがない場合:
+バイナリが未ビルドの場合は自動的にビルドされる:
 
 ```bash
-cd .claude/skills/backlog-manage/cli && go build -o bin/backlog-cli . && cd -
+task backlog:build
 ```
 
 以下の `backlog-cli` コマンドはプロジェクトルートから実行する (デフォルトで `--dir .backlog` を使用)。
@@ -125,77 +125,24 @@ MDサマリファイルを全再生成する。全コマンド実行後に自動
 
 #### Phase 1: Analyze (情報源スキャン)
 
-以下のコマンドで現在の状態を収集する。
+`backlog-cli audit --run` を実行して自動チェックを行う。
 
 ```bash
-# 1. JSONL 整合性チェック
-for f in .backlog/tasks.jsonl .backlog/ideas.jsonl .backlog/issues.jsonl; do
-  if [ -f "$f" ]; then
-    TOTAL=$(wc -l < "$f" | tr -d ' ')
-    VALID=$(python3 -c "
-import json, sys
-count = 0
-for line in open('$f'):
-    if line.strip():
-        try:
-            json.loads(line)
-            count += 1
-        except: pass
-print(count)
-")
-    printf "%s: %s lines, %s valid JSON\n" "$f" "$TOTAL" "$VALID"
-  fi
-done
+.claude/skills/backlog-manage/cli/bin/backlog-cli audit --run
+```
 
-# 2. 未追跡ハンドオフ
-ls ~/.claude/projects/*/memory/SESSION_HANDOFF_*.md 2>/dev/null || echo "(none)"
+このコマンドは以下の 5 チェックを Go ネイティブで実行し、結果を audit-log.jsonl に自動記録する:
+1. JSONL 整合性 (tasks/ideas/issues)
+2. アイデア滞留 (30 日超)
+3. 残留バックアップファイル
+4. MD サマリ同期
+5. 未追跡ハンドオフ
 
-# 3. 未連携 GH Issues (VOC ラベル)
+以下のチェックはスキル側で手動実行する (外部ツール依存):
+
+```bash
+# 未連携 GH Issues (VOC ラベル)
 gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number,title 2>/dev/null || echo "N/A"
-
-# 4. MEMORY.md 重複チェック
-python3 -c "
-import re
-with open('$(echo ~/.claude/projects/*/memory/MEMORY.md | head -1)') as f:
-    content = f.read()
-blocks = re.split(r'\n## ', content)
-seen = {}
-dupes = []
-for b in blocks:
-    key = b.strip()
-    if key in seen:
-        dupes.append(key[:60])
-    seen[key] = True
-if dupes:
-    print(f'Duplicate blocks: {len(dupes)}')
-    for d in dupes:
-        print(f'  - {d}...')
-else:
-    print('No duplicates')
-" 2>/dev/null || echo "N/A"
-
-# 5. 残留バックアップファイル
-ls .backlog/*.bak 2>/dev/null || echo "(none)"
-
-# 6. アイデア滞留チェック (30日超)
-python3 -c "
-import json, sys
-from datetime import datetime, timezone, timedelta
-threshold = datetime.now(timezone.utc) - timedelta(days=30)
-stale = []
-for line in open('.backlog/ideas.jsonl'):
-    if line.strip():
-        e = json.loads(line)
-        if e.get('status') == 'active':
-            created = datetime.fromisoformat(e['created_at'].replace('Z', '+00:00'))
-            if created < threshold:
-                stale.append(e['id'] + ': ' + e['title'])
-if stale:
-    print(f'Stale ideas ({len(stale)}):')
-    for s in stale: print(f'  - {s}')
-else:
-    print('No stale ideas')
-" 2>/dev/null || echo "(none)"
 ```
 
 #### Phase 2: Diff (ギャップ検出)
@@ -212,34 +159,13 @@ Phase 1 の結果から以下のギャップを検出する。
 | MEMORY 重複 | `memory_duplicates` | 同一テキストブロックが 2 回以上出現 |
 | MD サマリ | `md_summaries` | MD サマリが JSONL と同期していない |
 
+GH Issue 連携チェック (スキル実行時に手動で行う):
+
 ```bash
-# GH Issue 連携チェック
-python3 -c "
-import json, subprocess, sys
-try:
-    result = subprocess.run(
-        ['gh', 'issue', 'list', '-R', 'usadamasa/orm-discovery-mcp-go',
-         '--label', 'voc', '--state', 'open', '--json', 'number,title'],
-        capture_output=True, text=True, timeout=10)
-    gh_issues = {i['number'] for i in json.loads(result.stdout)} if result.returncode == 0 else set()
-except: gh_issues = set()
-
-tracked = set()
-try:
-    for line in open('.backlog/issues.jsonl'):
-        if line.strip():
-            e = json.loads(line)
-            gh = e.get('github_issue')
-            if gh: tracked.add(int(gh) if isinstance(gh, str) and gh.startswith('#') else gh)
-except FileNotFoundError: pass
-
-unlinked = gh_issues - tracked
-if unlinked:
-    print(f'Unlinked GH Issues: {sorted(unlinked)}')
-else:
-    print('All GH Issues linked')
-"
+gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number,title 2>/dev/null || echo "N/A"
 ```
+
+取得した GH Issue 番号と `.backlog/issues.jsonl` の `github_issue` フィールドを照合し、未連携のものを検出する。
 
 #### Phase 3: Report (構造化レポート)
 
