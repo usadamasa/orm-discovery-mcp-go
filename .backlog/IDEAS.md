@@ -1,4 +1,4 @@
-> Generated: 2026-03-07 10:19
+> Generated: 2026-03-07 10:49
 
 # Ideas
 
@@ -12,7 +12,6 @@
 | idea-20260301-h8i7 | 動画トランスクリプトアクセス | api-expansion, resource | active |
 | idea-20260301-i9j8 | ラーニングパスリソース | api-expansion, resource | active |
 | idea-20260301-j0k9 | セッション内クエリキャッシュ | context-efficiency, performance | active |
-| idea-20260301-k1l0 | 章コンテンツ構造化改善 | context-efficiency, content-quality | active |
 | idea-20260301-l2m1 | 関連コンテンツ推薦 | cross-content, resource | active |
 | idea-20260301-m3n2 | 著者ベース発見 | cross-content, resource | active |
 | idea-20260301-n4o3 | トピック別コレクション | cross-content, resource | active |

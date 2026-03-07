@@ -57,8 +57,8 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 	// Use parsed title if available, otherwise use TOC title
 	if parsedContent.Title != "" {
 		chapterTitle = parsedContent.Title
-	} else if len(parsedContent.Headings) > 0 && parsedContent.Headings[0].Text != "" {
-		chapterTitle = parsedContent.Headings[0].Text
+	} else if len(parsedContent.Sections) > 0 && parsedContent.Sections[0].Heading.Text != "" {
+		chapterTitle = parsedContent.Sections[0].Heading.Text
 	}
 
 	response := &ChapterContentResponse{
@@ -70,15 +70,13 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 		Metadata: map[string]any{
 			"extraction_method": "flat_toc_lookup",
 			"processed_at":      time.Now().UTC().Format(time.RFC3339),
-			"word_count":        countWords(parsedContent.Paragraphs),
+			"word_count":        countWordsFromSections(parsedContent.Sections),
 		},
 	}
 
 	slog.Info("チャプター本文取得に成功しました",
 		"title", chapterTitle,
-		"paragraph_count", len(parsedContent.Paragraphs),
-		"heading_count", len(parsedContent.Headings),
-		"code_block_count", len(parsedContent.CodeBlocks))
+		"section_count", len(parsedContent.Sections))
 
 	return response, nil
 }
@@ -355,6 +353,55 @@ func (bc *BrowserClient) getChapterTitleFromTOC(productID, chapterName string) (
 	return "", fmt.Errorf("chapter '%s' not found in TOC for book %s", chapterName, productID)
 }
 
+// sectionBuilder tracks the current section while walking the DOM tree.
+type sectionBuilder struct {
+	sections []ContentSection
+	current  *ContentSection
+}
+
+// startSection begins a new section with the given heading.
+func (sb *sectionBuilder) startSection(heading ContentHeading) {
+	sb.flush()
+	sb.current = &ContentSection{
+		Heading: heading,
+		Content: []any{},
+	}
+}
+
+// appendContent adds a content element to the current section.
+// If no section exists yet, a preamble section (empty heading) is created.
+func (sb *sectionBuilder) appendContent(elem any) {
+	if sb.current == nil {
+		sb.current = &ContentSection{
+			Heading: ContentHeading{},
+			Content: []any{},
+		}
+	}
+	sb.current.Content = append(sb.current.Content, elem)
+}
+
+// flush saves the current section to the sections slice.
+func (sb *sectionBuilder) flush() {
+	if sb.current != nil {
+		sb.sections = append(sb.sections, *sb.current)
+		sb.current = nil
+	}
+}
+
+// build returns the final list of sections, filtering out empty preamble sections.
+func (sb *sectionBuilder) build() []ContentSection {
+	sb.flush()
+	result := make([]ContentSection, 0, len(sb.sections))
+	for _, s := range sb.sections {
+		// Filter out empty preamble sections (empty heading + no content)
+		if s.Heading.Text == "" && len(s.Content) == 0 {
+			continue
+		}
+		result = append(result, s)
+	}
+	return result
+}
+
 // parseHTMLContent parses HTML content into structured format
 func (bc *BrowserClient) parseHTMLContent(htmlContent string) (*ParsedChapterContent, error) {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
@@ -362,89 +409,71 @@ func (bc *BrowserClient) parseHTMLContent(htmlContent string) (*ParsedChapterCon
 		return nil, fmt.Errorf("HTML parsing failed: %w", err)
 	}
 
-	content := &ParsedChapterContent{
-		Sections:   []ContentSection{},
-		Paragraphs: []string{},
-		Headings:   []ContentHeading{},
-		CodeBlocks: []CodeBlock{},
-		Images:     []ImageReference{},
-		Links:      []LinkReference{},
-	}
-
-	// Extract title from document
+	content := &ParsedChapterContent{}
 	content.Title = extractTitle(doc)
 
-	// Parse the HTML tree
-	parseHTMLNode(doc, content, 0)
-
-	// Organize content into sections
-	content.Sections = organizeSections(content.Headings, content.Paragraphs, content.CodeBlocks, content.Images)
+	builder := &sectionBuilder{}
+	walkDOM(doc, builder)
+	content.Sections = builder.build()
 
 	return content, nil
 }
 
-// handleHeadingNode processes heading elements (h1-h6).
-func handleHeadingNode(n *html.Node, content *ParsedChapterContent) {
-	heading := parseHeading(n)
-	if heading.Text != "" {
-		content.Headings = append(content.Headings, heading)
-	}
-}
-
-// handleParagraphNode processes paragraph elements.
-func handleParagraphNode(n *html.Node, content *ParsedChapterContent) {
-	text := strings.TrimSpace(extractTextContent(n))
-	if text != "" {
-		content.Paragraphs = append(content.Paragraphs, text)
-	}
-}
-
-// handleCodeNode processes code block elements (pre, code).
-func handleCodeNode(n *html.Node, content *ParsedChapterContent) {
-	if n.Data == "pre" || hasClass(n, "highlight") || hasClass(n, "code") {
-		codeBlock := parseCodeBlock(n)
-		if codeBlock.Code != "" {
-			content.CodeBlocks = append(content.CodeBlocks, codeBlock)
-		}
-	}
-}
-
-// handleImageNode processes image elements.
-func handleImageNode(n *html.Node, content *ParsedChapterContent) {
-	img := parseImage(n)
-	if img.Src != "" {
-		content.Images = append(content.Images, img)
-	}
-}
-
-// handleLinkNode processes link elements.
-func handleLinkNode(n *html.Node, content *ParsedChapterContent) {
-	link := parseLink(n)
-	if link.Href != "" && link.Text != "" {
-		content.Links = append(content.Links, link)
-	}
-}
-
-// parseHTMLNode recursively parses HTML nodes
-func parseHTMLNode(n *html.Node, content *ParsedChapterContent, depth int) {
+// walkDOM walks the DOM tree and populates the sectionBuilder.
+func walkDOM(n *html.Node, sb *sectionBuilder) {
 	if n.Type == html.ElementNode {
-		switch strings.ToLower(n.Data) {
-		case "h1", "h2", "h3", "h4", "h5", "h6":
-			handleHeadingNode(n, content)
-		case "p":
-			handleParagraphNode(n, content)
-		case "pre", "code":
-			handleCodeNode(n, content)
-		case "img":
-			handleImageNode(n, content)
-		case "a":
-			handleLinkNode(n, content)
+		if handleElement(n, sb) {
+			return
 		}
 	}
 
-	// Recursively parse child nodes
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		parseHTMLNode(c, content, depth+1)
+		walkDOM(c, sb)
+	}
+}
+
+// handleElement processes a single HTML element node.
+// Returns true if the element was handled (no further recursion needed).
+func handleElement(n *html.Node, sb *sectionBuilder) bool {
+	switch strings.ToLower(n.Data) {
+	case "h1", "h2", "h3", "h4", "h5", "h6":
+		heading := parseHeading(n)
+		if heading.Text != "" {
+			sb.startSection(heading)
+		}
+		return true
+	case "p":
+		text := strings.TrimSpace(extractTextContent(n))
+		if text != "" {
+			sb.appendContent(ParagraphElement{Type: "paragraph", Text: text})
+		}
+		return true
+	case "pre":
+		cb := parseCodeBlock(n)
+		if cb.Code != "" {
+			sb.appendContent(cb)
+		}
+		return true
+	case "img":
+		img := parseImage(n)
+		if img.Src != "" {
+			sb.appendContent(img)
+		}
+		return true
+	case "ul", "ol":
+		le := parseList(n)
+		if len(le.Items) > 0 {
+			sb.appendContent(le)
+		}
+		return true
+	case "a":
+		link := parseLinkElement(n)
+		if link.Href != "" && link.Text != "" {
+			sb.appendContent(link)
+		}
+		return true
+	default:
+		return false
 	}
 }
 
@@ -507,16 +536,23 @@ func parseHeading(n *html.Node) ContentHeading {
 	return heading
 }
 
-// parseCodeBlock parses code block elements
-func parseCodeBlock(n *html.Node) CodeBlock {
+// parseCodeBlock parses code block elements into CodeBlockElement.
+func parseCodeBlock(n *html.Node) CodeBlockElement {
 	code := extractTextContent(n)
 	language := ""
-	caption := ""
 
-	// Try to extract language from class attribute
+	// Try to extract language from class attribute of pre or child code element
 	class := getAttr(n, "class")
+	if class == "" {
+		// Check child code element for language class
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type == html.ElementNode && c.Data == "code" {
+				class = getAttr(c, "class")
+				break
+			}
+		}
+	}
 	if class != "" {
-		// Look for language patterns like "language-go", "highlight-go", etc.
 		re := regexp.MustCompile(`(?:language-|highlight-)(\w+)`)
 		matches := re.FindStringSubmatch(class)
 		if len(matches) > 1 {
@@ -524,38 +560,45 @@ func parseCodeBlock(n *html.Node) CodeBlock {
 		}
 	}
 
-	// Look for captions in nearby elements (common in O'Reilly books)
-	if n.Parent != nil && n.Parent.NextSibling != nil {
-		if n.Parent.NextSibling.Type == html.ElementNode &&
-			(strings.ToLower(n.Parent.NextSibling.Data) == "p" || hasClass(n.Parent.NextSibling, "caption")) {
-			captionText := extractTextContent(n.Parent.NextSibling)
-			if strings.Contains(strings.ToLower(captionText), "example") ||
-				strings.Contains(strings.ToLower(captionText), "listing") {
-				caption = strings.TrimSpace(captionText)
+	return CodeBlockElement{
+		Type:     "code_block",
+		Language: language,
+		Code:     strings.TrimSpace(code),
+	}
+}
+
+// parseImage parses image elements into ImageElement.
+func parseImage(n *html.Node) ImageElement {
+	return ImageElement{
+		Type: "image",
+		Src:  getAttr(n, "src"),
+		Alt:  getAttr(n, "alt"),
+	}
+}
+
+// parseList parses ul/ol elements into ListElement.
+func parseList(n *html.Node) ListElement {
+	ordered := strings.ToLower(n.Data) == "ol"
+	var items []string
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode && strings.ToLower(c.Data) == "li" {
+			text := strings.TrimSpace(extractTextContent(c))
+			if text != "" {
+				items = append(items, text)
 			}
 		}
 	}
-
-	return CodeBlock{
-		Language: language,
-		Code:     strings.TrimSpace(code),
-		Caption:  caption,
+	return ListElement{
+		Type:    "list",
+		Ordered: ordered,
+		Items:   items,
 	}
 }
 
-// parseImage parses image elements
-func parseImage(n *html.Node) ImageReference {
-	return ImageReference{
-		Src:     getAttr(n, "src"),
-		Alt:     getAttr(n, "alt"),
-		Caption: "", // Caption extraction would need more complex logic
-	}
-}
-
-// parseLink parses link elements
-func parseLink(n *html.Node) LinkReference {
+// parseLinkElement parses standalone link elements into LinkElement.
+func parseLinkElement(n *html.Node) LinkElement {
 	href := getAttr(n, "href")
-	text := extractTextContent(n)
+	text := strings.TrimSpace(extractTextContent(n))
 	linkType := "internal"
 
 	if strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
@@ -564,31 +607,12 @@ func parseLink(n *html.Node) LinkReference {
 		linkType = "anchor"
 	}
 
-	return LinkReference{
-		Href: href,
-		Text: strings.TrimSpace(text),
-		Type: linkType,
+	return LinkElement{
+		Type:     "link",
+		Href:     href,
+		Text:     text,
+		LinkType: linkType,
 	}
-}
-
-// organizeSections organizes content into sections based on headings
-func organizeSections(headings []ContentHeading, paragraphs []string, codeBlocks []CodeBlock, images []ImageReference) []ContentSection {
-	sections := []ContentSection{}
-
-	// For now, create a simple structure with one section per heading
-	// More sophisticated organization could be implemented later
-	for _, heading := range headings {
-		section := ContentSection{
-			Heading: heading,
-			Content: []any{},
-		}
-
-		// This is a simplified implementation - in practice, you'd need to
-		// associate content with the correct headings based on document structure
-		sections = append(sections, section)
-	}
-
-	return sections
 }
 
 // Utility functions
@@ -617,28 +641,15 @@ func getAttr(n *html.Node, attrName string) string {
 	return ""
 }
 
-// hasClass checks if a node has a specific CSS class
-func hasClass(n *html.Node, className string) bool {
-	class := getAttr(n, "class")
-	if class == "" {
-		return false
-	}
-
-	classes := strings.Split(class, " ")
-	for _, c := range classes {
-		if strings.TrimSpace(c) == className {
-			return true
-		}
-	}
-	return false
-}
-
-// countWords counts words in a slice of paragraphs
-func countWords(paragraphs []string) int {
+// countWordsFromSections counts words across all paragraph elements in sections.
+func countWordsFromSections(sections []ContentSection) int {
 	totalWords := 0
-	for _, paragraph := range paragraphs {
-		words := strings.Fields(paragraph)
-		totalWords += len(words)
+	for _, section := range sections {
+		for _, item := range section.Content {
+			if p, ok := item.(ParagraphElement); ok {
+				totalWords += len(strings.Fields(p.Text))
+			}
+		}
 	}
 	return totalWords
 }

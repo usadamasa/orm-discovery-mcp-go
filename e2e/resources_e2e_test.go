@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
 // TestMCPResource_BookDetails tests the book-details resource with real API.
@@ -129,17 +131,51 @@ func TestMCPResource_BookChapter(t *testing.T) {
 
 	t.Logf("Chapter: %s - %s", chapter.ChapterName, chapter.ChapterTitle)
 
-	// Verify content has substantive volume (a real chapter has many paragraphs)
-	if len(chapter.Content.Paragraphs) < 10 {
-		t.Errorf("Expected at least 10 paragraphs in a real chapter, got %d", len(chapter.Content.Paragraphs))
-	}
-
+	// Verify structured sections
 	if len(chapter.Content.Sections) < 3 {
 		t.Errorf("Expected at least 3 sections in a real chapter, got %d", len(chapter.Content.Sections))
 	}
 
-	t.Logf("Chapter has %d sections, %d paragraphs, %d code blocks",
-		len(chapter.Content.Sections),
-		len(chapter.Content.Paragraphs),
-		len(chapter.Content.CodeBlocks))
+	// TestMCPResource_BookChapter_SectionContent: at least 1 section has paragraph content
+	hasParagraph := false
+	for _, section := range chapter.Content.Sections {
+		if len(section.Content) > 0 {
+			hasParagraph = true
+			break
+		}
+	}
+	if !hasParagraph {
+		t.Error("Expected at least 1 section with non-empty content")
+	}
+
+	// TestMCPResource_BookChapter_ContentTypes: verify type discriminators in JSON
+	data, err := json.Marshal(chapter.Content)
+	if err != nil {
+		t.Fatalf("JSON marshal failed: %v", err)
+	}
+	jsonStr := string(data)
+	if !strings.Contains(jsonStr, `"type":"paragraph"`) {
+		t.Error("Expected JSON to contain type discriminator 'paragraph'")
+	}
+
+	// Verify no flat arrays in JSON output
+	for _, field := range []string{`"paragraphs"`, `"headings"`, `"code_blocks"`, `"images"`, `"links"`} {
+		if strings.Contains(jsonStr, field) {
+			t.Errorf("Expected JSON to NOT contain flat array field %s", field)
+		}
+	}
+
+	// TestMCPResource_BookChapter_DocumentOrder: Content items are known typed elements
+	for _, section := range chapter.Content.Sections {
+		for i, item := range section.Content {
+			switch item.(type) {
+			case browser.ParagraphElement, browser.CodeBlockElement, browser.ImageElement, browser.ListElement, browser.LinkElement:
+				// valid typed element
+			default:
+				t.Errorf("Section %q content[%d]: unexpected type %T", section.Heading.Text, i, item)
+			}
+		}
+	}
+
+	t.Logf("Chapter has %d sections", len(chapter.Content.Sections))
 }
