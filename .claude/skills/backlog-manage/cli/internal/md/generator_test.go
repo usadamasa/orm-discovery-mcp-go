@@ -128,3 +128,71 @@ func TestGenerateTimestamp(t *testing.T) {
 		t.Error("README missing Generated timestamp")
 	}
 }
+
+func TestGenerateSkipsWriteWhenContentUnchanged(t *testing.T) {
+	dir := t.TempDir()
+
+	// First generation
+	if err := Generate(dir); err != nil {
+		t.Fatalf("first Generate: %v", err)
+	}
+
+	// Record modtime of all generated files
+	files := []string{"README.md", "TASKS.md", "IDEAS.md", "ISSUES.md"}
+	modTimes := make(map[string]int64)
+	for _, f := range files {
+		info, err := os.Stat(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatalf("stat %s: %v", f, err)
+		}
+		modTimes[f] = info.ModTime().UnixNano()
+	}
+
+	// Second generation (JSONL unchanged, only timestamp differs)
+	if err := Generate(dir); err != nil {
+		t.Fatalf("second Generate: %v", err)
+	}
+
+	// Verify files were NOT rewritten
+	for _, f := range files {
+		info, err := os.Stat(filepath.Join(dir, f))
+		if err != nil {
+			t.Fatalf("stat %s after second gen: %v", f, err)
+		}
+		if info.ModTime().UnixNano() != modTimes[f] {
+			t.Errorf("%s was rewritten despite unchanged content", f)
+		}
+	}
+}
+
+func TestStripTimestamp(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "with timestamp",
+			input: "> Generated: 2026-03-07 12:00\n\n# Backlog Summary\n",
+			want:  "\n\n# Backlog Summary\n",
+		},
+		{
+			name:  "without timestamp",
+			input: "# Backlog Summary\n",
+			want:  "# Backlog Summary\n",
+		},
+		{
+			name:  "timestamp only",
+			input: "> Generated: 2026-03-07 12:00",
+			want:  "> Generated: 2026-03-07 12:00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripTimestamp(tt.input)
+			if got != tt.want {
+				t.Errorf("stripTimestamp(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
