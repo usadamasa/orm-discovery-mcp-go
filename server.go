@@ -163,22 +163,9 @@ func (s *Server) StartStdioServer(ctx context.Context) error {
 func (s *Server) registerHandlers() {
 	// Add search tool
 	searchTool := &mcp.Tool{
-		Name:  "oreilly_search_content",
-		Title: "Search O'Reilly Content",
-		Description: `Search O'Reilly content and return books/videos/articles with product_id for resource access.
-
-Examples:
-- "Docker containers" → books/videos about Docker (Good)
-- "Kubernetes deployment strategies" → specific topic search (Good)
-- "Python vs Go performance" → comparison search (Good)
-- "How to use Docker" → too vague, use keywords instead (Poor)
-
-Modes: bfs (default, ~2-5KB, id/title/authors only) or dfs (~50-100KB, full details).
-Rate limit: ~10 requests/minute recommended.
-Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}.
-Set format="markdown" for human-readable output.
-
-IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
+		Name:        "oreilly_search_content",
+		Title:       "Search O'Reilly Content",
+		Description: descSearchContent,
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    true,
 			DestructiveHint: ptrBool(false),
@@ -190,21 +177,9 @@ IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`,
 
 	// Add ask question tool
 	askQuestionTool := &mcp.Tool{
-		Name:  "oreilly_ask_question",
-		Title: "Ask O'Reilly Answers AI",
-		Description: `Ask technical questions to O'Reilly Answers AI and get sourced responses.
-
-Examples:
-- "How to optimize React performance with useMemo?" → specific, focused (Good)
-- "What are the best practices for Go error handling?" → practical question (Good)
-- "Compare REST vs gRPC for microservices" → comparison question (Good)
-- "Explain everything about React" → too broad (Poor)
-
-Rate limit: ~5 requests/minute recommended. Default timeout: 5 minutes.
-Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id}).
-Set format="markdown" for human-readable output.
-
-IMPORTANT: Cite sources provided in the response.`,
+		Name:        "oreilly_ask_question",
+		Title:       "Ask O'Reilly Answers AI",
+		Description: descAskQuestion,
 		Annotations: &mcp.ToolAnnotations{
 			ReadOnlyHint:    true,
 			DestructiveHint: ptrBool(false),
@@ -248,7 +223,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://book-details/{product_id}",
 			Name:        "O'Reilly Book Details",
-			Description: "Get book info (title, ISBN, description, publication date). Cite sources when referencing.",
+			Description: descResBookDetails,
 			MIMEType:    "application/json",
 		},
 		s.GetBookDetailsResource,
@@ -259,7 +234,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://book-toc/{product_id}",
 			Name:        "O'Reilly Book Table of Contents",
-			Description: "Get table of contents with chapter names and structure. Cite book title, author(s), O'Reilly Media.",
+			Description: descResBookTOC,
 			MIMEType:    "application/json",
 		},
 		s.GetBookTOCResource,
@@ -270,7 +245,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://book-chapter/{product_id}/{chapter_name}",
 			Name:        "O'Reilly Book Chapter Content",
-			Description: "Get full chapter text. CRITICAL: Cite book title, author(s), chapter title, O'Reilly Media.",
+			Description: descResBookChapter,
 			MIMEType:    "application/json",
 		},
 		s.GetBookChapterContentResource,
@@ -281,7 +256,7 @@ func (s *Server) registerResources() {
 		&mcp.Resource{
 			URI:         "oreilly://answer/{question_id}",
 			Name:        "O'Reilly Answers Response",
-			Description: "Retrieve previously generated answer by question_id. Cite sources when referencing.",
+			Description: descResAnswer,
 			MIMEType:    "application/json",
 		},
 		s.GetAnswerResource,
@@ -292,7 +267,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-details/{product_id}",
 			Name:        "O'Reilly Book Details Template",
-			Description: "Use product_id from oreilly_search_content to get book details.",
+			Description: descTmplBookDetails,
 			MIMEType:    "application/json",
 		},
 		s.GetBookDetailsResource,
@@ -302,7 +277,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-toc/{product_id}",
 			Name:        "O'Reilly Book TOC Template",
-			Description: "Use product_id from oreilly_search_content to get table of contents.",
+			Description: descTmplBookTOC,
 			MIMEType:    "application/json",
 		},
 		s.GetBookTOCResource,
@@ -312,7 +287,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://book-chapter/{product_id}/{chapter_name}",
 			Name:        "O'Reilly Book Chapter Template",
-			Description: "Use product_id and chapter_name to get chapter content.",
+			Description: descTmplBookChapter,
 			MIMEType:    "application/json",
 		},
 		s.GetBookChapterContentResource,
@@ -322,7 +297,7 @@ func (s *Server) registerResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "oreilly://answer/{question_id}",
 			Name:        "O'Reilly Answers Template",
-			Description: "Use question_id from oreilly_ask_question to retrieve the answer.",
+			Description: descTmplAnswer,
 			MIMEType:    "application/json",
 		},
 		s.GetAnswerResource,
