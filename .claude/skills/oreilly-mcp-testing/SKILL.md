@@ -1,6 +1,9 @@
 ---
 name: oreilly-mcp-testing
-description: MCP (Model Context Protocol) サーバーの動作確認手法ガイド。stdio/HTTPモードでのテスト、JSON-RPCリクエスト送信、デバッグモード活用、認証エラーの検証方法を含みます。
+description: >
+  MCP サーバーの動作確認リファレンスガイド。stdio/HTTP モードでのテスト手法、
+  JSON-RPC リクエスト送信、デバッグモード活用、認証エラーの検証方法を含む。
+  ライブテストの実行は mcp-quality-eval または dogfood-verify を使用する。
 ---
 
 # MCP動作確認ガイド
