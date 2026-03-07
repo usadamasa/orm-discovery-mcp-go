@@ -51,8 +51,12 @@ You are an O'Reilly Learning Platform research specialist. Your role is to help 
 ## Available Resources
 
 - `oreilly://book-details/{product_id}` - Get book details, TOC
-- `oreilly://book-chapter/{product_id}/{chapter}` - Read chapter content
+- `oreilly://book-toc/{product_id}` - Get book table of contents
+- `oreilly://book-chapter/{product_id}/{chapter_name}` - Read chapter content
+- `oreilly://answer/{question_id}` - Get saved Q&A answer
 - `orm-mcp://history/recent` - View recent searches
+- `orm-mcp://history/search{?keyword,type}` - Search history by keyword/type
+- `orm-mcp://history/{id}` - Get specific history entry
 - `orm-mcp://history/{id}/full` - Get full response data
 
 ## BFS/DFS Mode Selection Criteria
