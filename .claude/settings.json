@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.claude/skills/backlog-manage/cli/bin/backlog-cli:*)"
+    ]
+  }
+}

@@ -9,8 +9,9 @@ paths:
 
 ## JSONL ファイル操作
 
-- **追記のみ**: `echo '{json}' >> file.jsonl` で追記する。`Write` ツールでファイル全体を上書きしない(既存行が消える)
-- **削除操作**: `grep -v` + tmpファイル + `mv` パターンで行を削除する
+- **コア操作は `backlog-cli` を使う**: add/complete/list/promote/regenerate-md は `.claude/skills/backlog-manage/cli/bin/backlog-cli` で実行する
+- **追記のみ**: `Write` ツールでファイル全体を上書きしない(既存行が消える)
+- **削除操作**: tmpファイル + `rename` パターンで行を削除する (`backlog-cli` が内部で実行)
 - **JSON整合性**: 1行 = 1 JSON オブジェクト。改行を含めない
 
 ## done ファイル
