@@ -104,11 +104,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/book/{bookId}/:
+  /api/v2/epubs/urn:orm:book:{bookId}/:
     get:
       operationId: getBookDetails
       summary: Get detailed book information
-      description: Retrieve comprehensive metadata for a specific book
+      description: Retrieve comprehensive metadata for a specific book via v2 epubs API
       tags:
         - books
       parameters:
@@ -118,7 +118,7 @@ paths:
           description: Book ID or product ID
           schema:
             type: string
-            example: "9781098131814"
+            example: "9781098166298"
       responses:
         '200':
           description: Book details retrieved successfully
@@ -139,11 +139,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/book/{bookId}/flat-toc/:
+  /api/v2/epubs/urn:orm:book:{bookId}/table-of-contents/:
     get:
-      operationId: getBookFlatTOC
-      summary: Get flat table of contents for a book
-      description: Retrieve a flattened table of contents structure for a specific book
+      operationId: getBookTOC
+      summary: Get table of contents for a book
+      description: Retrieve the table of contents structure for a specific book via v2 API
       tags:
         - books
       parameters:
@@ -153,58 +153,18 @@ paths:
           description: Book ID or product ID
           schema:
             type: string
-            example: "9781098131814"
+            example: "9781098166298"
       responses:
         '200':
-          description: Flat table of contents retrieved successfully
+          description: Table of contents retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FlatTOCResponse'
+                type: array
+                items:
+                  $ref: '#/components/schemas/V2TOCItem'
         '404':
           description: Book not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/book/{bookId}/chapter/{chapterName}.html:
-    get:
-      operationId: getBookChapterInfo
-      summary: Get chapter information for a specific book chapter
-      description: Retrieve metadata for a specific chapter in a book
-      tags:
-        - books
-      parameters:
-        - name: bookId
-          in: path
-          required: true
-          description: Book ID or product ID
-          schema:
-            type: string
-            example: "9781098131814"
-        - name: chapterName
-          in: path
-          required: true
-          description: Chapter name from flat-toc
-          schema:
-            type: string
-            example: "preface01"
-      responses:
-        '200':
-          description: Chapter information retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ChapterInfoResponse'
-        '404':
-          description: Chapter not found
           content:
             application/json:
               schema:
@@ -499,235 +459,123 @@ components:
           type: string
           description: Creator name
 
-    Publisher:
+    BookResource:
       type: object
-      description: Publisher information
+      description: External resource associated with a book
       properties:
-        id:
-          type: integer
-          description: Publisher ID
-        name:
+        url:
           type: string
-          description: Publisher name
-        slug:
+          description: Resource URL
+        type:
           type: string
-          description: Publisher slug
-
-    Topics:
-      type: object
-      description: Topic information
-      properties:
-        name:
+          description: Resource type description
+        description:
           type: string
-          description: Topic name
-        slug:
-          type: string
-          description: Topic slug
-        score:
-          type: number
-          format: float
-          description: Topic relevance score
-        uuid:
-          type: string
-          description: Topic UUID
-        epub_identifier:
-          type: string
-          description: EPUB identifier
+          description: Resource description
 
     BookDetailResponse:
       type: object
-      description: Comprehensive book metadata
+      description: Book metadata from v2 epubs API
       properties:
-        id:
+        ourn:
           type: string
-          description: Book ID
-        url:
+          description: O'Reilly URN
+          example: "urn:orm:book:9781098166298"
+        identifier:
           type: string
-          description: Book URL
-        web_url:
-          type: string
-          description: Web URL
-        title:
-          type: string
-          description: Book title
-        description:
-          type: string
-          description: Book description
-        authors:
-          type: array
-          items:
-            $ref: '#/components/schemas/Author'
-        publishers:
-          type: array
-          items:
-            $ref: '#/components/schemas/Publisher'
+          description: Book identifier (product ID)
+          example: "9781098166298"
         isbn:
           type: string
           description: ISBN
+        url:
+          type: string
+          description: API URL for this book
+        content_format:
+          type: string
+          description: Content format
+          example: "book"
+        title:
+          type: string
+          description: Book title
+        descriptions:
+          type: object
+          description: Book descriptions keyed by MIME type
+          additionalProperties:
+            type: string
+          example:
+            text/plain: "Book description in plain text"
+            text/html: "<p>Book description in HTML</p>"
+        publication_date:
+          type: string
+          description: Publication date
+          example: "2024-12-04"
         virtual_pages:
           type: integer
           description: Number of virtual pages
-        average_rating:
-          type: number
-          format: float
-          description: Average rating
-        cover:
-          type: string
-          description: Cover image URL
-        issued:
-          type: string
-          description: Issue date
-        topics:
-          type: array
-          items:
-            $ref: '#/components/schemas/Topics'
+        page_count:
+          type: integer
+          description: Number of physical pages
         language:
           type: string
           description: Language code
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional metadata
-
-
-    TableOfContentsItem:
-      type: object
-      description: Table of contents item
-      properties:
-        id:
-          type: string
-          description: Item ID
-        title:
-          type: string
-          description: Item title
-        href:
-          type: string
-          description: Item link
-        level:
-          type: integer
-          description: Nesting level
-        parent:
-          type: string
-          description: Parent item ID
-        children:
-          type: array
-          items:
-            $ref: '#/components/schemas/TableOfContentsItem'
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional metadata
-
-    TableOfContentsResponse:
-      type: object
-      description: Table of contents response
-      properties:
-        book_id:
-          type: string
-          description: Book ID
-        book_title:
-          type: string
-          description: Book title
         table_of_contents:
+          type: string
+          description: URL to the table of contents endpoint
+        files:
+          type: string
+          description: URL to the files endpoint
+        chapters:
+          type: string
+          description: URL to the chapters endpoint
+        resources:
           type: array
+          description: External resources (errata, supplemental content)
           items:
-            $ref: '#/components/schemas/TableOfContentsItem'
-        total_chapters:
-          type: integer
-          description: Total number of chapters
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional metadata
-
-    FlatTOCResponse:
-      type: object
-      description: Flat table of contents response with all items in a single array
-      properties:
-        book_id:
-          type: string
-          description: Book ID
-          example: "9781098131814"
-        book_title:
-          type: string
-          description: Book title
-          example: "Learning Go: An Idiomatic Approach to Real-World Go Programming"
-        toc_items:
+            $ref: '#/components/schemas/BookResource'
+        tags:
           type: array
-          description: Flat list of all table of contents items
+          description: Book tags
           items:
-            $ref: '#/components/schemas/FlatTOCItem'
-        total_items:
-          type: integer
-          description: Total number of TOC items
-          example: 42
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional metadata about the flat TOC structure
-          example:
-            format: "flat"
-            api_version: "v1"
-            generated_at: "2024-01-01T00:00:00Z"
+            type: string
 
-    FlatTOCItem:
+
+
+    V2TOCItem:
       type: object
-      description: Individual item in flat table of contents
+      description: Table of contents item from v2 API (nested structure)
       properties:
-        id:
+        depth:
+          type: integer
+          description: Nesting depth (1=chapter, 2=section, etc.)
+          example: 1
+        reference_id:
           type: string
-          description: Unique identifier for the TOC item
-          example: "toc-item-1"
+          description: Reference ID in format bookId-/filename.html
+          example: "9781098166298-/ch01.html"
+        ourn:
+          type: string
+          description: O'Reilly URN for the chapter
+          example: "urn:orm:book:9781098166298:chapter:ch01.html"
+        url:
+          type: string
+          description: API URL to the epub chapter
+        fragment:
+          type: string
+          description: Fragment identifier for the section
         title:
           type: string
           description: Display title of the section/chapter
-          example: "Chapter 1: Setting Up Your Go Environment"
-        href:
-          type: string
-          description: Link or reference to the content
-          example: "/library/view/learning-go/9781098131814/ch01.html"
-        level:
-          type: integer
-          description: Hierarchical level (0=root, 1=chapter, 2=section, etc.)
-          example: 0
-          minimum: 0
-        parent:
-          type: string
-          description: Reference to parent item ID (if applicable)
-          example: "toc-item-parent"
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional information about the item
-
-    ChapterInfoResponse:
-      type: object
-      description: Chapter metadata information
-      properties:
-        book_id:
-          type: string
-          description: Book ID
-          example: "9781098131814"
-        chapter_name:
-          type: string
-          description: Chapter name identifier
-          example: "preface01"
-        chapter_title:
-          type: string
-          description: Human-readable chapter title
-          example: "Preface"
-        chapter_url:
-          type: string
-          description: URL to the chapter content
-          example: "/library/view/learning-go/9781098131814/preface01.html"
-        content_url:
-          type: string
-          description: URL to the raw chapter content
-          example: "/api/v2/epubs/urn:orm:book:9781098131814/files/preface01.html"
-        metadata:
-          type: object
-          additionalProperties: true
-          description: Additional chapter metadata
+          example: "1. Introduction to Building AI Applications with Foundation Models"
+        duration:
+          type: number
+          format: float
+          description: Estimated reading duration in seconds
+        children:
+          type: array
+          description: Child TOC items
+          items:
+            $ref: '#/components/schemas/V2TOCItem'
 
     ChapterContentResponse:
       type: object
@@ -891,15 +739,6 @@ components:
             - "internal"
             - "anchor"
           example: "external"
-
-    BookOverviewAndTOCResponse:
-      type: object
-      description: Combined book details and table of contents
-      properties:
-        book_detail:
-          $ref: '#/components/schemas/BookDetailResponse'
-        table_of_contents:
-          $ref: '#/components/schemas/TableOfContentsResponse'
 
     QuestionRequest:
       type: object

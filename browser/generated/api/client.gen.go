@@ -92,68 +92,67 @@ type Author struct {
 	Name *string `json:"name,omitempty"`
 }
 
-// BookDetailResponse Comprehensive book metadata
+// BookDetailResponse Book metadata from v2 epubs API
 type BookDetailResponse struct {
-	Authors *[]Author `json:"authors,omitempty"`
+	// Chapters URL to the chapters endpoint
+	Chapters *string `json:"chapters,omitempty"`
 
-	// AverageRating Average rating
-	AverageRating *float32 `json:"average_rating,omitempty"`
+	// ContentFormat Content format
+	ContentFormat *string `json:"content_format,omitempty"`
 
-	// Cover Cover image URL
-	Cover *string `json:"cover,omitempty"`
+	// Descriptions Book descriptions keyed by MIME type
+	Descriptions *map[string]string `json:"descriptions,omitempty"`
 
-	// Description Book description
-	Description *string `json:"description,omitempty"`
+	// Files URL to the files endpoint
+	Files *string `json:"files,omitempty"`
 
-	// Id Book ID
-	Id *string `json:"id,omitempty"`
+	// Identifier Book identifier (product ID)
+	Identifier *string `json:"identifier,omitempty"`
 
 	// Isbn ISBN
 	Isbn *string `json:"isbn,omitempty"`
 
-	// Issued Issue date
-	Issued *string `json:"issued,omitempty"`
-
 	// Language Language code
 	Language *string `json:"language,omitempty"`
 
-	// Metadata Additional metadata
-	Metadata   *map[string]interface{} `json:"metadata,omitempty"`
-	Publishers *[]Publisher            `json:"publishers,omitempty"`
+	// Ourn O'Reilly URN
+	Ourn *string `json:"ourn,omitempty"`
+
+	// PageCount Number of physical pages
+	PageCount *int `json:"page_count,omitempty"`
+
+	// PublicationDate Publication date
+	PublicationDate *string `json:"publication_date,omitempty"`
+
+	// Resources External resources (errata, supplemental content)
+	Resources *[]BookResource `json:"resources,omitempty"`
+
+	// TableOfContents URL to the table of contents endpoint
+	TableOfContents *string `json:"table_of_contents,omitempty"`
+
+	// Tags Book tags
+	Tags *[]string `json:"tags,omitempty"`
 
 	// Title Book title
-	Title  *string   `json:"title,omitempty"`
-	Topics *[]Topics `json:"topics,omitempty"`
+	Title *string `json:"title,omitempty"`
 
-	// Url Book URL
+	// Url API URL for this book
 	Url *string `json:"url,omitempty"`
 
 	// VirtualPages Number of virtual pages
 	VirtualPages *int `json:"virtual_pages,omitempty"`
-
-	// WebUrl Web URL
-	WebUrl *string `json:"web_url,omitempty"`
 }
 
-// ChapterInfoResponse Chapter metadata information
-type ChapterInfoResponse struct {
-	// BookId Book ID
-	BookId *string `json:"book_id,omitempty"`
+// BookResource External resource associated with a book
+type BookResource struct {
+	// Description Resource description
+	Description *string `json:"description,omitempty"`
 
-	// ChapterName Chapter name identifier
-	ChapterName *string `json:"chapter_name,omitempty"`
+	// Type Resource type description
+	Type *string `json:"type,omitempty"`
 
-	// ChapterTitle Human-readable chapter title
-	ChapterTitle *string `json:"chapter_title,omitempty"`
-
-	// ChapterUrl URL to the chapter content
-	ChapterUrl *string `json:"chapter_url,omitempty"`
-
-	// ContentUrl URL to the raw chapter content
-	ContentUrl *string `json:"content_url,omitempty"`
-
-	// Metadata Additional chapter metadata
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	// Url Resource URL
+	Url *string `json:"url,omitempty"`
 }
 
 // Creator Creator information
@@ -174,45 +173,6 @@ type ErrorResponse struct {
 	Error *string `json:"error,omitempty"`
 }
 
-// FlatTOCItem Individual item in flat table of contents
-type FlatTOCItem struct {
-	// Href Link or reference to the content
-	Href *string `json:"href,omitempty"`
-
-	// Id Unique identifier for the TOC item
-	Id *string `json:"id,omitempty"`
-
-	// Level Hierarchical level (0=root, 1=chapter, 2=section, etc.)
-	Level *int `json:"level,omitempty"`
-
-	// Metadata Additional information about the item
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
-
-	// Parent Reference to parent item ID (if applicable)
-	Parent *string `json:"parent,omitempty"`
-
-	// Title Display title of the section/chapter
-	Title *string `json:"title,omitempty"`
-}
-
-// FlatTOCResponse Flat table of contents response with all items in a single array
-type FlatTOCResponse struct {
-	// BookId Book ID
-	BookId *string `json:"book_id,omitempty"`
-
-	// BookTitle Book title
-	BookTitle *string `json:"book_title,omitempty"`
-
-	// Metadata Additional metadata about the flat TOC structure
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
-
-	// TocItems Flat list of all table of contents items
-	TocItems *[]FlatTOCItem `json:"toc_items,omitempty"`
-
-	// TotalItems Total number of TOC items
-	TotalItems *int `json:"total_items,omitempty"`
-}
-
 // MisoResponse The AI-generated response data
 type MisoResponse struct {
 	// Data The core answer data with content and references
@@ -226,18 +186,6 @@ type PipelineConfig struct {
 
 	// SnippetLength Length of content snippets
 	SnippetLength *int `json:"snippet_length,omitempty"`
-}
-
-// Publisher Publisher information
-type Publisher struct {
-	// Id Publisher ID
-	Id *int `json:"id,omitempty"`
-
-	// Name Publisher name
-	Name *string `json:"name,omitempty"`
-
-	// Slug Publisher slug
-	Slug *string `json:"slug,omitempty"`
 }
 
 // QuestionRequest Request to submit a question to O'Reilly Answers
@@ -402,45 +350,31 @@ type SearchDataContainer struct {
 	Products *[]RawSearchResult `json:"products,omitempty"`
 }
 
-// TableOfContentsItem Table of contents item
-type TableOfContentsItem struct {
-	Children *[]TableOfContentsItem `json:"children,omitempty"`
+// V2TOCItem Table of contents item from v2 API (nested structure)
+type V2TOCItem struct {
+	// Children Child TOC items
+	Children *[]V2TOCItem `json:"children,omitempty"`
 
-	// Href Item link
-	Href *string `json:"href,omitempty"`
+	// Depth Nesting depth (1=chapter, 2=section, etc.)
+	Depth *int `json:"depth,omitempty"`
 
-	// Id Item ID
-	Id *string `json:"id,omitempty"`
+	// Duration Estimated reading duration in seconds
+	Duration *float32 `json:"duration,omitempty"`
 
-	// Level Nesting level
-	Level *int `json:"level,omitempty"`
+	// Fragment Fragment identifier for the section
+	Fragment *string `json:"fragment,omitempty"`
 
-	// Metadata Additional metadata
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+	// Ourn O'Reilly URN for the chapter
+	Ourn *string `json:"ourn,omitempty"`
 
-	// Parent Parent item ID
-	Parent *string `json:"parent,omitempty"`
+	// ReferenceId Reference ID in format bookId-/filename.html
+	ReferenceId *string `json:"reference_id,omitempty"`
 
-	// Title Item title
+	// Title Display title of the section/chapter
 	Title *string `json:"title,omitempty"`
-}
 
-// Topics Topic information
-type Topics struct {
-	// EpubIdentifier EPUB identifier
-	EpubIdentifier *string `json:"epub_identifier,omitempty"`
-
-	// Name Topic name
-	Name *string `json:"name,omitempty"`
-
-	// Score Topic relevance score
-	Score *float32 `json:"score,omitempty"`
-
-	// Slug Topic slug
-	Slug *string `json:"slug,omitempty"`
-
-	// Uuid Topic UUID
-	Uuid *string `json:"uuid,omitempty"`
+	// Url API URL to the epub chapter
+	Url *string `json:"url,omitempty"`
 }
 
 // GetAnswerParams defines parameters for GetAnswer.
@@ -552,15 +486,6 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// GetBookDetails request
-	GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetBookChapterInfo request
-	GetBookChapterInfo(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetBookFlatTOC request
-	GetBookFlatTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// SubmitQuestionWithBody request with any body
 	SubmitQuestionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -569,47 +494,17 @@ type ClientInterface interface {
 	// GetAnswer request
 	GetAnswer(ctx context.Context, questionId string, params *GetAnswerParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetBookDetails request
+	GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetBookChapterContent request
 	GetBookChapterContent(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetBookTOC request
+	GetBookTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SearchContentV2 request
 	SearchContentV2(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*http.Response, error)
-}
-
-func (c *Client) GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBookDetailsRequest(c.Server, bookId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetBookChapterInfo(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBookChapterInfoRequest(c.Server, bookId, chapterName)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetBookFlatTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBookFlatTOCRequest(c.Server, bookId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
 }
 
 func (c *Client) SubmitQuestionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -648,8 +543,32 @@ func (c *Client) GetAnswer(ctx context.Context, questionId string, params *GetAn
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetBookDetails(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBookDetailsRequest(c.Server, bookId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetBookChapterContent(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBookChapterContentRequest(c.Server, bookId, chapterName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetBookTOC(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBookTOCRequest(c.Server, bookId)
 	if err != nil {
 		return nil, err
 	}
@@ -670,115 +589,6 @@ func (c *Client) SearchContentV2(ctx context.Context, params *SearchContentV2Par
 		return nil, err
 	}
 	return c.Client.Do(req)
-}
-
-// NewGetBookDetailsRequest generates requests for GetBookDetails
-func NewGetBookDetailsRequest(server string, bookId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "bookId", runtime.ParamLocationPath, bookId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/book/%s/", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetBookChapterInfoRequest generates requests for GetBookChapterInfo
-func NewGetBookChapterInfoRequest(server string, bookId string, chapterName string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "bookId", runtime.ParamLocationPath, bookId)
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "chapterName", runtime.ParamLocationPath, chapterName)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/book/%s/chapter/%s.html", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetBookFlatTOCRequest generates requests for GetBookFlatTOC
-func NewGetBookFlatTOCRequest(server string, bookId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "bookId", runtime.ParamLocationPath, bookId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/book/%s/flat-toc/", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
 }
 
 // NewSubmitQuestionRequest calls the generic SubmitQuestion builder with application/json body
@@ -877,6 +687,40 @@ func NewGetAnswerRequest(server string, questionId string, params *GetAnswerPara
 	return req, nil
 }
 
+// NewGetBookDetailsRequest generates requests for GetBookDetails
+func NewGetBookDetailsRequest(server string, bookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "bookId", runtime.ParamLocationPath, bookId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v2/epubs/urn:orm:book:%s/", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetBookChapterContentRequest generates requests for GetBookChapterContent
 func NewGetBookChapterContentRequest(server string, bookId string, chapterName string) (*http.Request, error) {
 	var err error
@@ -901,6 +745,40 @@ func NewGetBookChapterContentRequest(server string, bookId string, chapterName s
 	}
 
 	operationPath := fmt.Sprintf("/api/v2/epubs/urn:orm:book:%s/files/%s.html", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBookTOCRequest generates requests for GetBookTOC
+func NewGetBookTOCRequest(server string, bookId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "bookId", runtime.ParamLocationPath, bookId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v2/epubs/urn:orm:book:%s/table-of-contents/", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1118,15 +996,6 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetBookDetailsWithResponse request
-	GetBookDetailsWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookDetailsResponse, error)
-
-	// GetBookChapterInfoWithResponse request
-	GetBookChapterInfoWithResponse(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*GetBookChapterInfoResponse, error)
-
-	// GetBookFlatTOCWithResponse request
-	GetBookFlatTOCWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookFlatTOCResponse, error)
-
 	// SubmitQuestionWithBodyWithResponse request with any body
 	SubmitQuestionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitQuestionResponse, error)
 
@@ -1135,83 +1004,17 @@ type ClientWithResponsesInterface interface {
 	// GetAnswerWithResponse request
 	GetAnswerWithResponse(ctx context.Context, questionId string, params *GetAnswerParams, reqEditors ...RequestEditorFn) (*GetAnswerResponse, error)
 
+	// GetBookDetailsWithResponse request
+	GetBookDetailsWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookDetailsResponse, error)
+
 	// GetBookChapterContentWithResponse request
 	GetBookChapterContentWithResponse(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*GetBookChapterContentResponse, error)
 
+	// GetBookTOCWithResponse request
+	GetBookTOCWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookTOCResponse, error)
+
 	// SearchContentV2WithResponse request
 	SearchContentV2WithResponse(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*SearchContentV2Response, error)
-}
-
-type GetBookDetailsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *BookDetailResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetBookDetailsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetBookDetailsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetBookChapterInfoResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ChapterInfoResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetBookChapterInfoResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetBookChapterInfoResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetBookFlatTOCResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *FlatTOCResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetBookFlatTOCResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetBookFlatTOCResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
 }
 
 type SubmitQuestionResponse struct {
@@ -1263,6 +1066,30 @@ func (r GetAnswerResponse) StatusCode() int {
 	return 0
 }
 
+type GetBookDetailsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *BookDetailResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBookDetailsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBookDetailsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetBookChapterContentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1280,6 +1107,30 @@ func (r GetBookChapterContentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetBookChapterContentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetBookTOCResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]V2TOCItem
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBookTOCResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBookTOCResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1311,33 +1162,6 @@ func (r SearchContentV2Response) StatusCode() int {
 	return 0
 }
 
-// GetBookDetailsWithResponse request returning *GetBookDetailsResponse
-func (c *ClientWithResponses) GetBookDetailsWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookDetailsResponse, error) {
-	rsp, err := c.GetBookDetails(ctx, bookId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetBookDetailsResponse(rsp)
-}
-
-// GetBookChapterInfoWithResponse request returning *GetBookChapterInfoResponse
-func (c *ClientWithResponses) GetBookChapterInfoWithResponse(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*GetBookChapterInfoResponse, error) {
-	rsp, err := c.GetBookChapterInfo(ctx, bookId, chapterName, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetBookChapterInfoResponse(rsp)
-}
-
-// GetBookFlatTOCWithResponse request returning *GetBookFlatTOCResponse
-func (c *ClientWithResponses) GetBookFlatTOCWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookFlatTOCResponse, error) {
-	rsp, err := c.GetBookFlatTOC(ctx, bookId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetBookFlatTOCResponse(rsp)
-}
-
 // SubmitQuestionWithBodyWithResponse request with arbitrary body returning *SubmitQuestionResponse
 func (c *ClientWithResponses) SubmitQuestionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubmitQuestionResponse, error) {
 	rsp, err := c.SubmitQuestionWithBody(ctx, contentType, body, reqEditors...)
@@ -1364,6 +1188,15 @@ func (c *ClientWithResponses) GetAnswerWithResponse(ctx context.Context, questio
 	return ParseGetAnswerResponse(rsp)
 }
 
+// GetBookDetailsWithResponse request returning *GetBookDetailsResponse
+func (c *ClientWithResponses) GetBookDetailsWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookDetailsResponse, error) {
+	rsp, err := c.GetBookDetails(ctx, bookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBookDetailsResponse(rsp)
+}
+
 // GetBookChapterContentWithResponse request returning *GetBookChapterContentResponse
 func (c *ClientWithResponses) GetBookChapterContentWithResponse(ctx context.Context, bookId string, chapterName string, reqEditors ...RequestEditorFn) (*GetBookChapterContentResponse, error) {
 	rsp, err := c.GetBookChapterContent(ctx, bookId, chapterName, reqEditors...)
@@ -1373,6 +1206,15 @@ func (c *ClientWithResponses) GetBookChapterContentWithResponse(ctx context.Cont
 	return ParseGetBookChapterContentResponse(rsp)
 }
 
+// GetBookTOCWithResponse request returning *GetBookTOCResponse
+func (c *ClientWithResponses) GetBookTOCWithResponse(ctx context.Context, bookId string, reqEditors ...RequestEditorFn) (*GetBookTOCResponse, error) {
+	rsp, err := c.GetBookTOC(ctx, bookId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBookTOCResponse(rsp)
+}
+
 // SearchContentV2WithResponse request returning *SearchContentV2Response
 func (c *ClientWithResponses) SearchContentV2WithResponse(ctx context.Context, params *SearchContentV2Params, reqEditors ...RequestEditorFn) (*SearchContentV2Response, error) {
 	rsp, err := c.SearchContentV2(ctx, params, reqEditors...)
@@ -1380,126 +1222,6 @@ func (c *ClientWithResponses) SearchContentV2WithResponse(ctx context.Context, p
 		return nil, err
 	}
 	return ParseSearchContentV2Response(rsp)
-}
-
-// ParseGetBookDetailsResponse parses an HTTP response from a GetBookDetailsWithResponse call
-func ParseGetBookDetailsResponse(rsp *http.Response) (*GetBookDetailsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetBookDetailsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BookDetailResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetBookChapterInfoResponse parses an HTTP response from a GetBookChapterInfoWithResponse call
-func ParseGetBookChapterInfoResponse(rsp *http.Response) (*GetBookChapterInfoResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetBookChapterInfoResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ChapterInfoResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetBookFlatTOCResponse parses an HTTP response from a GetBookFlatTOCWithResponse call
-func ParseGetBookFlatTOCResponse(rsp *http.Response) (*GetBookFlatTOCResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetBookFlatTOCResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest FlatTOCResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
 }
 
 // ParseSubmitQuestionResponse parses an HTTP response from a SubmitQuestionWithResponse call
@@ -1589,6 +1311,46 @@ func ParseGetAnswerResponse(rsp *http.Response) (*GetAnswerResponse, error) {
 	return response, nil
 }
 
+// ParseGetBookDetailsResponse parses an HTTP response from a GetBookDetailsWithResponse call
+func ParseGetBookDetailsResponse(rsp *http.Response) (*GetBookDetailsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBookDetailsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BookDetailResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetBookChapterContentResponse parses an HTTP response from a GetBookChapterContentWithResponse call
 func ParseGetBookChapterContentResponse(rsp *http.Response) (*GetBookChapterContentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -1603,6 +1365,46 @@ func ParseGetBookChapterContentResponse(rsp *http.Response) (*GetBookChapterCont
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBookTOCResponse parses an HTTP response from a GetBookTOCWithResponse call
+func ParseGetBookTOCResponse(rsp *http.Response) (*GetBookTOCResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBookTOCResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []V2TOCItem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

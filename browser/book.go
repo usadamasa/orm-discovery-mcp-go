@@ -2,9 +2,7 @@ package browser
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -87,11 +85,10 @@ func (bc *BrowserClient) GetBookChapterContent(productID, chapterName string) (*
 
 // Helper functions
 
-// getBookDetails retrieves comprehensive book metadata from O'Reilly API using OpenAPI client
+// getBookDetails retrieves book metadata from O'Reilly v2 epubs API using OpenAPI client
 func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, error) {
-	slog.Debug("書籍詳細APIを呼び出しています", "product_id", productID)
+	slog.Debug("書籍詳細APIを呼び出しています (v2)", "product_id", productID)
 
-	// Create OpenAPI client with book-specific referer
 	client, err := api.NewClientWithResponses(APIEndpointBase,
 		api.WithHTTPClient(bc.httpClient),
 		api.WithRequestEditorFn(bc.CreateRequestEditor()))
@@ -99,16 +96,13 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 		return nil, fmt.Errorf("failed to create OpenAPI client: %v", err)
 	}
 
-	// 書籍詳細API呼び出し (タイムアウト付き)
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
 	defer apiCancel()
-	slog.Debug("書籍詳細APIリクエスト送信", "product_id", productID)
 	resp, err := client.GetBookDetailsWithResponse(apiCtx, productID)
 	if err != nil {
 		return nil, fmt.Errorf("書籍詳細APIエンドポイントが失敗しました: %v", err)
 	}
 
-	// Check response status
 	if resp.HTTPResponse.StatusCode != 200 {
 		return nil, fmt.Errorf("API request failed with status %d", resp.HTTPResponse.StatusCode)
 	}
@@ -117,7 +111,6 @@ func (bc *BrowserClient) getBookDetails(productID string) (*BookDetailResponse, 
 		return nil, fmt.Errorf("no valid JSON response received")
 	}
 
-	// Convert from generated API type to local type
 	bookDetail := convertAPIBookDetailToLocal(resp.JSON200)
 	slog.Info("書籍詳細取得に成功しました", "title", bookDetail.Title, "product_id", productID)
 	return bookDetail, nil
@@ -131,86 +124,48 @@ func derefString(p *string) string {
 	return ""
 }
 
-// convertAPIAuthor converts an API Author to a local Author.
-func convertAPIAuthor(a api.Author) Author {
-	return Author{Name: derefString(a.Name)}
-}
-
-// convertAPIPublisher converts an API Publisher to a local Publisher.
-func convertAPIPublisher(p api.Publisher) Publisher {
-	pub := Publisher{
-		Name: derefString(p.Name),
-		Slug: derefString(p.Slug),
-	}
-	if p.Id != nil {
-		pub.ID = *p.Id
-	}
-	return pub
-}
-
-// convertAPITopic converts an API Topics to a local Topics.
-func convertAPITopic(t api.Topics) Topics {
-	topic := Topics{
-		Name:           derefString(t.Name),
-		Slug:           derefString(t.Slug),
-		UUID:           derefString(t.Uuid),
-		EpubIdentifier: derefString(t.EpubIdentifier),
-	}
-	if t.Score != nil {
-		topic.Score = float64(*t.Score)
-	}
-	return topic
-}
-
 // convertAPIBookDetailToLocal converts from generated API BookDetailResponse to local BookDetailResponse
 func convertAPIBookDetailToLocal(apiBook *api.BookDetailResponse) *BookDetailResponse {
 	bookDetail := &BookDetailResponse{
-		ID:          derefString(apiBook.Id),
-		URL:         derefString(apiBook.Url),
-		WebURL:      derefString(apiBook.WebUrl),
-		Title:       derefString(apiBook.Title),
-		Description: derefString(apiBook.Description),
-		ISBN:        derefString(apiBook.Isbn),
-		Cover:       derefString(apiBook.Cover),
-		Issued:      derefString(apiBook.Issued),
-		Language:    derefString(apiBook.Language),
-		Metadata:    make(map[string]any),
+		OURN:            derefString(apiBook.Ourn),
+		Identifier:      derefString(apiBook.Identifier),
+		ISBN:            derefString(apiBook.Isbn),
+		URL:             derefString(apiBook.Url),
+		ContentFormat:   derefString(apiBook.ContentFormat),
+		Title:           derefString(apiBook.Title),
+		PublicationDate: derefString(apiBook.PublicationDate),
+		Language:        derefString(apiBook.Language),
 	}
 
 	if apiBook.VirtualPages != nil {
 		bookDetail.VirtualPages = *apiBook.VirtualPages
 	}
-	if apiBook.AverageRating != nil {
-		bookDetail.AverageRating = float64(*apiBook.AverageRating)
+	if apiBook.PageCount != nil {
+		bookDetail.PageCount = *apiBook.PageCount
 	}
-	if apiBook.Metadata != nil {
-		bookDetail.Metadata = *apiBook.Metadata
+	if apiBook.Descriptions != nil {
+		bookDetail.Descriptions = *apiBook.Descriptions
 	}
-
-	if apiBook.Authors != nil {
-		for _, a := range *apiBook.Authors {
-			bookDetail.Authors = append(bookDetail.Authors, convertAPIAuthor(a))
-		}
+	if apiBook.Tags != nil {
+		bookDetail.Tags = *apiBook.Tags
 	}
-	if apiBook.Publishers != nil {
-		for _, p := range *apiBook.Publishers {
-			bookDetail.Publishers = append(bookDetail.Publishers, convertAPIPublisher(p))
-		}
-	}
-	if apiBook.Topics != nil {
-		for _, t := range *apiBook.Topics {
-			bookDetail.Topics = append(bookDetail.Topics, convertAPITopic(t))
+	if apiBook.Resources != nil {
+		for _, r := range *apiBook.Resources {
+			bookDetail.Resources = append(bookDetail.Resources, BookResource{
+				URL:         derefString(r.Url),
+				Type:        derefString(r.Type),
+				Description: derefString(r.Description),
+			})
 		}
 	}
 
 	return bookDetail
 }
 
-// getBookTOC retrieves table of contents from O'Reilly API using OpenAPI client
+// getBookTOC retrieves table of contents from O'Reilly v2 API
 func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse, error) {
-	slog.Debug("目次APIを呼び出しています", "product_id", productID)
+	slog.Debug("目次APIを呼び出しています (v2)", "product_id", productID)
 
-	// Create OpenAPI client
 	client, err := api.NewClientWithResponses(APIEndpointBase,
 		api.WithHTTPClient(bc.httpClient),
 		api.WithRequestEditorFn(bc.CreateRequestEditor()))
@@ -218,114 +173,78 @@ func (bc *BrowserClient) getBookTOC(productID string) (*TableOfContentsResponse,
 		return nil, fmt.Errorf("failed to create OpenAPI client: %v", err)
 	}
 
-	// 目次API呼び出し (タイムアウト付き)
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), APIOperationTimeout)
 	defer apiCancel()
-	slog.Debug("目次APIリクエスト送信", "product_id", productID)
-
-	// Make a raw HTTP request to see the actual response structure
-	httpResp, err := client.GetBookFlatTOC(apiCtx, productID)
-	if err != nil {
-		return nil, fmt.Errorf("目次APIエンドポイントが失敗しました: %v", err)
-	}
-	defer func() {
-		if err := httpResp.Body.Close(); err != nil {
-			slog.Warn("レスポンスボディのクローズに失敗", "error", err)
-		}
-	}()
-
-	// Read the raw response body
-	bodyBytes, err := io.ReadAll(httpResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
-	}
-
-	// Check response status
-	if httpResp.StatusCode != 200 {
-		return nil, fmt.Errorf("API request failed with status %d: %s", httpResp.StatusCode, string(bodyBytes))
-	}
-
-	// Try to parse as a flat TOC array first
-	var flatTOCArray []map[string]any
-	if err := json.Unmarshal(bodyBytes, &flatTOCArray); err == nil {
-		// Convert array to our expected structure
-		return convertFlatTOCArrayToLocal(productID, flatTOCArray), nil
-	}
-
-	// If array parsing fails, try as object (同じタイムアウトコンテキストを使用)
-	apiCtx2, apiCancel2 := context.WithTimeout(context.Background(), APIOperationTimeout)
-	defer apiCancel2()
-	resp, err := client.GetBookFlatTOCWithResponse(apiCtx2, productID)
+	resp, err := client.GetBookTOCWithResponse(apiCtx, productID)
 	if err != nil {
 		return nil, fmt.Errorf("目次APIエンドポイントが失敗しました: %v", err)
 	}
 
-	// Check response status
 	if resp.HTTPResponse.StatusCode != 200 {
-		// Log the raw response body for debugging
-		slog.Error("目次API異常レスポンス", "status_code", resp.HTTPResponse.StatusCode, "response_body", string(resp.Body))
-		return nil, fmt.Errorf("API request failed with status %d", resp.HTTPResponse.StatusCode)
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.HTTPResponse.StatusCode, string(resp.Body))
 	}
 
 	if resp.JSON200 == nil {
-		// Log the raw response body for debugging
-		slog.Error("JSONレスポンス解析失敗", "response_body", string(resp.Body))
 		return nil, fmt.Errorf("no valid JSON response received")
 	}
 
-	// Convert from generated API type to local type
-	tocResponse := convertAPIFlatTOCToLocal(resp.JSON200)
-	slog.Info("目次取得に成功しました", "title", tocResponse.BookTitle, "chapter_count", tocResponse.TotalChapters)
+	tocResponse := convertV2TOCToLocal(productID, *resp.JSON200)
+	slog.Info("目次取得に成功しました", "book_id", productID, "chapter_count", tocResponse.TotalChapters)
 	return tocResponse, nil
 }
 
-// convertFlatTOCItem converts a single API TOC item to local TableOfContentsItem.
-func convertFlatTOCItem(apiItem api.FlatTOCItem) TableOfContentsItem {
-	item := TableOfContentsItem{
-		ID:     derefString(apiItem.Id),
-		Title:  derefString(apiItem.Title),
-		Href:   derefString(apiItem.Href),
-		Parent: derefString(apiItem.Parent),
+// convertV2TOCToLocal converts v2 nested TOC items to local flat TableOfContentsResponse
+func convertV2TOCToLocal(productID string, v2Items []api.V2TOCItem) *TableOfContentsResponse {
+	tocResponse := &TableOfContentsResponse{
+		BookID:          productID,
+		TableOfContents: []TableOfContentsItem{},
+		Metadata: map[string]any{
+			"extraction_method": "api_v2_toc",
+		},
 	}
-	if apiItem.Level != nil {
-		item.Level = *apiItem.Level
-	}
-	if apiItem.Metadata != nil {
-		item.Metadata = *apiItem.Metadata
-	}
-	return item
+
+	// Flatten nested TOC into a flat list
+	flattenV2TOCItems(v2Items, "", tocResponse)
+
+	tocResponse.TotalChapters = len(tocResponse.TableOfContents)
+	return tocResponse
 }
 
-// convertAPIFlatTOCToLocal converts from generated API FlatTOCResponse to local TableOfContentsResponse
-func convertAPIFlatTOCToLocal(apiTOC *api.FlatTOCResponse) *TableOfContentsResponse {
-	tocResponse := &TableOfContentsResponse{
-		Metadata: make(map[string]any),
+// flattenV2TOCItems recursively flattens nested v2 TOC items into the response
+func flattenV2TOCItems(items []api.V2TOCItem, parentID string, tocResponse *TableOfContentsResponse) {
+	for _, item := range items {
+		localItem := convertV2TOCItemToLocal(item, parentID)
+		tocResponse.TableOfContents = append(tocResponse.TableOfContents, localItem)
+
+		// Recurse into children
+		if item.Children != nil {
+			flattenV2TOCItems(*item.Children, localItem.ID, tocResponse)
+		}
+	}
+}
+
+// convertV2TOCItemToLocal converts a single v2 TOC item to local TableOfContentsItem
+func convertV2TOCItemToLocal(item api.V2TOCItem, parentID string) TableOfContentsItem {
+	localItem := TableOfContentsItem{
+		Title:  derefString(item.Title),
+		Parent: parentID,
 	}
 
-	if apiTOC.BookId != nil {
-		tocResponse.BookID = *apiTOC.BookId
-	}
-	if apiTOC.BookTitle != nil {
-		tocResponse.BookTitle = *apiTOC.BookTitle
-	}
-	if apiTOC.TotalItems != nil {
-		tocResponse.TotalChapters = *apiTOC.TotalItems
-	}
-	if apiTOC.Metadata != nil {
-		tocResponse.Metadata = *apiTOC.Metadata
-	}
-
-	// Convert TOC items
-	if apiTOC.TocItems != nil {
-		for _, apiItem := range *apiTOC.TocItems {
-			tocResponse.TableOfContents = append(tocResponse.TableOfContents, convertFlatTOCItem(apiItem))
+	// Extract href from reference_id (format: "bookId-/filename.html")
+	if item.ReferenceId != nil {
+		refID := *item.ReferenceId
+		localItem.ID = refID
+		// Extract filename part after the "-/" prefix
+		if idx := strings.Index(refID, "-/"); idx >= 0 {
+			localItem.Href = refID[idx+2:] // e.g., "ch01.html"
 		}
 	}
 
-	// Mark as extracted via API
-	tocResponse.Metadata["extraction_method"] = "api_flat_toc"
+	if item.Depth != nil {
+		localItem.Level = *item.Depth
+	}
 
-	return tocResponse
+	return localItem
 }
 
 // GetChapterHTMLContent retrieves actual HTML content from O'Reilly API via flat-toc lookup
@@ -722,57 +641,4 @@ func countWords(paragraphs []string) int {
 		totalWords += len(words)
 	}
 	return totalWords
-}
-
-// convertFlatTOCArrayToLocal converts a flat TOC array response to local TableOfContentsResponse
-func convertFlatTOCArrayToLocal(productID string, flatTOCArray []map[string]any) *TableOfContentsResponse {
-	tocResponse := &TableOfContentsResponse{
-		BookID:          productID,
-		BookTitle:       "", // Will be determined from first item or other means
-		TableOfContents: []TableOfContentsItem{},
-		TotalChapters:   len(flatTOCArray),
-		Metadata: map[string]any{
-			"extraction_method": "api_flat_toc_array",
-		},
-	}
-
-	// Convert array items to our structure
-	for i, apiItem := range flatTOCArray {
-		item := TableOfContentsItem{
-			Metadata: make(map[string]any),
-		}
-
-		if id, ok := apiItem["id"].(string); ok {
-			item.ID = id
-		} else {
-			item.ID = fmt.Sprintf("toc-item-%d", i+1)
-		}
-
-		if title, ok := apiItem["title"].(string); ok {
-			item.Title = title
-		}
-
-		if href, ok := apiItem["href"].(string); ok {
-			item.Href = href
-		}
-
-		if level, ok := apiItem["level"].(float64); ok {
-			item.Level = int(level)
-		}
-
-		if parent, ok := apiItem["parent"].(string); ok {
-			item.Parent = parent
-		}
-
-		// Copy additional metadata
-		for key, value := range apiItem {
-			if key != "id" && key != "title" && key != "href" && key != "level" && key != "parent" {
-				item.Metadata[key] = value
-			}
-		}
-
-		tocResponse.TableOfContents = append(tocResponse.TableOfContents, item)
-	}
-
-	return tocResponse
 }
