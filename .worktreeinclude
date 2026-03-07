@@ -1,0 +1,12 @@
+# O'Reilly MCP Server - worktree にコピーするファイル
+# .gitignore にもマッチするファイルのみがコピー対象になる
+
+# 環境変数
+.env
+
+# 認証 Cookie・調査履歴
+tmp/orm-mcp-go-cookies.json
+tmp/research-history.json
+
+# backlog CLI バイナリ
+.backlog/backlog-cli
