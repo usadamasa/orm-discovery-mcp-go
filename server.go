@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -110,54 +109,13 @@ func (s *Server) Close() {
 	}
 }
 
-// originValidationMiddleware は Origin ヘッダーを検証して DNS rebinding 攻撃を防ぐミドルウェア。
-//
-// 許可ルール:
-//   - Origin ヘッダーなし (ブラウザ以外のクライアント): 許可
-//   - Origin が http://localhost:* または http://127.0.0.1:*: 許可
-//   - allowedOrigins に含まれる: 許可
-//   - それ以外: 403 Forbidden
-func originValidationMiddleware(allowedOrigins []string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		if isLocalOrigin(origin) {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		if slices.Contains(allowedOrigins, origin) {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		slog.Warn("不正な Origin からのリクエストを拒否しました", "origin", origin)
-		http.Error(w, "Forbidden", http.StatusForbidden)
-	})
-}
-
-// isLocalOrigin は Origin がローカルホストからのリクエストかどうかを判定する。
-func isLocalOrigin(origin string) bool {
-	// http://localhost or http://localhost:PORT
-	if origin == "http://localhost" || strings.HasPrefix(origin, "http://localhost:") {
-		return true
-	}
-	// http://127.0.0.1 or http://127.0.0.1:PORT
-	if origin == "http://127.0.0.1" || strings.HasPrefix(origin, "http://127.0.0.1:") {
-		return true
-	}
-	return false
-}
-
 // StartStreamableHTTPServer starts the HTTP server.
 func (s *Server) StartStreamableHTTPServer(ctx context.Context, addr string) error {
 	slog.Info("HTTPサーバーを起動します", "addr", addr)
 
-	mcpHandler := mcp.NewStreamableHTTPHandler(
+	// DNS rebinding protection は go-sdk v1.4.0 の StreamableHTTPHandler が
+	// ビルトインで提供する (Host ヘッダー vs 実際のリスニングアドレスを検証)。
+	handler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {
 			return s.server
 		},
@@ -165,8 +123,6 @@ func (s *Server) StartStreamableHTTPServer(ctx context.Context, addr string) err
 			Stateless: true,
 		},
 	)
-
-	handler := originValidationMiddleware(s.config.AllowedOrigins, mcpHandler)
 
 	httpServer := &http.Server{
 		Addr:         addr,
