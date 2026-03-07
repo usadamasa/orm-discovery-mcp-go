@@ -26,7 +26,7 @@ aqua list
 |------|---------|------|
 | `go-task/task` | v3.44.0 | タスクランナー |
 | `golang/tools/goimports` | v0.34.0 | Go imports フォーマッタ |
-| `golangci/golangci-lint` | v2.1.6 | Go リンター |
+| `golangci/golangci-lint` | v2.11.1 | Go リンター |
 | `deepmap/oapi-codegen` | v2.4.1 | OpenAPI コード生成 |
 
 ## Task (Task Runner)
@@ -120,3 +120,47 @@ bin/orm-discovery-mcp-go
 ```bash
 task format
 ```
+
+## Go バージョン管理方針
+
+### Go は aqua で管理しない
+
+Go はコンパイラ、リンカ、カバレッジツール等を含む**ツールチェイン**であり、
+単体 CLI とは性質が異なる。aqua-proxy 経由で管理すると、
+`-coverprofile` 等の内部サブプロセスが PATH 上の別 Go バイナリを使用し、
+GOROOT 内ツールとのバージョン不整合を引き起こす。
+
+| 管理対象 | 方法 | 理由 |
+|----------|------|------|
+| Go 本体 | Homebrew + go.mod `toolchain` ディレクティブ | Go 1.21+ のネイティブ toolchain 管理を活用 |
+| golangci-lint, oapi-codegen 等 | aqua | スタンドアロン CLI なので proxy 経由でも問題なし |
+
+### バージョン固定の仕組み
+
+- `go.mod` の `go` ディレクティブがプロジェクトの最低 Go バージョンを宣言
+- `GOTOOLCHAIN=auto` (デフォルト) で、ローカルの Go が最低バージョン以上なら そのまま使用
+- CI では `.github/actions/setup-go/action.yml` で明示的にバージョン指定
+
+### compile version mismatch が出たら
+
+**変更を加える前に**以下の診断を実行する:
+
+```bash
+# 1. PATH 上の全 Go バイナリとバージョンを確認
+type -a go
+
+# 2. 各バイナリの実バージョン
+go version
+/opt/homebrew/bin/go version  # 等
+
+# 3. GOROOT と compile バイナリの整合性
+go env GOTOOLCHAIN GOROOT GOVERSION
+"$(go env GOTOOLDIR)/compile" -V
+
+# 4. 問題パッケージのビルドタグ確認
+go list -f '{{.GoFiles}}' ./path/to/failing/pkg
+```
+
+根本原因は PATH 上の複数 Go バイナリ間の不整合であることが多い。
+`GOTOOLCHAIN: local` や `grep -v` 等のワークアラウンドではなく、
+**Go バイナリが1つだけになるよう環境を整える**のが正しい対処。

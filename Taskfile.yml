@@ -1,8 +1,5 @@
 version: '3'
 
-env:
-  GOTOOLCHAIN: local
-
 vars:
   OREILLY_DIR: browser
   SPEC_FILE: openapi.yaml
@@ -100,7 +97,7 @@ tasks:
     generates:
       - 'coverage.out'
     cmds:
-      - go test $(go list ./... | grep -v /generated/) -v -race -coverprofile=coverage.out
+      - go test ./... -v -race -coverprofile=coverage.out
       - go tool cover -html=coverage.out -o coverage.html
 
   # === Building ===
