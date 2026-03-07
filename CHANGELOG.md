@@ -1,5 +1,27 @@
 # Changelog
 
+## [v0.0.13](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.12...v0.0.13) - 2026-03-07
+- feat: バックログ管理基盤の導入と VOC 収集の GitHub Issue 化 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/128
+- feat: デバッグモード Cookie シード機能の追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/133
+- feat: backlog-manage 自己改善ループと review-pr 機能削除 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/134
+- feat: plugin-marketplace ルール整理とエージェント定義ドリフト防止 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/139
+- fix: VOC バグ #130, #131, #132 の修正 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/140
+- chore: VOC バックログ更新と修正検証プロセスのルール化 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/141
+- feat: backlog-manage コア操作を Go CLI に置換 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/142
+- chore: go-sdk v1.4.0 派生タスクをバックログに登録 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/143
+- build(deps): bump github.com/modelcontextprotocol/go-sdk from 1.3.1 to 1.4.0 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/138
+- build(deps): bump github.com/oapi-codegen/runtime from 1.1.2 to 1.2.0 by @dependabot[bot] in https://github.com/usadamasa/orm-discovery-mcp-go/pull/136
+- chore: upgrade Go 1.25.8 and update dependencies by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/144
+- refactor: remove Go from aqua, use native toolchain management by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/145
+- refactor: remove originValidationMiddleware, rely on SDK DNS rebinding protection by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/146
+- fix: migrate Book API v1→v2 and strengthen E2E test detection by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/147
+- refactor: structured chapter content with Sections[].Content by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/148
+- chore: backlog audit infrastructure and stale handoff cleanup by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/149
+- feat: extract MCP descriptions and optimize context efficiency by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/151
+- refactor: slim down prompt descriptions for context efficiency by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/152
+- feat: add backlog audit command and quality eval skills by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/153
+- feat: mcp-quality-eval initial run and backlog:build automation by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/154
+
 ## [v0.0.12](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.11...v0.0.12) - 2026-03-01
 - feat: oreilly_search_content にページネーション対応を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/66
 - fix: HTTPバインドアドレスを127.0.0.1に修正しOrigin検証を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/68
