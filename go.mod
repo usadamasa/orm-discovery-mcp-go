@@ -6,7 +6,7 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
 	github.com/chromedp/chromedp v0.14.2
 	github.com/google/uuid v1.6.0
-	github.com/modelcontextprotocol/go-sdk v1.3.1
+	github.com/modelcontextprotocol/go-sdk v1.4.0
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.50.0
@@ -44,7 +44,7 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.3 // indirect
 	golang.org/x/mod v0.32.0 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
+	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
