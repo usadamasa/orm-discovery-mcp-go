@@ -5,6 +5,7 @@ description: >
   task ci → task install → MCP全ツール検証 → 自己PRレビュー → 結果報告。
   手動トリガー (「ドッグフーディング」「dogfood」「verify」「検証」) または
   draft-pr 後のプロアクティブ呼び出しに対応。
+  総合品質評価は mcp-quality-eval を参照。
 ---
 
 # dogfood-verify

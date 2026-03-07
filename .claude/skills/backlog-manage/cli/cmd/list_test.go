@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,9 +22,8 @@ func captureStdout(t *testing.T, fn func()) string {
 	w.Close()
 	os.Stdout = old
 
-	buf := make([]byte, 8192)
-	n, _ := r.Read(buf)
-	return string(buf[:n])
+	out, _ := io.ReadAll(r)
+	return string(out)
 }
 
 func TestRunListAll(t *testing.T) {

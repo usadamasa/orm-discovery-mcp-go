@@ -54,6 +54,49 @@ type Issue struct {
 	ResolvedAt  json.RawMessage `json:"resolved_at"`
 }
 
+// AuditEntry represents an audit/eval log entry.
+type AuditEntry struct {
+	ID           string         `json:"id"`
+	RunAt        string         `json:"run_at"`
+	Score        AuditScore     `json:"score"`
+	Findings     []AuditFinding `json:"findings"`
+	PatchActions []string       `json:"patch_actions"`
+}
+
+// AuditScore holds pass/total counts.
+type AuditScore struct {
+	Passed int `json:"passed"`
+	Total  int `json:"total"`
+}
+
+// AuditFinding represents a single check result.
+type AuditFinding struct {
+	Check   string `json:"check"`
+	Status  string `json:"status"`
+	Detail  string `json:"detail"`
+	Patched bool   `json:"patched"`
+}
+
+// NewAuditEntry creates a new AuditEntry with auto-calculated score.
+func NewAuditEntry(id string, findings []AuditFinding, patchActions []string) AuditEntry {
+	passed := 0
+	for _, f := range findings {
+		if f.Status == "pass" {
+			passed++
+		}
+	}
+	if patchActions == nil {
+		patchActions = []string{}
+	}
+	return AuditEntry{
+		ID:           id,
+		RunAt:        nowUTC(),
+		Score:        AuditScore{Passed: passed, Total: len(findings)},
+		Findings:     findings,
+		PatchActions: patchActions,
+	}
+}
+
 // NewTask creates a new Task with defaults.
 func NewTask(id, title, description, priority string, tags []string) Task {
 	if priority == "" {

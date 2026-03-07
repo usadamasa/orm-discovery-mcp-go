@@ -38,6 +38,8 @@ func main() {
 		err = cmd.RunList(dir, subArgs)
 	case "promote":
 		err = cmd.RunPromote(dir, subArgs)
+	case "audit":
+		err = cmd.RunAudit(dir, subArgs)
 	case "regenerate-md":
 		err = cmd.RunRegenerateMD(dir)
 	default:
@@ -60,5 +62,6 @@ Commands:
   complete <id>          Mark an item as done/resolved
   list [--type TYPE]     List active items
   promote                Promote an idea to task/issue
+  audit [--last] [--failures]  Show eval audit log
   regenerate-md          Regenerate markdown summaries`)
 }
