@@ -56,11 +56,25 @@ func Generate(dir string) error {
 }
 
 func writeAtomic(path, content string) error {
+	existing, err := os.ReadFile(path)
+	if err == nil && stripTimestamp(string(existing)) == stripTimestamp(content) {
+		return nil
+	}
+
 	tmpPath := path + ".tmp"
 	if err := os.WriteFile(tmpPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write %s: %w", tmpPath, err)
 	}
 	return os.Rename(tmpPath, path)
+}
+
+func stripTimestamp(s string) string {
+	if after, ok := strings.CutPrefix(s, "> Generated:"); ok {
+		if idx := strings.Index(after, "\n"); idx >= 0 {
+			return after[idx:]
+		}
+	}
+	return s
 }
 
 func generateREADME(tasks []model.Task, doneTasks []model.Task, ideas []model.Idea, doneIdeas []model.Idea, issues []model.Issue, doneIssues []model.Issue, now string) string {

@@ -32,3 +32,5 @@ go.work.sum
 
 # backlog-cli binary
 .claude/skills/backlog-manage/cli/bin/
+.backlog/backlog-cli
+.claude/skills/backlog-manage/cli/.task/
