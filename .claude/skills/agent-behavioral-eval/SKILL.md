@@ -21,11 +21,11 @@ oreilly-researcher エージェントの振る舞い規約 (BFS/DFS 選択、ワ
 ## Context
 
 - Branch: !`git branch --show-current`
-- VOC issues before: !`gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --json number --jq length 2>/dev/null || echo "N/A"`
+- VOC issues before: Pre-flight で `gh issue list` を実行して取得
 - Recent commits: !`git log --oneline -5`
-- Backlog: !`.backlog/backlog-cli list 2>/dev/null || echo "backlog-cli not available"`
-- Last eval failures: !`.backlog/backlog-cli audit --last --failures 2>/dev/null || echo "no prior eval"`
-- Key dependencies: !`grep '^\t' go.mod | grep -v '//' | head -8 || echo "N/A"`
+- Backlog: Pre-flight で `backlog-cli list` を実行して取得
+- Last eval: Pre-flight で audit-log.jsonl を確認
+- Key dependencies: Pre-flight で go.mod を確認
 
 ## Pre-flight: 認証確認
 
