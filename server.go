@@ -110,7 +110,11 @@ func (s *Server) Close() {
 	}
 }
 
-// originValidationMiddleware は Origin ヘッダーを検証して DNS rebinding 攻撃を防ぐミドルウェア。
+// originValidationMiddleware は Origin ヘッダーを検証してクロスオリジンリクエストを制御するミドルウェア。
+//
+// Note: DNS rebinding protection (Host ヘッダー検証) は go-sdk v1.4.0 の
+// StreamableHTTPHandler にビルトインされている。このミドルウェアは Origin ヘッダーの
+// 検証を担当し、ブラウザからの不正なクロスオリジンリクエストをブロックする。
 //
 // 許可ルール:
 //   - Origin ヘッダーなし (ブラウザ以外のクライアント): 許可
@@ -157,6 +161,9 @@ func isLocalOrigin(origin string) bool {
 func (s *Server) StartStreamableHTTPServer(ctx context.Context, addr string) error {
 	slog.Info("HTTPサーバーを起動します", "addr", addr)
 
+	// DNS rebinding protection は go-sdk v1.4.0 の StreamableHTTPHandler が
+	// ビルトインで提供する (Host ヘッダー vs 実際のリスニングアドレスを検証)。
+	// Origin ヘッダーの検証は originValidationMiddleware が担当する。
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {
 			return s.server
