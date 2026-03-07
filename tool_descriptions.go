@@ -47,10 +47,10 @@ const (
 // Prompt descriptions.
 
 const (
-	descPromptLearnTech  = "Generate a structured learning path for a specific technology.\n\nExample: learn-technology(technology=\"Docker\", experience_level=\"beginner\")\n\nIMPORTANT: Uses oreilly_search_content and book-details resources for learning."
-	descPromptReviewHist = "Review past research history and find related information.\n\nExample: review-history(keyword=\"docker\")\n\nWorkflow: Access orm-mcp://history/recent or search by keyword."
-	descPromptContRes    = "Continue and deepen a previous research.\n\nExample: continue-research(research_id=\"req_abc123\")\n\nWorkflow: Retrieve past research and conduct additional searches."
-	descPromptResTopic   = "Conduct multi-perspective research on a technical topic.\n\nExample: research-topic(topic=\"microservices\", depth=\"detailed\")\n\nIMPORTANT: Combines oreilly_ask_question and oreilly_search_content for comprehensive research."
-	descPromptDebugErr   = "Guide for troubleshooting and debugging errors.\n\nExample: debug-error(error_message=\"NullPointerException\", technology=\"Java\")\n\nIMPORTANT: Uses O'Reilly Answers and documentation for solutions."
-	descPromptSumHist    = "Summarize a specific research entry with full response data.\n\nExample: summarize-history(history_id=\"req_abc123\")\n\nWorkflow: Access full data via orm-mcp://history/{id}/full and generate a concise summary."
+	descPromptLearnTech  = "Generate a structured learning path for a specific technology."
+	descPromptReviewHist = "Review past research history and find related information."
+	descPromptContRes    = "Continue and deepen a previous research."
+	descPromptResTopic   = "Conduct multi-perspective research on a technical topic."
+	descPromptDebugErr   = "Guide for troubleshooting and debugging errors."
+	descPromptSumHist    = "Summarize a specific research entry with full response data."
 )
