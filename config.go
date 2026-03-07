@@ -37,8 +37,8 @@ type Config struct {
 	SamplingMaxTokens int  // Sampling時の最大トークン数、デフォルト: 500
 
 	// HTTP サーバー設定
-	BindAddress    string   // バインドアドレス、デフォルト: "127.0.0.1"
-	AllowedOrigins []string // 許可する Origin のリスト (ALLOWED_ORIGINS 環境変数、カンマ区切り)
+	BindAddress string // バインドアドレス、デフォルト: "127.0.0.1"
+
 }
 
 // envString returns the environment variable value, or defaultVal if unset.
@@ -85,20 +85,6 @@ func parseLogLevel(s string) slog.Level {
 	return level
 }
 
-// parseAllowedOrigins splits a comma-separated string into trimmed, non-empty origins.
-func parseAllowedOrigins(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var origins []string
-	for o := range strings.SplitSeq(s, ",") {
-		if trimmed := strings.TrimSpace(o); trimmed != "" {
-			origins = append(origins, trimmed)
-		}
-	}
-	return origins
-}
-
 // LoadConfig は.envファイルと環境変数から設定を読み込みます
 func LoadConfig() (*Config, error) {
 	// XDGディレクトリの解決
@@ -131,7 +117,6 @@ func LoadConfig() (*Config, error) {
 		EnableSampling:    envBool("ORM_MCP_GO_ENABLE_SAMPLING", true),
 		SamplingMaxTokens: envInt("ORM_MCP_GO_SAMPLING_MAX_TOKENS", 500, 1),
 		BindAddress:       envString("BIND_ADDRESS", "127.0.0.1"),
-		AllowedOrigins:    parseAllowedOrigins(getEnv("ALLOWED_ORIGINS")),
 	}
 
 	setupLogger(config)
