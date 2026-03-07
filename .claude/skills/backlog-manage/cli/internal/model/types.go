@@ -23,18 +23,18 @@ type Task struct {
 
 // Idea represents a backlog idea item.
 type Idea struct {
-	ID         string          `json:"id"`
-	Type       string          `json:"type"`
-	Title      string          `json:"title"`
-	Description string         `json:"description"`
-	Status     string          `json:"status"`
-	Tags       []string        `json:"tags"`
-	Source     string          `json:"source"`
-	SourceRef  json.RawMessage `json:"source_ref"`
-	PromotedTo json.RawMessage `json:"promoted_to"`
-	CreatedAt  string          `json:"created_at"`
-	CreatedBy  string          `json:"created_by"`
-	DoneAt     json.RawMessage `json:"done_at"`
+	ID          string          `json:"id"`
+	Type        string          `json:"type"`
+	Title       string          `json:"title"`
+	Description string          `json:"description"`
+	Status      string          `json:"status"`
+	Tags        []string        `json:"tags"`
+	Source      string          `json:"source"`
+	SourceRef   json.RawMessage `json:"source_ref"`
+	PromotedTo  json.RawMessage `json:"promoted_to"`
+	CreatedAt   string          `json:"created_at"`
+	CreatedBy   string          `json:"created_by"`
+	DoneAt      json.RawMessage `json:"done_at"`
 }
 
 // Issue represents a backlog issue item.
