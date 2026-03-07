@@ -64,6 +64,55 @@ func TestFormatSearchResultsMarkdown(t *testing.T) {
 	})
 }
 
+func TestFormatSearchResultsMarkdown_BrowserAuthor(t *testing.T) {
+	// Bug #132: authors が []browser.Author 型のとき、Markdown に著者名が表示されること
+	result := &SearchContentResult{
+		Count:        1,
+		Total:        1,
+		TotalResults: 1,
+		Mode:         SearchModeBFS,
+		Results: []map[string]any{
+			{
+				"id":    "123",
+				"title": "Go Programming",
+				"authors": []browser.Author{
+					{Name: "John Doe"},
+					{Name: "Jane Smith"},
+				},
+			},
+		},
+	}
+
+	md := formatSearchResultsMarkdown(result)
+
+	assert.Contains(t, md, "Go Programming")
+	assert.Contains(t, md, "John Doe", "[]browser.Author should be rendered in Markdown")
+	assert.Contains(t, md, "Jane Smith", "[]browser.Author should be rendered in Markdown")
+}
+
+func TestFormatSearchResultsMarkdown_StringAuthors(t *testing.T) {
+	// Bug #132: authors が []string 型のとき、Markdown に著者名が表示されること
+	result := &SearchContentResult{
+		Count:        1,
+		Total:        1,
+		TotalResults: 1,
+		Mode:         SearchModeBFS,
+		Results: []map[string]any{
+			{
+				"id":      "456",
+				"title":   "Rust Programming",
+				"authors": []string{"Alice", "Bob"},
+			},
+		},
+	}
+
+	md := formatSearchResultsMarkdown(result)
+
+	assert.Contains(t, md, "Rust Programming")
+	assert.Contains(t, md, "Alice", "[]string authors should be rendered in Markdown")
+	assert.Contains(t, md, "Bob", "[]string authors should be rendered in Markdown")
+}
+
 func TestFormatAskQuestionMarkdown(t *testing.T) {
 	t.Run("normal answer with sources", func(t *testing.T) {
 		result := &AskQuestionResult{

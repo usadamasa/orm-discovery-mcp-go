@@ -148,11 +148,15 @@ func (bc *BrowserClient) GetAnswer(questionID string, includeUnfinished bool) (*
 	}
 
 	// Convert generated response to our type
+	var misoData *api.AnswerData
+	if resp.JSON200.MisoResponse != nil {
+		misoData = resp.JSON200.MisoResponse.Data
+	}
 	result := &AnswerResponse{
 		QuestionID: safeStringValue(resp.JSON200.QuestionId),
 		IsFinished: safeBoolValue(resp.JSON200.IsFinished),
 		MisoResponse: MisoResponse{
-			Data: convertAnswerData(resp.JSON200.MisoResponse.Data),
+			Data: convertAnswerData(misoData),
 		},
 	}
 

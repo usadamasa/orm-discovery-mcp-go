@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
 // formatSearchResultsMarkdown formats search results as human-readable Markdown.
@@ -22,16 +24,8 @@ func formatSearchResultsMarkdown(result *SearchContentResult) string {
 		fmt.Fprintf(&b, "%d. **%s**", i+1, title)
 
 		// Authors
-		if authors, ok := r["authors"].([]any); ok && len(authors) > 0 {
-			authorStrs := make([]string, 0, len(authors))
-			for _, a := range authors {
-				if s, ok := a.(string); ok {
-					authorStrs = append(authorStrs, s)
-				}
-			}
-			if len(authorStrs) > 0 {
-				fmt.Fprintf(&b, " by %s", strings.Join(authorStrs, ", "))
-			}
+		if authorStr := extractAuthorString(r["authors"]); authorStr != "" {
+			fmt.Fprintf(&b, " by %s", authorStr)
 		}
 
 		if id != "" {
@@ -49,6 +43,37 @@ func formatSearchResultsMarkdown(result *SearchContentResult) string {
 	}
 
 	return b.String()
+}
+
+// extractAuthorSlice extracts author names as a []string from various author types.
+func extractAuthorSlice(v any) []string {
+	switch authors := v.(type) {
+	case []string:
+		return authors
+	case []browser.Author:
+		names := make([]string, 0, len(authors))
+		for _, a := range authors {
+			names = append(names, a.Name)
+		}
+		return names
+	case []any:
+		strs := make([]string, 0, len(authors))
+		for _, a := range authors {
+			if s, ok := a.(string); ok {
+				strs = append(strs, s)
+			}
+		}
+		return strs
+	}
+	return nil
+}
+
+// extractAuthorString extracts a comma-separated author string from various author types.
+func extractAuthorString(v any) string {
+	if names := extractAuthorSlice(v); len(names) > 0 {
+		return strings.Join(names, ", ")
+	}
+	return ""
 }
 
 // formatAskQuestionMarkdown formats an answer as human-readable Markdown.

@@ -82,6 +82,20 @@ func TestConvertAnswerData_WithValidData(t *testing.T) {
 	assert.Len(t, result.FollowupQuestions, 1)
 }
 
+func TestGetAnswer_NilMisoResponse(t *testing.T) {
+	// Bug #131: resp.JSON200.MisoResponse が nil のとき panic しないこと
+	// convertAnswerData に nil を渡す前に MisoResponse の nil チェックが必要
+
+	// MisoResponse フィールドが nil のケースをシミュレート
+	// GetAnswer 内で resp.JSON200.MisoResponse.Data にアクセスする際、
+	// MisoResponse が nil だと nil pointer dereference が発生する
+	var misoData *api.AnswerData
+	result := convertAnswerData(misoData)
+
+	assert.Equal(t, "", result.Answer)
+	assert.NotNil(t, result.Sources)
+}
+
 // containsNullValue checks if a JSON string contains a null value for a specific field
 func containsNullValue(jsonStr, fieldName string) bool {
 	var raw map[string]any

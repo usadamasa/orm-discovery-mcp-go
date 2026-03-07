@@ -98,6 +98,7 @@ func normalizeSearchResult(raw api.RawSearchResult, index int) map[string]any {
 
 	return map[string]any{
 		"id":             id,
+		"product_id":     id,
 		"title":          firstString(raw.Title, raw.Name, raw.DisplayTitle, raw.ProductName),
 		"authors":        extractAuthors(raw),
 		"content_type":   inferContentType(raw, itemURL),
