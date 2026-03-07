@@ -29,3 +29,6 @@ go.work.sum
 /memory-bank
 /.task/checksum
 /coverage*
+
+# backlog-cli binary
+.claude/skills/backlog-manage/cli/bin/
