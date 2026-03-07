@@ -4,6 +4,7 @@ excludeFiles:
   - "browser/generated/.*\\.go$"  # OpenAPI 生成コードはチェック対象外
   - "e2e/.*\\.go$"                # E2E テストはチェック対象外
   - ".*_test\\.go$"               # テストファイルはアーキテクチャチェック対象外
+  - "\\.claude/skills/backlog-manage/cli/.*\\.go$"  # 独立 Go モジュール (別 go.mod)
 
 vendors:
   chromedp:

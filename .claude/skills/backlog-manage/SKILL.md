@@ -8,15 +8,27 @@ user_invocable: true
 
 `.backlog/` ディレクトリのJSONLファイルを操作してバックログを管理する。
 
+コア操作は `backlog-cli` (Go CLI) で実行する。バイナリは `.claude/skills/backlog-manage/cli/bin/backlog-cli` にある。
+
 ## Context
 
 !(grep -c . .backlog/tasks.jsonl 2>/dev/null || printf "0") | xargs printf "Active tasks: %s"
 !(grep -c . .backlog/ideas.jsonl 2>/dev/null || printf "0") | xargs printf ", Active ideas: %s"
 !(grep -c . .backlog/issues.jsonl 2>/dev/null || printf "0") | xargs printf ", Active issues: %s"
 !(ls ~/.claude/projects/*/memory/SESSION_HANDOFF_*.md 2>/dev/null | wc -l | tr -d ' ' || printf "0") | xargs printf ", Handoff files: %s"
-!(gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "N/A") | xargs printf ", VOC issues: %s"
+!(gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number 2>/dev/null | jq length 2>/dev/null || echo "N/A") | xargs printf ", VOC issues: %s"
 !(ls .backlog/*.bak 2>/dev/null | wc -l | tr -d ' ' || printf "0") | xargs printf ", Backup files: %s"
 !(grep -c . .backlog/audit-log.jsonl 2>/dev/null || printf "0") | xargs printf ", Audit runs: %s"
+
+## Setup
+
+ビルド済みバイナリがない場合:
+
+```bash
+cd .claude/skills/backlog-manage/cli && go build -o bin/backlog-cli . && cd -
+```
+
+以下の `backlog-cli` コマンドはプロジェクトルートから実行する (デフォルトで `--dir .backlog` を使用)。
 
 ## Usage
 
@@ -32,7 +44,7 @@ user_invocable: true
 **任意**: priority (default: p2), tags (default: [])
 
 ```bash
-echo '{"id":"task-{YYYYMMDD}-{4hex}","type":"task","title":"{title}","description":"{description}","status":"active","priority":"{priority}","tags":{tags},"source":"manual","source_ref":null,"github_issue":null,"created_at":"{ISO8601}","created_by":"manual","updated_at":"{ISO8601}","done_at":null,"notes":""}' >> .backlog/tasks.jsonl
+.claude/skills/backlog-manage/cli/bin/backlog-cli add task --title "{title}" --description "{description}" --priority "{priority}" --tags "{tag1},{tag2}"
 ```
 
 ### `add-idea`
@@ -43,7 +55,7 @@ echo '{"id":"task-{YYYYMMDD}-{4hex}","type":"task","title":"{title}","descriptio
 **任意**: tags (default: [])
 
 ```bash
-echo '{"id":"idea-{YYYYMMDD}-{4hex}","type":"idea","title":"{title}","description":"{description}","status":"active","tags":{tags},"source":"manual","source_ref":null,"promoted_to":null,"created_at":"{ISO8601}","created_by":"manual","done_at":null}' >> .backlog/ideas.jsonl
+.claude/skills/backlog-manage/cli/bin/backlog-cli add idea --title "{title}" --description "{description}" --tags "{tag1},{tag2}"
 ```
 
 ### `add-issue`
@@ -54,7 +66,7 @@ echo '{"id":"idea-{YYYYMMDD}-{4hex}","type":"idea","title":"{title}","descriptio
 **任意**: severity (default: medium), tags (default: [])
 
 ```bash
-echo '{"id":"issue-{YYYYMMDD}-{4hex}","type":"issue","title":"{title}","description":"{description}","severity":"{severity}","status":"active","tags":{tags},"source":"manual","source_ref":null,"github_issue":null,"created_at":"{ISO8601}","created_by":"manual","resolved_at":null}' >> .backlog/issues.jsonl
+.claude/skills/backlog-manage/cli/bin/backlog-cli add issue --title "{title}" --description "{description}" --severity "{severity}" --tags "{tag1},{tag2}"
 ```
 
 ### `complete`
@@ -63,55 +75,20 @@ echo '{"id":"issue-{YYYYMMDD}-{4hex}","type":"issue","title":"{title}","descript
 
 **必須**: id (例: task-20260301-a3f2)
 
-1. IDのプレフィックスからファイルを判定 (`task-` → tasks, `idea-` → ideas, `issue-` → issues)
-2. アクティブファイルから該当行を抽出
-3. `done_at` / `resolved_at` を現在時刻に設定、`status` を `done` / `resolved` に更新
-4. doneファイルに追記
-5. アクティブファイルから該当行を削除
-
 ```bash
-# 例: タスクの完了
-LINE=$(grep '"id":"task-20260301-a3f2"' .backlog/tasks.jsonl)
-UPDATED=$(echo "$LINE" | python3 -c "
-import sys, json
-from datetime import datetime, timezone
-entry = json.loads(sys.stdin.read())
-entry['status'] = 'done'
-entry['done_at'] = datetime.now(timezone.utc).isoformat()
-print(json.dumps(entry, ensure_ascii=False))
-")
-echo "$UPDATED" >> .backlog/tasks.done.jsonl
-grep -v '"id":"task-20260301-a3f2"' .backlog/tasks.jsonl > .backlog/tasks.jsonl.tmp && mv .backlog/tasks.jsonl.tmp .backlog/tasks.jsonl
+.claude/skills/backlog-manage/cli/bin/backlog-cli complete {id}
 ```
+
+IDプレフィックスから自動的にファイルを判定し、status/done_at/resolved_at を設定してdoneファイルに移動する。
 
 ### `list`
 
 全アクティブアイテムの一覧を表示する。
 
 ```bash
-echo "=== Tasks ===" && cat .backlog/tasks.jsonl | python3 -c "
-import sys, json
-for line in sys.stdin:
-    if line.strip():
-        e = json.loads(line)
-        print(f\"  [{e.get('priority','p2')}] {e['id']}: {e['title']} ({e['status']})\")
-" 2>/dev/null || echo "  (none)"
-
-echo "=== Ideas ===" && cat .backlog/ideas.jsonl | python3 -c "
-import sys, json
-for line in sys.stdin:
-    if line.strip():
-        e = json.loads(line)
-        print(f\"  {e['id']}: {e['title']} ({e['status']})\")
-" 2>/dev/null || echo "  (none)"
-
-echo "=== Issues ===" && cat .backlog/issues.jsonl | python3 -c "
-import sys, json
-for line in sys.stdin:
-    if line.strip():
-        e = json.loads(line)
-        print(f\"  [{e['severity']}] {e['id']}: {e['title']} ({e['status']})\")
-" 2>/dev/null || echo "  (none)"
+.claude/skills/backlog-manage/cli/bin/backlog-cli list
+# タイプでフィルタ
+.claude/skills/backlog-manage/cli/bin/backlog-cli list --type task
 ```
 
 ### `promote-idea`
@@ -119,17 +96,20 @@ for line in sys.stdin:
 アイデアをタスクまたはイシューに昇格する。
 
 **必須**: idea_id, target_type (`task` or `issue`)
-**任意**: priority (default: p2、target_type が `task` の場合のみ有効)
+**任意**: priority (default: p2), severity (default: medium)
 
-1. ideas.jsonl から該当アイデアを取得
-2. 新しいタスク/イシューエントリを作成 (`source: "idea"`, `source_ref: idea_id`、priority 指定があれば反映)
-3. タスク/イシューファイルに追記
-4. アイデアの `status` を `promoted`、`promoted_to` を新IDに設定
-5. ideas.done.jsonl に移動、ideas.jsonl から削除
+```bash
+.claude/skills/backlog-manage/cli/bin/backlog-cli promote --id {idea_id} --to task --priority p1
+.claude/skills/backlog-manage/cli/bin/backlog-cli promote --id {idea_id} --to issue --severity high
+```
 
 ### `regenerate-md`
 
 MDサマリファイルを全再生成する。全コマンド実行後に自動的に呼ばれる。
+
+```bash
+.claude/skills/backlog-manage/cli/bin/backlog-cli regenerate-md
+```
 
 以下のファイルを再生成する:
 - `.backlog/README.md` - 統計サマリ
@@ -438,16 +418,13 @@ print(json.dumps({
 
 ID形式: `{type}-{YYYYMMDD}-{4桁hex}`
 
-4桁hexはランダム生成:
-```bash
-python3 -c "import random; print(f'{random.randint(0,65535):04x}')"
-```
+`backlog-cli` が自動生成する。手動での ID 生成は不要。
 
 ## Important Rules
 
 - JSONLファイルを `Write` ツールで上書きしない(既存行が消える)
-- `echo >> file.jsonl` で追記する
+- コア操作 (add/complete/list/promote/regenerate-md) は `backlog-cli` を使う
 - done ファイルは append-only(エントリを削除しない)
 - MDサマリは自動生成のため手動編集しない
 - 全操作後に `regenerate-md` を自動実行する
-- JSON文字列内の日本語は `ensure_ascii=False` で出力する
+- audit/retrospective はスキル側のロジックで実行する (backlog-cli のスコープ外)
