@@ -461,7 +461,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	if args.Format == ResponseFormatMarkdown && structured != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: formatSearchResultsMarkdown(structured)}},
-		}, nil, nil
+		}, structured, nil
 	}
 
 	return toolResult, structured, resultErr
@@ -486,10 +486,8 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 			lightweight["title"] = title
 		}
 
-		if authors, ok := result["authors"].([]any); ok && len(authors) > 0 {
-			lightweight["authors"] = authors
-		} else if authors, ok := result["authors"].([]string); ok && len(authors) > 0 {
-			lightweight["authors"] = authors
+		if names := extractAuthorSlice(result["authors"]); len(names) > 0 {
+			lightweight["authors"] = names
 		}
 
 		lightweightResults = append(lightweightResults, lightweight)
@@ -654,7 +652,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	if args.Format == ResponseFormatMarkdown {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: formatAskQuestionMarkdown(structured)}},
-		}, nil, nil
+		}, structured, nil
 	}
 
 	return nil, structured, nil

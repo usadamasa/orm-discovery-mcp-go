@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
 
 func TestExtractProductIDFromURI(t *testing.T) {
@@ -131,6 +133,47 @@ func TestExtractQuestionIDFromURI(t *testing.T) {
 				t.Errorf("extractQuestionIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestBuildBFSResponse_BrowserAuthorConversion(t *testing.T) {
+	// Bug #132: authors が []browser.Author 型のとき、BFS レスポンスに著者が含まれること
+	srv := &Server{}
+
+	results := []map[string]any{
+		{
+			"id":           "123",
+			"title":        "Go Programming",
+			"content_type": "book",
+			"authors": []browser.Author{
+				{Name: "John Doe"},
+				{Name: "Jane Smith"},
+			},
+		},
+	}
+
+	_, structured, err := srv.buildBFSResponse(results, "hist_123", 0, 1)
+
+	if err != nil {
+		t.Fatalf("buildBFSResponse failed: %v", err)
+	}
+
+	if structured == nil || len(structured.Results) == 0 {
+		t.Fatal("expected structured results")
+	}
+
+	authors, ok := structured.Results[0]["authors"]
+	if !ok {
+		t.Fatal("expected authors key in BFS result")
+	}
+
+	// 著者は文字列スライスに変換されるべき
+	authorNames, ok := authors.([]string)
+	if !ok {
+		t.Fatalf("expected []string authors, got %T", authors)
+	}
+	if len(authorNames) != 2 || authorNames[0] != "John Doe" || authorNames[1] != "Jane Smith" {
+		t.Errorf("expected [John Doe, Jane Smith], got %v", authorNames)
 	}
 }
 
