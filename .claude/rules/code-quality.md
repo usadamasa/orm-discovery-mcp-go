@@ -88,6 +88,19 @@ GitHub Actions CI パイプラインも同じ要件を強制:
 - `task ci` のすべてのタスクが PR マージの条件
 - ローカル検証で CI 失敗を防ぎ、開発を加速
 
+## VOC バグ修正時の追加検証
+
+VOC (Voice of Customer) ラベル付き Issue や `.backlog/issues.jsonl` の `voc` タグ付きエントリを修正する場合、単体テストに加えて **MCP ツール経由の実クエリ検証** を必ず実施する。
+
+**手順:**
+
+1. `task install` で修正済みバイナリをインストール
+2. `/mcp` で MCP サーバーを再起動 (古いプロセスが残るため)
+3. VOC 報告と同じクエリを MCP ツール (`oreilly_search_content`, `oreilly_ask_question`) で実行
+4. 期待する結果が返ることを確認
+
+**コミット前にこの検証が完了していない VOC 修正はタスク未完了とみなす。**
+
 ## Task Completion Checklist
 
 - [ ] コード変更を実装
@@ -95,6 +108,7 @@ GitHub Actions CI パイプラインも同じ要件を強制:
 - [ ] すべてのテストがパス
 - [ ] ビルドが成功
 - [ ] リンティングエラーなし
+- [ ] VOC 修正の場合: MCP ツール経由の実クエリ検証が完了
 - [ ] タスク完了
 
 **Remember: タスクは `task ci` がエラーなくパスして初めて完了。**

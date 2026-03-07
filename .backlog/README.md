@@ -1,9 +1,9 @@
 # Backlog Summary
 
-> Generated: 2026-03-01 (audit)
+| Type | Active | Done |
+|------|--------|------|
+| Tasks | 4 | 0 |
+| Ideas | 16 | 0 |
+| Issues | 3 | 4 |
 
-| Type | Active | Done | Total |
-|------|--------|------|-------|
-| Tasks | 0 | 0 | 0 |
-| Ideas | 16 | 0 | 16 |
-| Issues | 6 | 0 | 6 |
+*Auto-generated. Do not edit manually.*
