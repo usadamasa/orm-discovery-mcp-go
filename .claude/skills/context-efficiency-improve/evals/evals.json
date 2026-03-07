@@ -1,0 +1,64 @@
+{
+  "skill_name": "context-efficiency-improve",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "MCP の tool 説明が長すぎる気がする、トークン消費を減らしたい",
+      "expected_output": "計測レポート実行 → 説明文サイズの分析 → progressive-disclosure パターンに基づく改善提案",
+      "files": [],
+      "assertions": [
+        {
+          "type": "tool_executed",
+          "text": "task measure:context-efficiency が実行される",
+          "check": "TestContextEfficiencyReport の出力がレスポンスに含まれる"
+        },
+        {
+          "type": "content_present",
+          "text": "改善対象が具体的に特定される",
+          "check": "Tool 説明の文字数や削減候補が言及される"
+        },
+        {
+          "type": "skill_referenced",
+          "text": "mcp-tool-progressive-disclosure スキルが参照される",
+          "check": "progressive-disclosure パターンや記述ガイドラインへの言及がある"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "oreilly_search_content のレスポンスが大きすぎてコンテキストを圧迫してる",
+      "expected_output": "レスポンスサイズの計測 → BFS/DFS 比較 → 改善提案",
+      "files": [],
+      "assertions": [
+        {
+          "type": "content_present",
+          "text": "BFS と DFS のレスポンスサイズが比較される",
+          "check": "BFS ~3KB vs DFS ~16KB のようなサイズ比較が含まれる"
+        },
+        {
+          "type": "content_present",
+          "text": "具体的な改善案が提示される",
+          "check": "BFS モード推奨、history/recent スリム化、等の改善提案がある"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "context-efficiency を改善して",
+      "expected_output": "全カテゴリの計測 → 優先度付き分析 → 最もインパクトの大きい改善の提案",
+      "files": [],
+      "assertions": [
+        {
+          "type": "tool_executed",
+          "text": "計測レポートが出力される",
+          "check": "TestContextEfficiencyReport の出力がレスポンスに含まれる"
+        },
+        {
+          "type": "content_present",
+          "text": "優先度付きの改善提案がある",
+          "check": "Tool 説明 > Resource 説明 > レスポンスサイズ の優先度が示される"
+        }
+      ]
+    }
+  ]
+}

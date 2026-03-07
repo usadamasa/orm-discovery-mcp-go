@@ -18,7 +18,7 @@ func (s *Server) registerHistoryResources() {
 		&mcp.Resource{
 			URI:         "orm-mcp://history/recent",
 			Name:        "Recent Research History",
-			Description: "Get recent 20 research entries. Use to review past searches and questions.",
+			Description: descResHistRecent,
 			MIMEType:    "application/json",
 		},
 		s.GetRecentHistoryResource,
@@ -29,7 +29,7 @@ func (s *Server) registerHistoryResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "orm-mcp://history/search{?keyword,type}",
 			Name:        "Search Research History",
-			Description: "Search past research by keyword or type (search/question).",
+			Description: descTmplHistSearch,
 			MIMEType:    "application/json",
 		},
 		s.SearchHistoryResource,
@@ -40,7 +40,7 @@ func (s *Server) registerHistoryResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "orm-mcp://history/{id}",
 			Name:        "Research History Detail",
-			Description: "Get details of a specific research entry by ID.",
+			Description: descTmplHistDetail,
 			MIMEType:    "application/json",
 		},
 		s.GetHistoryDetailResource,
@@ -51,7 +51,7 @@ func (s *Server) registerHistoryResources() {
 		&mcp.ResourceTemplate{
 			URITemplate: "orm-mcp://history/{id}/full",
 			Name:        "Research History Full Response",
-			Description: "Get the full API response data for a research entry. Use with BFS mode to access complete data later.",
+			Description: descTmplHistFull,
 			MIMEType:    "application/json",
 		},
 		s.GetHistoryFullResponseResource,

@@ -1,6 +1,62 @@
+---
+name: mcp-go-sdk-practices
+description: |
+  mcp-go SDK (modelcontextprotocol/go-sdk) の実装パターン集。
+  StructuredContent、AddTool[In, Out] ジェネリクス、エラーハンドリング、
+  ToolAnnotations、outputSchema 自動生成、移行チェックリストを提供する。
+  「StructuredContent が空」「AddTool の使い方」「Out 型の設計」
+  「mcp-go の書き方」「SDK移行」「ToolAnnotations の設定」等、
+  mcp-go SDK の実装に関する依頼を受けたときに使用する。
+---
+
 # mcp-go-sdk-practices
 
 modelcontextprotocol/go-sdk (mcp-go) を使用したMCPサーバー実装のベストプラクティス集。
+
+---
+
+## ToolAnnotations
+
+### 概要
+
+`ToolAnnotations` はツールの振る舞いを構造化ヒントとして宣言する。description に `"read-only"` `"destructive"` と自然言語で書く代わりに使う。
+
+### フィールド
+
+| フィールド | デフォルト | 説明 |
+|-----------|-----------|------|
+| `ReadOnlyHint` | `false` | `true`: 状態を変更しない |
+| `DestructiveHint` | `true` (ReadOnly=false時) | `false`: 非破壊的操作 |
+| `IdempotentHint` | `false` | `true`: 同一引数で再実行しても結果同じ |
+| `OpenWorldHint` | `true` | `false`: 外部システムに影響しない |
+
+### 実装例
+
+```go
+searchTool := &mcp.Tool{
+    Name:        "search_content",
+    Title:       "Search Content",
+    Description: "Search content and return items with product_id for resource access.",
+    Annotations: &mcp.ToolAnnotations{
+        ReadOnlyHint:    true,
+        DestructiveHint: ptrBool(false),
+        IdempotentHint:  true,
+        OpenWorldHint:   ptrBool(true),
+    },
+}
+
+// ヘルパー
+func ptrBool(b bool) *bool { return &b }
+```
+
+### description との使い分け
+
+| 表現したい内容 | 使う場所 |
+|---------------|---------|
+| 読み取り専用 / 破壊的 / 冪等 | `ToolAnnotations` |
+| ツールが何をするか (目的) | `description` |
+| パラメータの詳細 | `inputSchema` (jsonschema タグ) |
+| 出力の構造 | `outputSchema` (AddTool[In,Out]) |
 
 ---
 

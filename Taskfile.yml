@@ -241,6 +241,11 @@ tasks:
       - go mod tidy
       - go mod download
 
+  measure:context-efficiency:
+    desc: コンテキスト効率メトリクスを測定・表示する
+    cmds:
+      - go test -v -run TestContextEfficiencyReport ./...
+
   check:
     desc: コードの基本チェック
     deps: [format, lint]
