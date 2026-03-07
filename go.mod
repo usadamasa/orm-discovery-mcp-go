@@ -1,6 +1,6 @@
 module github.com/usadamasa/orm-discovery-mcp-go
 
-go 1.24.3
+go 1.25.0
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20250724212937-08a3db8b4327
@@ -9,7 +9,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.4.0
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
