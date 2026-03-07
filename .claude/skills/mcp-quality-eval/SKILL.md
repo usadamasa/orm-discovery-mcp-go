@@ -19,7 +19,7 @@ user_invocable: true
 - Git status: !`git status --short | head -5`
 - MCP tools registered: !`grep -c 'mcp.AddTool' server.go 2>/dev/null || echo "N/A"`
 - Backlog items: !`wc -l .backlog/tasks.jsonl .backlog/ideas.jsonl .backlog/issues.jsonl 2>/dev/null | tail -1 || echo "N/A"`
-- MEMORY.md lines: !`wc -l < "$(echo ~/.claude/projects/*/memory/MEMORY.md | head -1)" 2>/dev/null || echo "N/A"`
+- MEMORY.md lines: !`wc -l ~/.claude/projects/*/memory/MEMORY.md 2>/dev/null | tail -1 || echo "N/A"`
 
 ## Phase 0: Pre-flight
 
@@ -163,7 +163,7 @@ head -40 plugins/agents/oreilly-researcher.md
 MEMORY.md の行数を確認:
 
 ```bash
-wc -l < "$(echo ~/.claude/projects/*/memory/MEMORY.md | head -1)"
+wc -l ~/.claude/projects/*/memory/MEMORY.md 2>/dev/null | tail -1
 ```
 
 - PASS: 200 行未満
