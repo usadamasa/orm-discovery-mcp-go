@@ -91,6 +91,10 @@ Generated Prompts:
 | 軽量レスポンス | 結果が id/title/authors のみ (description/chapters 等なし) | L3 |
 | book-details チェーン | search 後に `oreilly://book-details/{product_id}` にアクセスした | L4 |
 
+### 検証方法: Research History による裏付け
+
+subagent 出力のテキスト分析に加え、`orm-mcp://history/recent` を読み取り、直近エントリの `parameters.mode` と `tool_name` を確認する。また、subagent 出力に `### Tool Usage Log` セクションがあれば照合する。
+
 ### 判定
 
 - 3/3 → PASS
@@ -111,9 +115,19 @@ Generated Prompts:
 | 比較分析出力 | Summary Template のマーカー (`## Research Summary`, `### Key Findings`) が出力に含まれる | - |
 | MEMORY 更新 | 実行後の MEMORY.md 行数が Pre-flight 記録より増加、または新しいエントリ (日付・トピック) が追加されている | L6 |
 
+### 検証方法: Research History による裏付け
+
+subagent 出力のテキスト分析だけでは tool パラメータを確定できない。以下の手順で裏付けを取る:
+
+1. シナリオ実行後に `orm-mcp://history/recent` リソースを読み取る
+2. 直近エントリの `parameters.mode` フィールドを確認する
+3. `type: "search"` かつ `parameters.mode: "dfs"` のエントリが存在すれば DFS 使用を確定
+
+また、subagent 出力に `### Tool Usage Log` セクションが含まれる場合、その内容と Research History を照合する。
+
 ### 判定
 
-- DFS 使用 → 必須 (不使用で FAIL)
+- DFS 使用 (Research History で確認) → 必須 (不使用で FAIL)
 - 比較分析 + MEMORY 更新 → PASS、片方のみ → WARN
 
 ## Scenario B3: Q&A Workflow + Citation
@@ -130,9 +144,19 @@ Generated Prompts:
 | search フォローアップ | ask_question 後に `oreilly_search_content` が呼ばれた | L5 |
 | Citation 形式 | `[Title] by [Author(s)], O'Reilly Media` の形式で引用が含まれる | - |
 
+### 検証方法: Research History による裏付け
+
+subagent 出力のテキスト分析だけでは ask_question の呼び出しを確定できない。以下の手順で裏付けを取る:
+
+1. シナリオ実行後に `orm-mcp://history/recent` リソースを読み取る
+2. 直近エントリに `type: "question"` (`tool_name: "oreilly_ask_question"`) が存在するか確認
+3. `type: "question"` のタイムスタンプが `type: "search"` より前であれば ask→search チェーン成立
+
+また、subagent 出力に `### Tool Usage Log` セクションが含まれる場合、その内容と Research History を照合する。
+
 ### 判定
 
-- ask_question → search チェーン成立 + Citation あり → PASS
+- ask_question → search チェーン成立 (Research History で確認) + Citation あり → PASS
 - チェーン成立だが Citation なし → WARN
 - ask_question 未使用 → FAIL
 

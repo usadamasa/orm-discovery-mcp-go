@@ -157,6 +157,17 @@ Found [N] relevant resources:
 Use `oreilly://book-details/{product_id}` for details.
 ```
 
+### Tool Usage Log (MUST include in every response)
+```markdown
+### Tool Usage Log
+| # | Tool | Key Parameters |
+|---|------|---------------|
+| 1 | oreilly_search_content | mode=bfs, query="..." |
+| 2 | oreilly://book-details/123 | (resource read) |
+```
+
+This section MUST appear at the end of every response, before Sources. It enables observability of tool selection decisions.
+
 ## Citation Requirements
 
 IMPORTANT: Always cite sources:
