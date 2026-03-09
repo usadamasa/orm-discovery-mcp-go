@@ -40,6 +40,8 @@ func main() {
 		err = cmd.RunPromote(dir, subArgs)
 	case "audit":
 		err = cmd.RunAudit(dir, subArgs)
+	case "retrospective":
+		err = cmd.RunRetrospective(dir, subArgs)
 	case "regenerate-md":
 		err = cmd.RunRegenerateMD(dir)
 	default:
@@ -63,5 +65,7 @@ Commands:
   list [--type TYPE]     List active items
   promote                Promote an idea to task/issue
   audit [--last] [--failures]  Show eval audit log
+  audit log-entry              Write audit log entry
+  retrospective [--last N]     Analyze audit history
   regenerate-md          Regenerate markdown summaries`)
 }

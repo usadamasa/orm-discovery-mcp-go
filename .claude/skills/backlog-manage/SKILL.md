@@ -138,13 +138,6 @@ MDサマリファイルを全再生成する。全コマンド実行後に自動
 4. MD サマリ同期
 5. 未追跡ハンドオフ
 
-以下のチェックはスキル側で手動実行する (外部ツール依存):
-
-```bash
-# 未連携 GH Issues (VOC ラベル)
-gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number,title 2>/dev/null || echo "N/A"
-```
-
 #### Phase 2: Diff (ギャップ検出)
 
 Phase 1 の結果から以下のギャップを検出する。
@@ -159,13 +152,7 @@ Phase 1 の結果から以下のギャップを検出する。
 | MEMORY 重複 | `memory_duplicates` | 同一テキストブロックが 2 回以上出現 |
 | MD サマリ | `md_summaries` | MD サマリが JSONL と同期していない |
 
-GH Issue 連携チェック (スキル実行時に手動で行う):
-
-```bash
-gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number,title 2>/dev/null || echo "N/A"
-```
-
-取得した GH Issue 番号と `.backlog/issues.jsonl` の `github_issue` フィールドを照合し、未連携のものを検出する。
+全 7 チェックは `backlog-cli audit --run` で自動実行される。`gh` コマンド未インストール時は `unlinked_gh_issues` が skip (pass) となる。
 
 #### Phase 3: Report (構造化レポート)
 
@@ -210,23 +197,11 @@ Phase 1-5 の実行結果を `.backlog/audit-log.jsonl` に追記する。チェ
 
 ```bash
 # audit-log エントリの生成と追記
-# {PASSED_COUNT}, {TOTAL_COUNT} は Phase 3 の実際の値で置換する
-# {FINDINGS} は Phase 1-2 の各チェック結果から構築する
-# {PATCH_ACTIONS} は Phase 4 で実行した修正アクションの説明文で構築する
-python3 -c "
-import json, random
-from datetime import datetime, timezone
-
-now = datetime.now(timezone.utc)
-entry = {
-    'id': f'audit-{now.strftime(\"%Y%m%d\")}-{random.randint(0,65535):04x}',
-    'run_at': now.isoformat(),
-    'score': {'passed': {PASSED_COUNT}, 'total': {TOTAL_COUNT}},
-    'findings': {FINDINGS},
-    'patch_actions': {PATCH_ACTIONS}
-}
-print(json.dumps(entry, ensure_ascii=False))
-" >> .backlog/audit-log.jsonl
+# {FINDINGS_JSON} は Phase 1-2 の各チェック結果の JSON 配列
+# {PATCH_ACTIONS_JSON} は Phase 4 で実行した修正アクションの JSON 配列
+backlog-cli audit log-entry \
+  --findings '{FINDINGS_JSON}' \
+  --patch-actions '{PATCH_ACTIONS_JSON}'
 ```
 
 **findings の各要素**: `{'check': '<check_key>', 'status': 'pass'|'fail', 'detail': '...', 'patched': true|false}`
@@ -247,67 +222,19 @@ audit-log.jsonl を分析し、管理手法の改善提案を生成する。`aud
 
 **引数**: `--last N` (default: 10、対象とする直近の audit 回数)
 
-#### Step 1: ログ読み込み
+#### Step 1-2: ログ読み込みとパターン分析
+
+`backlog-cli retrospective` コマンドがログ読み込みとパターン分析を一括実行する。
 
 ```bash
-# 直近 N 件の audit-log を読み込む (N はユーザー指定、デフォルト 10)
-tail -n 10 .backlog/audit-log.jsonl 2>/dev/null
+# テキスト出力 (人間向け)
+backlog-cli retrospective --last 10
+
+# JSON 出力 (スキル内処理向け)
+backlog-cli retrospective --last 10 --json
 ```
 
-ログが存在しない、または空の場合は「audit-log.jsonl が見つかりません。先に `/backlog-manage audit` を実行してください」と報告して終了する。
-
-#### Step 2: パターン分析
-
-読み込んだログに対して以下の 4 つの指標を分析する。`check` の値は Phase 2 テーブルの `check_key` カラムを参照。
-
-```bash
-# パターン分析テンプレート
-python3 -c "
-import json, sys
-from collections import Counter
-
-entries = []
-for line in sys.stdin:
-    if line.strip():
-        entries.append(json.loads(line))
-
-if not entries:
-    print('No audit logs found')
-    sys.exit(0)
-
-# 再発チェック: 同一 check が 3 回以上 fail
-fail_counts = Counter()
-unpatched_counts = Counter()
-for e in entries:
-    for f in e.get('findings', []):
-        if f['status'] == 'fail':
-            fail_counts[f['check']] += 1
-            if not f.get('patched', False):
-                unpatched_counts[f['check']] += 1
-
-recurring = {k: v for k, v in fail_counts.items() if v >= 3}
-
-# スコア推移
-scores = [e['score'] for e in entries if 'score' in e]
-
-# 全パス判定
-all_pass_streak = 0
-for e in reversed(entries):
-    s = e.get('score', {})
-    if s.get('passed') == s.get('total') and s.get('total', 0) > 0:
-        all_pass_streak += 1
-    else:
-        break
-
-print(json.dumps({
-    'recurring': recurring,
-    'unpatched': dict(unpatched_counts),
-    'scores': scores,
-    'all_pass_streak': all_pass_streak,
-    'total_runs': len(entries)
-}, ensure_ascii=False, indent=2))
-"
-```
+ログが存在しない場合は stderr に「no audit entries」と出力する。
 
 | 指標 | 検出ロジック | 改善提案 |
 |------|-------------|---------|

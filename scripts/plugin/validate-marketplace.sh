@@ -4,8 +4,8 @@ set -euo pipefail
 # マーケットプレイスとプラグイン設定の統合検証を行う。
 
 printf '=== JSON形式検証 ===\n'
-python3 -m json.tool < .claude-plugin/marketplace.json > /dev/null && printf '✓ marketplace.json は有効なJSON形式です\n'
-python3 -m json.tool < .claude-plugin/plugin.json > /dev/null && printf '✓ plugin.json は有効なJSON形式です\n'
+jq . .claude-plugin/marketplace.json > /dev/null && printf '✓ marketplace.json は有効なJSON形式です\n'
+jq . .claude-plugin/plugin.json > /dev/null && printf '✓ plugin.json は有効なJSON形式です\n'
 
 printf '\n=== 必須フィールド検証 ===\n'
 if grep -q '"name"' .claude-plugin/marketplace.json && \
@@ -18,9 +18,9 @@ else
 fi
 
 printf '\n=== バージョン同期検証 ===\n'
-MARKETPLACE_VER=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['metadata']['version'])")
+MARKETPLACE_VER=$(jq -r '.metadata.version' .claude-plugin/marketplace.json)
 readonly MARKETPLACE_VER
-PLUGINS_VER=$(python3 -c "import json; print(json.load(open('.claude-plugin/marketplace.json'))['plugins'][0]['version'])")
+PLUGINS_VER=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
 readonly PLUGINS_VER
 if [ "$MARKETPLACE_VER" = "$PLUGINS_VER" ]; then
   printf '✓ バージョンが同期しています: %s\n' "$MARKETPLACE_VER"
@@ -30,7 +30,7 @@ else
 fi
 
 printf '\n=== エージェント定義検証 ===\n'
-for agent in $(python3 -c "import json; agents=json.load(open('.claude-plugin/plugin.json')).get('agents',[]); [print(a) for a in agents]"); do
+for agent in $(jq -r '.agents // [] | .[]' .claude-plugin/plugin.json); do
   if [ ! -f "$agent" ]; then
     printf '✗ エージェントファイルが見つかりません: %s\n' "$agent"
     exit 1
@@ -44,9 +44,9 @@ for agent in $(python3 -c "import json; agents=json.load(open('.claude-plugin/pl
 done
 
 printf '\n=== MCP サーバー設定検証 ===\n'
-if python3 -c "import json; servers=json.load(open('.claude-plugin/plugin.json')).get('mcpServers',{}); exit(0 if servers else 1)" 2>/dev/null; then
+if jq -e '.mcpServers | length > 0' .claude-plugin/plugin.json > /dev/null 2>&1; then
   printf '⚠ MCP サーバーが設定されています。バイナリが PATH 上にあることを確認してください\n'
-  python3 -c "import json; servers=json.load(open('.claude-plugin/plugin.json')).get('mcpServers',{}); [print(f'  - {k}: {v.get(\"command\",\"\")}') for k,v in servers.items()]"
+  jq -r '.mcpServers | to_entries[] | "  - \(.key): \(.value.command // "")"' .claude-plugin/plugin.json
 fi
 
 printf '\n=== セキュリティ検証 ===\n'
