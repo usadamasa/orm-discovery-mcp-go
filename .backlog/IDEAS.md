@@ -1,4 +1,4 @@
-> Generated: 2026-03-07 15:14
+> Generated: 2026-03-09 12:56
 
 # Ideas
 
@@ -21,3 +21,4 @@
 | idea-20260301-r8s7 | 調査セッション継続性向上 | analytics, track-a-reinterpret | active |
 | idea-20260307-7196 | history/recent スリム化 | context-efficiency, performance | active |
 | idea-20260307-4bfa | MCP Prompts が Claude Code で利用可能になったら func_prompts を SKIP から通常テストに戻す | quality-eval, mcp-prompts | active |
+| idea-20260309-c7bb | 統合テストでサーバーログのエラーチェックを行う | testing, observability | active |

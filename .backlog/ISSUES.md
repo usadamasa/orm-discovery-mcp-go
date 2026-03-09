@@ -1,4 +1,4 @@
-> Generated: 2026-03-07 15:56
+> Generated: 2026-03-09 12:56
 
 # Issues
 
@@ -6,7 +6,8 @@
 
 | ID | Title | Tags | GH Issue |
 |----|-------|------|----------|
-| - | - | - | - |
+| issue-20260307-bc8d | oreilly-researcher: 比較リクエストで DFS モードが選択されない | quality-eval, agent-behavior, server-side | - |
+| issue-20260307-e4f6 | oreilly-researcher: Q&Aプロンプトで oreilly_ask_question が呼び出されない | quality-eval, agent-behavior, server-side | - |
 
 ## Medium
 
@@ -24,6 +25,4 @@
 | ID | Title | Tags | GH Issue |
 |----|-------|------|----------|
 | issue-20260301-ee96 | refactor-auth-code: パスワード認証廃止PRの作成とマージ | auth, refactor, handoff | - |
-| issue-20260307-bc8d | oreilly-researcher: 比較リクエストで DFS モードが選択されない | quality-eval, agent-behavior | - |
-| issue-20260307-e4f6 | oreilly-researcher: Q&Aプロンプトで oreilly_ask_question が呼び出されない | quality-eval, agent-behavior | - |
 
