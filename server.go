@@ -344,6 +344,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 
 	// Prepare options for BrowserClient
 	options := map[string]any{
+		"mode":          mode,
 		"rows":          args.Rows,
 		"offset":        args.Offset,
 		"languages":     args.Languages,
