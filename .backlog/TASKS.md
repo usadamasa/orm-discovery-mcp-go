@@ -1,4 +1,4 @@
-> Generated: 2026-03-07 11:03
+> Generated: 2026-03-09 12:59
 
 # Tasks
 
@@ -6,7 +6,7 @@
 
 | ID | Title | Tags | Source |
 |----|-------|------|--------|
-| - | - | - | - |
+| task-20260309-8e11 | search レスポンスのファイル保存 + 遅延読み込みアーキテクチャ | architecture, context-efficiency, search | manual |
 
 ## P2
 
