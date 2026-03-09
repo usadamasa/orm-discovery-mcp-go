@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/usadamasa/backlog-cli/internal/md"
@@ -13,6 +17,11 @@ import (
 )
 
 func RunAudit(dir string, args []string) error {
+	// Check for log-entry subcommand
+	if len(args) > 0 && args[0] == "log-entry" {
+		return runLogEntry(dir, args[1:])
+	}
+
 	fs := flag.NewFlagSet("audit", flag.ContinueOnError)
 	last := fs.Bool("last", true, "Show only the latest entry")
 	failures := fs.Bool("failures", false, "Show only fail/warn findings")
@@ -80,8 +89,11 @@ func runHealthChecks(dir string) []model.AuditFinding {
 	// 4. md_summaries
 	findings = append(findings, checkMDSummaries(dir))
 
-	// 5. untracked_handoffs
-	findings = append(findings, checkUntrackedHandoffs())
+	// 5. unlinked_gh_issues
+	findings = append(findings, checkUnlinkedGHIssues(dir))
+
+	// 6. memory_duplicates
+	findings = append(findings, checkMemoryDuplicates())
 
 	return findings
 }
@@ -160,18 +172,150 @@ func checkMDSummaries(dir string) model.AuditFinding {
 	return model.AuditFinding{Check: "md_summaries", Status: "pass", Detail: "MD summaries regenerated"}
 }
 
-func checkUntrackedHandoffs() model.AuditFinding {
+type execFunc func(args ...string) ([]byte, error)
+
+func defaultGHExec(args ...string) ([]byte, error) {
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		return nil, err
+	}
+	return exec.Command(ghPath, args...).Output()
+}
+
+func checkUnlinkedGHIssues(dir string) model.AuditFinding {
+	return checkUnlinkedGHIssuesWithExec(dir, defaultGHExec)
+}
+
+func checkUnlinkedGHIssuesWithExec(dir string, ghExec execFunc) model.AuditFinding {
+	output, err := ghExec("issue", "list", "-R", "usadamasa/orm-discovery-mcp-go", "--label", "voc", "--json", "number,title")
+	if err != nil {
+		return model.AuditFinding{Check: "unlinked_gh_issues", Status: "pass", Detail: "gh unavailable, skip"}
+	}
+
+	var ghIssues []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+	}
+	if err := json.Unmarshal(output, &ghIssues); err != nil {
+		return model.AuditFinding{Check: "unlinked_gh_issues", Status: "pass", Detail: fmt.Sprintf("gh output parse error, skip: %v", err)}
+	}
+
+	if len(ghIssues) == 0 {
+		return model.AuditFinding{Check: "unlinked_gh_issues", Status: "pass", Detail: "no voc issues on GitHub"}
+	}
+
+	// Read issues.jsonl and collect linked github_issue numbers
+	issues, err := store.ReadAll[model.Issue](filepath.Join(dir, "issues.jsonl"))
+	if err != nil {
+		return model.AuditFinding{Check: "unlinked_gh_issues", Status: "pass", Detail: fmt.Sprintf("issues.jsonl read error, skip: %v", err)}
+	}
+
+	linkedNumbers := make(map[int]bool)
+	for _, iss := range issues {
+		var num int
+		if err := json.Unmarshal(iss.GitHubIssue, &num); err == nil && num > 0 {
+			linkedNumbers[num] = true
+		}
+	}
+
+	var unlinked []string
+	for _, gh := range ghIssues {
+		if !linkedNumbers[gh.Number] {
+			unlinked = append(unlinked, fmt.Sprintf("#%d", gh.Number))
+		}
+	}
+
+	if len(unlinked) > 0 {
+		return model.AuditFinding{Check: "unlinked_gh_issues", Status: "warn", Detail: fmt.Sprintf("%d unlinked GH issues: %s", len(unlinked), strings.Join(unlinked, ", "))}
+	}
+	return model.AuditFinding{Check: "unlinked_gh_issues", Status: "pass", Detail: "all GH voc issues linked"}
+}
+
+func checkMemoryDuplicates() model.AuditFinding {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return model.AuditFinding{Check: "untracked_handoffs", Status: "pass", Detail: "cannot determine home dir, skipped"}
+		return model.AuditFinding{Check: "memory_duplicates", Status: "pass", Detail: "cannot determine home dir, skip"}
 	}
-	pattern := filepath.Join(home, ".claude", "projects", "*", "memory", "SESSION_HANDOFF_*.md")
-	matches, err := filepath.Glob(pattern)
+	memoryPath := filepath.Join(home, ".claude", "projects", "*", "memory", "MEMORY.md")
+	matches, err := filepath.Glob(memoryPath)
+	if err != nil || len(matches) == 0 {
+		return model.AuditFinding{Check: "memory_duplicates", Status: "pass", Detail: "no MEMORY.md files found, skip"}
+	}
+
+	var allDuplicates []string
+	for _, m := range matches {
+		finding := checkMemoryDuplicatesFile(m)
+		if finding.Status == "warn" {
+			allDuplicates = append(allDuplicates, finding.Detail)
+		}
+	}
+
+	if len(allDuplicates) > 0 {
+		return model.AuditFinding{Check: "memory_duplicates", Status: "warn", Detail: strings.Join(allDuplicates, "; ")}
+	}
+	return model.AuditFinding{Check: "memory_duplicates", Status: "pass", Detail: "no duplicate sections in MEMORY.md"}
+}
+
+func checkMemoryDuplicatesFile(path string) model.AuditFinding {
+	f, err := os.Open(path)
 	if err != nil {
-		return model.AuditFinding{Check: "untracked_handoffs", Status: "pass", Detail: "glob error, skipped"}
+		return model.AuditFinding{Check: "memory_duplicates", Status: "pass", Detail: fmt.Sprintf("cannot read %s, skip", filepath.Base(path))}
 	}
-	if len(matches) > 0 {
-		return model.AuditFinding{Check: "untracked_handoffs", Status: "warn", Detail: fmt.Sprintf("%d untracked handoff files", len(matches))}
+	defer f.Close()
+
+	headers := make(map[string]int)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "## ") {
+			header := strings.TrimSpace(line[3:])
+			headers[header]++
+		}
 	}
-	return model.AuditFinding{Check: "untracked_handoffs", Status: "pass", Detail: "no untracked handoffs"}
+
+	var duplicates []string
+	for header, count := range headers {
+		if count > 1 {
+			duplicates = append(duplicates, fmt.Sprintf("%s (%dx)", header, count))
+		}
+	}
+
+	if len(duplicates) > 0 {
+		return model.AuditFinding{Check: "memory_duplicates", Status: "warn", Detail: fmt.Sprintf("duplicate sections: %s", strings.Join(duplicates, ", "))}
+	}
+	return model.AuditFinding{Check: "memory_duplicates", Status: "pass", Detail: "no duplicates"}
+}
+
+func runLogEntry(dir string, args []string) error {
+	fs := flag.NewFlagSet("log-entry", flag.ContinueOnError)
+	findingsJSON := fs.String("findings", "", "JSON array of findings")
+	patchActionsJSON := fs.String("patch-actions", "", "JSON array of patch action descriptions")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if *findingsJSON == "" {
+		return fmt.Errorf("--findings is required")
+	}
+
+	var findings []model.AuditFinding
+	if err := json.Unmarshal([]byte(*findingsJSON), &findings); err != nil {
+		return fmt.Errorf("parse findings: %w", err)
+	}
+
+	var patchActions []string
+	if *patchActionsJSON != "" {
+		if err := json.Unmarshal([]byte(*patchActionsJSON), &patchActions); err != nil {
+			return fmt.Errorf("parse patch-actions: %w", err)
+		}
+	}
+
+	id := model.GenerateID("audit")
+	entry := model.NewAuditEntry(id, findings, patchActions)
+	if err := store.Append(filepath.Join(dir, "audit-log.jsonl"), entry); err != nil {
+		return err
+	}
+
+	fmt.Println(id)
+	return nil
 }

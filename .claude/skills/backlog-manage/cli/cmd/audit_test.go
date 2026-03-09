@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -180,10 +181,9 @@ func TestRunAuditRunClean(t *testing.T) {
 		t.Fatalf("expected 1 audit entry, got %d", len(entries))
 	}
 
-	// All checks except untracked_handoffs should pass in a clean state
-	// (untracked_handoffs depends on actual home directory state)
+	// All checks except those depending on external state should pass in a clean state
 	for _, f := range entries[0].Findings {
-		if f.Check == "untracked_handoffs" {
+		if f.Check == "memory_duplicates" || f.Check == "unlinked_gh_issues" {
 			continue
 		}
 		if f.Status != "pass" {
@@ -297,6 +297,213 @@ func TestRunAuditRunBackupFile(t *testing.T) {
 	}
 	if !found {
 		t.Error("backup_files check not found in findings")
+	}
+}
+
+func TestCheckMemoryDuplicatesNoDuplicates(t *testing.T) {
+	memoryContent := `# MEMORY
+
+## Section A
+Some content here.
+
+## Section B
+Different content here.
+`
+	tmpFile := filepath.Join(t.TempDir(), "MEMORY.md")
+	if err := os.WriteFile(tmpFile, []byte(memoryContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	finding := checkMemoryDuplicatesFile(tmpFile)
+	if finding.Status != "pass" {
+		t.Errorf("expected pass, got %s: %s", finding.Status, finding.Detail)
+	}
+}
+
+func TestCheckMemoryDuplicatesWithDuplicates(t *testing.T) {
+	memoryContent := `# MEMORY
+
+## Section A
+Some content here.
+
+## Section B
+Different content here.
+
+## Section A
+Some content here.
+`
+	tmpFile := filepath.Join(t.TempDir(), "MEMORY.md")
+	if err := os.WriteFile(tmpFile, []byte(memoryContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	finding := checkMemoryDuplicatesFile(tmpFile)
+	if finding.Status != "warn" {
+		t.Errorf("expected warn, got %s: %s", finding.Status, finding.Detail)
+	}
+	if !strings.Contains(finding.Detail, "Section A") {
+		t.Errorf("expected 'Section A' in detail: %s", finding.Detail)
+	}
+}
+
+func TestCheckMemoryDuplicatesFileNotFound(t *testing.T) {
+	finding := checkMemoryDuplicatesFile("/nonexistent/MEMORY.md")
+	if finding.Status != "pass" {
+		t.Errorf("expected pass (skip) for missing file, got %s: %s", finding.Status, finding.Detail)
+	}
+}
+
+func TestCheckUnlinkedGHIssuesNoGH(t *testing.T) {
+	dir := setupTestDir(t)
+	// Without gh command, should skip with pass
+	finding := checkUnlinkedGHIssuesWithExec(dir, func(args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("gh not found")
+	})
+	if finding.Status != "pass" {
+		t.Errorf("expected pass (skip) when gh unavailable, got %s: %s", finding.Status, finding.Detail)
+	}
+	if !strings.Contains(finding.Detail, "skip") {
+		t.Errorf("expected 'skip' in detail: %s", finding.Detail)
+	}
+}
+
+func TestCheckUnlinkedGHIssuesAllLinked(t *testing.T) {
+	dir := setupTestDir(t)
+
+	// Create an issue with github_issue set
+	issue := model.NewIssue(model.GenerateID("issue"), "test issue", "desc", "low", []string{"voc"})
+	issueJSON, _ := json.Marshal(issue)
+	var raw map[string]json.RawMessage
+	json.Unmarshal(issueJSON, &raw)
+	raw["github_issue"] = json.RawMessage(`42`)
+	modifiedJSON, _ := json.Marshal(raw)
+	if err := os.WriteFile(filepath.Join(dir, "issues.jsonl"), append(modifiedJSON, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ghOutput := `[{"number":42,"title":"test issue"}]`
+	finding := checkUnlinkedGHIssuesWithExec(dir, func(args ...string) ([]byte, error) {
+		return []byte(ghOutput), nil
+	})
+	if finding.Status != "pass" {
+		t.Errorf("expected pass, got %s: %s", finding.Status, finding.Detail)
+	}
+}
+
+func TestCheckUnlinkedGHIssuesWithUnlinked(t *testing.T) {
+	dir := setupTestDir(t)
+
+	// Create an issue without github_issue link
+	issue := model.NewIssue(model.GenerateID("issue"), "test issue", "desc", "low", []string{"voc"})
+	if err := store.Append(filepath.Join(dir, "issues.jsonl"), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	ghOutput := `[{"number":42,"title":"unlinked GH issue"}]`
+	finding := checkUnlinkedGHIssuesWithExec(dir, func(args ...string) ([]byte, error) {
+		return []byte(ghOutput), nil
+	})
+	if finding.Status != "warn" {
+		t.Errorf("expected warn, got %s: %s", finding.Status, finding.Detail)
+	}
+	if !strings.Contains(finding.Detail, "#42") {
+		t.Errorf("expected '#42' in detail: %s", finding.Detail)
+	}
+}
+
+func TestRunAuditLogEntry(t *testing.T) {
+	dir := setupTestDir(t)
+
+	findings := `[{"check":"test_check","status":"fail","detail":"something broke"}]`
+	patchActions := `["fixed the thing"]`
+
+	output := captureStdout(t, func() {
+		err := RunAudit(dir, []string{"log-entry", "--findings", findings, "--patch-actions", patchActions})
+		if err != nil {
+			t.Fatalf("RunAudit log-entry: %v", err)
+		}
+	})
+
+	// Should output the entry ID
+	if !strings.Contains(output, "audit-") {
+		t.Errorf("expected audit ID in output: %s", output)
+	}
+
+	// Should have written to audit-log.jsonl
+	entries, err := store.ReadAll[model.AuditEntry](filepath.Join(dir, "audit-log.jsonl"))
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if len(entries[0].Findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(entries[0].Findings))
+	}
+	if entries[0].Findings[0].Check != "test_check" {
+		t.Errorf("expected check 'test_check', got %s", entries[0].Findings[0].Check)
+	}
+	if len(entries[0].PatchActions) != 1 || entries[0].PatchActions[0] != "fixed the thing" {
+		t.Errorf("unexpected patch_actions: %v", entries[0].PatchActions)
+	}
+}
+
+func TestRunAuditLogEntryMissingFindings(t *testing.T) {
+	dir := setupTestDir(t)
+
+	err := RunAudit(dir, []string{"log-entry"})
+	if err == nil {
+		t.Fatal("expected error for missing --findings")
+	}
+	if !strings.Contains(err.Error(), "findings") {
+		t.Errorf("expected error about findings: %v", err)
+	}
+}
+
+func TestRunAuditRunIncludesNewChecks(t *testing.T) {
+	dir := setupTestDir(t)
+	// Create valid JSONL files
+	task := model.NewTask(model.GenerateID("task"), "test task", "desc", "p2", nil)
+	if err := store.Append(filepath.Join(dir, "tasks.jsonl"), task); err != nil {
+		t.Fatal(err)
+	}
+	idea := model.NewIdea(model.GenerateID("idea"), "test idea", "desc", nil)
+	if err := store.Append(filepath.Join(dir, "ideas.jsonl"), idea); err != nil {
+		t.Fatal(err)
+	}
+	issue := model.NewIssue(model.GenerateID("issue"), "test issue", "desc", "low", nil)
+	if err := store.Append(filepath.Join(dir, "issues.jsonl"), issue); err != nil {
+		t.Fatal(err)
+	}
+
+	captureStdout(t, func() {
+		if err := RunAudit(dir, []string{"--run"}); err != nil {
+			t.Fatalf("RunAudit --run: %v", err)
+		}
+	})
+
+	entries, err := store.ReadAll[model.AuditEntry](filepath.Join(dir, "audit-log.jsonl"))
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	// Should have 6 checks now
+	if entries[0].Score.Total != 6 {
+		t.Errorf("expected 6 total checks, got %d", entries[0].Score.Total)
+	}
+
+	// Verify new check names exist
+	checkNames := make(map[string]bool)
+	for _, f := range entries[0].Findings {
+		checkNames[f.Check] = true
+	}
+	for _, name := range []string{"unlinked_gh_issues", "memory_duplicates"} {
+		if !checkNames[name] {
+			t.Errorf("missing check: %s", name)
+		}
 	}
 }
 

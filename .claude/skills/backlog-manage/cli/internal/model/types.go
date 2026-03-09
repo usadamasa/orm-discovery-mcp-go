@@ -97,6 +97,15 @@ func NewAuditEntry(id string, findings []AuditFinding, patchActions []string) Au
 	}
 }
 
+// RetroResult holds the results of a retrospective analysis.
+type RetroResult struct {
+	Recurring     map[string]int `json:"recurring"`
+	Unpatched     map[string]int `json:"unpatched"`
+	Scores        []AuditScore   `json:"scores"`
+	AllPassStreak int            `json:"all_pass_streak"`
+	TotalRuns     int            `json:"total_runs"`
+}
+
 // NewTask creates a new Task with defaults.
 func NewTask(id, title, description, priority string, tags []string) Task {
 	if priority == "" {
