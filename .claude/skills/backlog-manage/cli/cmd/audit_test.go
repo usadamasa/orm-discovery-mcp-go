@@ -181,10 +181,9 @@ func TestRunAuditRunClean(t *testing.T) {
 		t.Fatalf("expected 1 audit entry, got %d", len(entries))
 	}
 
-	// All checks except untracked_handoffs should pass in a clean state
-	// (untracked_handoffs depends on actual home directory state)
+	// All checks except those depending on external state should pass in a clean state
 	for _, f := range entries[0].Findings {
-		if f.Check == "untracked_handoffs" || f.Check == "memory_duplicates" || f.Check == "unlinked_gh_issues" {
+		if f.Check == "memory_duplicates" || f.Check == "unlinked_gh_issues" {
 			continue
 		}
 		if f.Status != "pass" {
@@ -491,9 +490,9 @@ func TestRunAuditRunIncludesNewChecks(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
 
-	// Should have 7 checks now
-	if entries[0].Score.Total != 7 {
-		t.Errorf("expected 7 total checks, got %d", entries[0].Score.Total)
+	// Should have 6 checks now
+	if entries[0].Score.Total != 6 {
+		t.Errorf("expected 6 total checks, got %d", entries[0].Score.Total)
 	}
 
 	// Verify new check names exist

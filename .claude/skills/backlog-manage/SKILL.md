@@ -15,7 +15,6 @@ user_invocable: true
 !(grep -c . .backlog/tasks.jsonl 2>/dev/null || printf "0") | xargs printf "Active tasks: %s"
 !(grep -c . .backlog/ideas.jsonl 2>/dev/null || printf "0") | xargs printf ", Active ideas: %s"
 !(grep -c . .backlog/issues.jsonl 2>/dev/null || printf "0") | xargs printf ", Active issues: %s"
-!(ls ~/.claude/projects/*/memory/SESSION_HANDOFF_*.md 2>/dev/null | wc -l | tr -d ' ' || printf "0") | xargs printf ", Handoff files: %s"
 !(gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number 2>/dev/null | jq length 2>/dev/null || echo "N/A") | xargs printf ", VOC issues: %s"
 !(ls .backlog/*.bak 2>/dev/null | wc -l | tr -d ' ' || printf "0") | xargs printf ", Backup files: %s"
 !(grep -c . .backlog/audit-log.jsonl 2>/dev/null || printf "0") | xargs printf ", Audit runs: %s"
@@ -131,12 +130,13 @@ MDサマリファイルを全再生成する。全コマンド実行後に自動
 .claude/skills/backlog-manage/cli/bin/backlog-cli audit --run
 ```
 
-このコマンドは以下の 5 チェックを Go ネイティブで実行し、結果を audit-log.jsonl に自動記録する:
+このコマンドは以下の 6 チェックを Go ネイティブで実行し、結果を audit-log.jsonl に自動記録する:
 1. JSONL 整合性 (tasks/ideas/issues)
 2. アイデア滞留 (30 日超)
 3. 残留バックアップファイル
 4. MD サマリ同期
-5. 未追跡ハンドオフ
+5. 未連携 GH Issue
+6. MEMORY 重複検出
 
 #### Phase 2: Diff (ギャップ検出)
 
@@ -145,14 +145,13 @@ Phase 1 の結果から以下のギャップを検出する。
 | ギャップタイプ | check_key | 検出ロジック |
 |--------------|-----------|-------------|
 | JSONL 整合性 | `jsonl_integrity` | 行数 vs JSON パース成功数の不一致 |
-| 未追跡ハンドオフ | `untracked_handoffs` | SESSION_HANDOFF_*.md が存在するが、対応する issue/task がない |
 | 未連携 GH Issue | `unlinked_gh_issues` | `gh issue list --label voc` の number が issues.jsonl の `github_issue` にない |
 | アイデア滞留 | `stale_ideas` | `created_at` から 30 日以上経過し `status=active` のまま |
 | 残留バックアップ | `backup_files` | `.backlog/*.bak` ファイルが存在する |
 | MEMORY 重複 | `memory_duplicates` | 同一テキストブロックが 2 回以上出現 |
 | MD サマリ | `md_summaries` | MD サマリが JSONL と同期していない |
 
-全 7 チェックは `backlog-cli audit --run` で自動実行される。`gh` コマンド未インストール時は `unlinked_gh_issues` が skip (pass) となる。
+全 6 チェックは `backlog-cli audit --run` で自動実行される。`gh` コマンド未インストール時は `unlinked_gh_issues` が skip (pass) となる。
 
 #### Phase 3: Report (構造化レポート)
 
@@ -162,7 +161,6 @@ Phase 1-2 の結果を `dogfood-verify` と同じ形式で報告する。
 === Backlog Health Check ===
 
 ✅ JSONL integrity: N ideas, N tasks, N issues (all valid JSON)
-❌ Untracked handoffs: N files (names...)
 ❌ Unlinked GH Issues: N (#num, #num, ...)
 ⚠️ Stale ideas: N (none over 30 days)
 ❌ Backup files: N (filenames...)
@@ -178,7 +176,6 @@ Score: N/M checks passed
 
 | ギャップ | 自動修正アクション |
 |---------|-------------------|
-| 未追跡ハンドオフ | ハンドオフ内容を読み取り → `add-issue` で Issue 作成 → ハンドオフファイル削除 |
 | 未連携 GH Issue | GH Issue の title/labels から severity を推定 → `add-issue` で作成 (`github_issue` フィールド設定) |
 | 残留バックアップ | `.bak` ファイルを削除 |
 | MEMORY 重複 | 重複ブロックを除去 (Edit ツール) |
@@ -255,7 +252,7 @@ backlog-cli retrospective --last 10 --json
 ✅ jsonl_integrity: 問題なし
 
 【スコア推移】
-  3/7 → 6/7 → 7/7 (改善傾向 ✅)
+  3/6 → 5/6 → 6/6 (改善傾向 ✅)
 
 【改善提案】
 [ ] stale_ideas の閾値を 30 日 → 15 日に短縮

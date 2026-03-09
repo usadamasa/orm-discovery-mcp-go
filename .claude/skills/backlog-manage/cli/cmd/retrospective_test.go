@@ -30,40 +30,35 @@ func TestRunRetrospectiveTextOutput(t *testing.T) {
 
 	// Create 5 entries with some recurring failures
 	entries := []model.AuditEntry{
-		makeAuditEntry("eval-r01", 4, 5, []model.AuditFinding{
+		makeAuditEntry("eval-r01", 3, 4, []model.AuditFinding{
 			{Check: "jsonl_integrity", Status: "pass", Detail: "ok"},
 			{Check: "stale_ideas", Status: "fail", Detail: "stale", Patched: false},
 			{Check: "backup_files", Status: "pass", Detail: "ok"},
 			{Check: "md_summaries", Status: "pass", Detail: "ok"},
-			{Check: "untracked_handoffs", Status: "pass", Detail: "ok"},
 		}),
-		makeAuditEntry("eval-r02", 3, 5, []model.AuditFinding{
+		makeAuditEntry("eval-r02", 2, 4, []model.AuditFinding{
 			{Check: "jsonl_integrity", Status: "pass", Detail: "ok"},
 			{Check: "stale_ideas", Status: "fail", Detail: "stale", Patched: true},
 			{Check: "backup_files", Status: "fail", Detail: "found bak", Patched: false},
 			{Check: "md_summaries", Status: "pass", Detail: "ok"},
-			{Check: "untracked_handoffs", Status: "pass", Detail: "ok"},
 		}),
-		makeAuditEntry("eval-r03", 3, 5, []model.AuditFinding{
+		makeAuditEntry("eval-r03", 3, 4, []model.AuditFinding{
 			{Check: "jsonl_integrity", Status: "pass", Detail: "ok"},
 			{Check: "stale_ideas", Status: "fail", Detail: "stale", Patched: false},
 			{Check: "backup_files", Status: "pass", Detail: "ok"},
 			{Check: "md_summaries", Status: "pass", Detail: "ok"},
-			{Check: "untracked_handoffs", Status: "warn", Detail: "1 handoff"},
 		}),
-		makeAuditEntry("eval-r04", 5, 5, []model.AuditFinding{
+		makeAuditEntry("eval-r04", 4, 4, []model.AuditFinding{
 			{Check: "jsonl_integrity", Status: "pass", Detail: "ok"},
 			{Check: "stale_ideas", Status: "pass", Detail: "ok"},
 			{Check: "backup_files", Status: "pass", Detail: "ok"},
 			{Check: "md_summaries", Status: "pass", Detail: "ok"},
-			{Check: "untracked_handoffs", Status: "pass", Detail: "ok"},
 		}),
-		makeAuditEntry("eval-r05", 5, 5, []model.AuditFinding{
+		makeAuditEntry("eval-r05", 4, 4, []model.AuditFinding{
 			{Check: "jsonl_integrity", Status: "pass", Detail: "ok"},
 			{Check: "stale_ideas", Status: "pass", Detail: "ok"},
 			{Check: "backup_files", Status: "pass", Detail: "ok"},
 			{Check: "md_summaries", Status: "pass", Detail: "ok"},
-			{Check: "untracked_handoffs", Status: "pass", Detail: "ok"},
 		}),
 	}
 

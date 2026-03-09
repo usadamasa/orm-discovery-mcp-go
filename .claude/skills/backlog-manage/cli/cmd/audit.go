@@ -89,13 +89,10 @@ func runHealthChecks(dir string) []model.AuditFinding {
 	// 4. md_summaries
 	findings = append(findings, checkMDSummaries(dir))
 
-	// 5. untracked_handoffs
-	findings = append(findings, checkUntrackedHandoffs())
-
-	// 6. unlinked_gh_issues
+	// 5. unlinked_gh_issues
 	findings = append(findings, checkUnlinkedGHIssues(dir))
 
-	// 7. memory_duplicates
+	// 6. memory_duplicates
 	findings = append(findings, checkMemoryDuplicates())
 
 	return findings
@@ -173,22 +170,6 @@ func checkMDSummaries(dir string) model.AuditFinding {
 		return model.AuditFinding{Check: "md_summaries", Status: "fail", Detail: fmt.Sprintf("generate error: %v", err)}
 	}
 	return model.AuditFinding{Check: "md_summaries", Status: "pass", Detail: "MD summaries regenerated"}
-}
-
-func checkUntrackedHandoffs() model.AuditFinding {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return model.AuditFinding{Check: "untracked_handoffs", Status: "pass", Detail: "cannot determine home dir, skipped"}
-	}
-	pattern := filepath.Join(home, ".claude", "projects", "*", "memory", "SESSION_HANDOFF_*.md")
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return model.AuditFinding{Check: "untracked_handoffs", Status: "pass", Detail: "glob error, skipped"}
-	}
-	if len(matches) > 0 {
-		return model.AuditFinding{Check: "untracked_handoffs", Status: "warn", Detail: fmt.Sprintf("%d untracked handoff files", len(matches))}
-	}
-	return model.AuditFinding{Check: "untracked_handoffs", Status: "pass", Detail: "no untracked handoffs"}
 }
 
 type execFunc func(args ...string) ([]byte, error)

@@ -210,12 +210,11 @@ severity 自動判定:
 .claude/skills/backlog-manage/cli/bin/backlog-cli audit --run
 ```
 
-このコマンドは以下の 7 チェックを実行し、結果を audit-log.jsonl に自動記録する:
+このコマンドは以下の 6 チェックを実行し、結果を audit-log.jsonl に自動記録する:
 - JSONL 整合性 (tasks/ideas/issues)
 - アイデア滞留 (30 日超)
 - 残留バックアップファイル
 - MD サマリ同期
-- 未追跡ハンドオフ
 - 未連携 GH Issue (gh 未インストール時は skip)
 - MEMORY 重複検出
 
@@ -281,7 +280,7 @@ backlog-cli audit log-entry \
     {"check":"agent_behavioral_b4","status":"pass","detail":"VOC issue created"},
     {"check":"agent_voc","status":"pass","detail":"no new VOC"},
     {"check":"memory_hygiene","status":"pass","detail":"no duplicates"},
-    {"check":"backlog_health","status":"pass","detail":"7/7 checks passed"}
+    {"check":"backlog_health","status":"pass","detail":"6/6 checks passed"}
   ]' \
   --patch-actions '[]'
 # => audit-20260309-a1b2  (自動生成された ID が stdout に出力される)
@@ -304,7 +303,7 @@ backlog-cli audit log-entry \
 | `agent_behavioral_b1`-`b4` | Agent Quality | 行動評価シナリオ |
 | `agent_voc` | Agent Quality | VOC 検出 |
 | `memory_hygiene` | Backlog Health | MEMORY 重複チェック |
-| `backlog_health` | Backlog Health | audit --run 結果 (7 チェック) |
+| `backlog_health` | Backlog Health | audit --run 結果 (6 チェック) |
 
 ### 自己進化の流れ
 
