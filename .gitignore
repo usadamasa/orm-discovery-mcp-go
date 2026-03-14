@@ -34,3 +34,7 @@ go.work.sum
 .claude/skills/backlog-manage/cli/bin/
 .backlog/backlog-cli
 .claude/skills/backlog-manage/cli/.task/
+.claude/skills/backlog-manage/cli/backlog-cli
+
+# Local temporary files
+/tmp/
