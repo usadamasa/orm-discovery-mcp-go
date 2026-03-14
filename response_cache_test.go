@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -143,6 +144,102 @@ func TestSaveResponseAsMarkdown_NonWritableDir(t *testing.T) {
 	_, err := saveResponseAsMarkdown(cacheDir, "test", results, "req_123", 1)
 	if err == nil {
 		t.Error("expected error for non-writable directory")
+	}
+}
+
+func TestStripHTML(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"plain text", "hello world", "hello world"},
+		{"span tags", "hello <span>world</span>", "hello world"},
+		{"div and p tags", "<div><p>paragraph</p></div>", "paragraph"},
+		{"nested tags", "<b>bold <i>italic</i></b>", "bold italic"},
+		{"empty string", "", ""},
+		{"whitespace normalization", "<span>  hello  </span>  <span>  world  </span>", "hello world"},
+		{"br tags", "line1<br/>line2", "line1 line2"},
+		{"entities pass through", "a &amp; b", "a &amp; b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripHTML(tt.input)
+			if got != tt.want {
+				t.Errorf("stripHTML(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWriteResultMarkdown_StripsHTML(t *testing.T) {
+	result := map[string]any{
+		"title":       "Test Book",
+		"product_id":  "123",
+		"description": "<span class=\"highlight\">Docker</span> is a <div>containerization</div> platform.",
+	}
+
+	var b strings.Builder
+	writeResultMarkdown(&b, 1, result)
+	output := b.String()
+
+	if strings.Contains(output, "<span") || strings.Contains(output, "<div") || strings.Contains(output, "</span>") || strings.Contains(output, "</div>") {
+		t.Errorf("output contains HTML tags:\n%s", output)
+	}
+	if !strings.Contains(output, "Docker") {
+		t.Error("output should contain text content 'Docker'")
+	}
+	if !strings.Contains(output, "containerization") {
+		t.Error("output should contain text content 'containerization'")
+	}
+}
+
+func TestSaveResponseAsMarkdown_TotalResultsFallback(t *testing.T) {
+	cacheDir := filepath.Join(t.TempDir(), "responses")
+	results := []map[string]any{
+		{"title": "Book A", "product_id": "1"},
+		{"title": "Book B", "product_id": "2"},
+		{"title": "Book C", "product_id": "3"},
+	}
+
+	// totalResults=0 but 3 results → should fall back to len(results)=3
+	filePath, err := saveResponseAsMarkdown(cacheDir, "test query", results, "req_fallback", 0)
+	if err != nil {
+		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "Total Results: 3") {
+		t.Errorf("expected 'Total Results: 3' (fallback), got:\n%s", content)
+	}
+}
+
+func TestSaveResponseAsMarkdown_TotalResultsFromAPI(t *testing.T) {
+	cacheDir := filepath.Join(t.TempDir(), "responses")
+	results := make([]map[string]any, 10)
+	for i := range results {
+		results[i] = map[string]any{"title": "Book", "product_id": fmt.Sprintf("%d", i)}
+	}
+
+	// totalResults=500 from API → should use API value
+	filePath, err := saveResponseAsMarkdown(cacheDir, "test query", results, "req_api", 500)
+	if err != nil {
+		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "Total Results: 500") {
+		t.Errorf("expected 'Total Results: 500' (from API), got:\n%s", content)
 	}
 }
 

@@ -50,7 +50,7 @@ func saveResponseAsMarkdown(cacheDir, query string, results []map[string]any, hi
 	b.WriteString("# O'Reilly Search Results\n\n")
 	fmt.Fprintf(&b, "- Query: %s\n", query)
 	fmt.Fprintf(&b, "- Date: %s\n", time.Now().Format(time.RFC3339))
-	fmt.Fprintf(&b, "- Total Results: %d\n", totalResults)
+	fmt.Fprintf(&b, "- Total Results: %d\n", effectiveTotalResults(totalResults, len(results)))
 	fmt.Fprintf(&b, "- Results in this file: %d\n", len(results))
 	fmt.Fprintf(&b, "- History ID: %s\n", historyID)
 	b.WriteString("\n---\n")
@@ -72,6 +72,18 @@ func saveResponseAsMarkdown(cacheDir, query string, results []map[string]any, hi
 	}
 
 	return filePath, nil
+}
+
+// htmlTagPattern matches HTML tags (opening, closing, self-closing).
+var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+
+// stripHTML removes HTML tags from a string and normalizes whitespace.
+func stripHTML(s string) string {
+	if !strings.ContainsAny(s, "<>") {
+		return s // fast path: no HTML tags
+	}
+	stripped := htmlTagPattern.ReplaceAllString(s, " ")
+	return strings.Join(strings.Fields(stripped), " ")
 }
 
 // writeResultMarkdown writes a single search result as Markdown to the builder.
@@ -105,6 +117,6 @@ func writeResultMarkdown(b *strings.Builder, index int, result map[string]any) {
 	}
 
 	if desc, ok := result["description"].(string); ok && desc != "" {
-		fmt.Fprintf(b, "- Description: %s\n", desc)
+		fmt.Fprintf(b, "- Description: %s\n", stripHTML(desc))
 	}
 }

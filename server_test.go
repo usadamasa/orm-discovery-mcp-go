@@ -1,10 +1,147 @@
 package main
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 )
+
+// mockBrowserClient implements browser.Client for testing.
+type mockBrowserClient struct {
+	searchResults      []map[string]any
+	searchTotalResults int
+	searchErr          error
+}
+
+func (m *mockBrowserClient) SearchContent(_ string, _ map[string]any) ([]map[string]any, int, error) {
+	return m.searchResults, m.searchTotalResults, m.searchErr
+}
+func (m *mockBrowserClient) AskQuestion(_ string, _ time.Duration) (*browser.AnswerResponse, error) {
+	return nil, nil
+}
+func (m *mockBrowserClient) GetBookDetails(_ string) (*browser.BookDetailResponse, error) {
+	return nil, nil
+}
+func (m *mockBrowserClient) GetBookTOC(_ string) (*browser.TableOfContentsResponse, error) {
+	return nil, nil
+}
+func (m *mockBrowserClient) GetBookChapterContent(_, _ string) (*browser.ChapterContentResponse, error) {
+	return nil, nil
+}
+func (m *mockBrowserClient) GetQuestionByID(_ string) (*browser.AnswerResponse, error) {
+	return nil, nil
+}
+func (m *mockBrowserClient) Reauthenticate() error    { return nil }
+func (m *mockBrowserClient) CheckAndResetAuth() error { return nil }
+func (m *mockBrowserClient) Close()                   {}
+
+// newTestServer creates a Server with mock browser client and temp directories.
+func newTestServer(t *testing.T, mock *mockBrowserClient) *Server {
+	t.Helper()
+	tmpDir := t.TempDir()
+
+	config := &Config{
+		XDGDirs: &XDGDirs{
+			CacheHome: filepath.Join(tmpDir, "cache"),
+			StateHome: filepath.Join(tmpDir, "state"),
+		},
+		HistoryMaxEntries: 100,
+	}
+
+	historyManager := NewResearchHistoryManager(
+		config.XDGDirs.ResearchHistoryPath(),
+		config.HistoryMaxEntries,
+	)
+	_ = historyManager.Load()
+
+	return &Server{
+		browserClient:  mock,
+		config:         config,
+		historyManager: historyManager,
+		startedAt:      time.Now(),
+		serverVersion:  "test",
+	}
+}
+
+func TestSearchContentHandler_SingleSave(t *testing.T) {
+	mock := &mockBrowserClient{
+		searchResults: []map[string]any{
+			{"title": "Book A", "product_id": "111", "content_type": "book"},
+			{"title": "Book B", "product_id": "222", "content_type": "book"},
+		},
+		searchTotalResults: 0, // API returns 0 (nil pointer case)
+	}
+
+	srv := newTestServer(t, mock)
+
+	req := &mcp.CallToolRequest{}
+	args := SearchContentArgs{Query: "test query"}
+
+	_, _, err := srv.SearchContentHandler(context.Background(), req, args)
+	if err != nil {
+		t.Fatalf("SearchContentHandler returned error: %v", err)
+	}
+
+	// Check cache directory has exactly 1 file
+	cacheDir := srv.config.XDGDirs.ResponseCachePath()
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		t.Fatalf("failed to read cache dir: %v", err)
+	}
+
+	mdFiles := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
+			mdFiles++
+		}
+	}
+	if mdFiles != 1 {
+		t.Errorf("expected exactly 1 cache file, got %d", mdFiles)
+	}
+}
+
+func TestSearchContentHandler_HistoryIDInFile(t *testing.T) {
+	mock := &mockBrowserClient{
+		searchResults: []map[string]any{
+			{"title": "Book A", "product_id": "111", "content_type": "book"},
+		},
+		searchTotalResults: 1,
+	}
+
+	srv := newTestServer(t, mock)
+
+	req := &mcp.CallToolRequest{}
+	args := SearchContentArgs{Query: "history id test"}
+
+	_, structured, err := srv.SearchContentHandler(context.Background(), req, args)
+	if err != nil {
+		t.Fatalf("SearchContentHandler returned error: %v", err)
+	}
+	if structured == nil {
+		t.Fatal("expected structured result")
+	}
+
+	// Read the cache file and verify history ID is present
+	if structured.FilePath == "" {
+		t.Fatal("expected FilePath in structured result")
+	}
+
+	data, err := os.ReadFile(structured.FilePath)
+	if err != nil {
+		t.Fatalf("failed to read cache file: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, structured.HistoryID) {
+		t.Errorf("cache file does not contain history ID %q", structured.HistoryID)
+	}
+}
 
 func TestExtractProductIDFromURI(t *testing.T) {
 	tests := []struct {
