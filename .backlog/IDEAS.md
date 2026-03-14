@@ -1,4 +1,4 @@
-> Generated: 2026-03-14 04:24
+> Generated: 2026-03-14 06:26
 
 # Ideas
 
@@ -21,3 +21,4 @@
 | idea-20260307-7196 | history/recent スリム化 | context-efficiency, performance | active |
 | idea-20260307-4bfa | MCP Prompts が Claude Code で利用可能になったら func_prompts を SKIP から通常テストに戻す | quality-eval, mcp-prompts | active |
 | idea-20260309-c7bb | 統合テストでサーバーログのエラーチェックを行う | testing, observability | active |
+| idea-20260314-bdeb | 遅延読み込み判断を情報検索・情報設計の観点で再設計する |  | active |
