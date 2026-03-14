@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -399,18 +398,18 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
 	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
 
-	// Save full results to cache file
+	// Generate history ID upfront so cache file includes it (single-save pattern)
+	historyID := GenerateRequestID()
+
+	// Save full results to cache file (single save with history ID)
 	cacheDir := s.config.XDGDirs.ResponseCachePath()
-	filePath, cacheErr := saveResponseAsMarkdown(cacheDir, args.Query, results, "", totalResults)
+	filePath, cacheErr := saveResponseAsMarkdown(cacheDir, args.Query, results, historyID, totalResults)
 	if cacheErr != nil {
 		slog.Warn("レスポンスキャッシュの保存に失敗しました", "error", cacheErr)
 	}
 
-	// Record to research history
-	historyID := s.recordSearchHistory(args.Query, options, results, filePath, time.Since(start))
-
-	// Update cache file with history ID (best-effort)
-	filePath = updateCacheWithHistoryID(cacheDir, args.Query, results, historyID, totalResults, filePath)
+	// Record to research history (pass pre-generated historyID)
+	s.recordSearchHistory(args.Query, options, results, filePath, time.Since(start), historyID)
 
 	// Build lightweight response
 	toolResult, structured := s.buildLightweightResponse(results, historyID, filePath, args.Offset, totalResults)
@@ -425,28 +424,21 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	return toolResult, structured, nil
 }
 
-// updateCacheWithHistoryID re-saves the cache file with history ID embedded.
-// Returns the updated file path, or the original if update fails.
-func updateCacheWithHistoryID(cacheDir, query string, results []map[string]any, historyID string, totalResults int, origPath string) string {
-	if origPath == "" || historyID == "" {
-		return origPath
-	}
-	updatedPath, err := saveResponseAsMarkdown(cacheDir, query, results, historyID, totalResults)
-	if err != nil {
-		return origPath
-	}
-	if updatedPath != origPath {
-		if removeErr := os.Remove(origPath); removeErr != nil {
-			slog.Warn("failed to remove old cache file", "path", origPath, "error", removeErr)
-		}
-	}
-	return updatedPath
-}
-
 // buildLightweightResponse builds a lightweight response with file path for lazy loading.
 // Book results include ResourceLink entries for direct resource navigation.
 // Returns up to 5 results in the text summary.
+// effectiveTotalResults returns totalResults if positive, or falls back to
+// len(results) when the API returns 0 (e.g. nil *int pointer).
+func effectiveTotalResults(totalResults, resultCount int) int {
+	if totalResults == 0 && resultCount > 0 {
+		return resultCount
+	}
+	return totalResults
+}
+
 func (s *Server) buildLightweightResponse(results []map[string]any, historyID, filePath string, offset, totalResults int) (*mcp.CallToolResult, *SearchContentResult) {
+	total := effectiveTotalResults(totalResults, len(results))
+
 	lightweightResults := make([]map[string]any, 0, len(results))
 	var resourceLinks []mcp.Content
 
@@ -483,7 +475,7 @@ func (s *Server) buildLightweightResponse(results []map[string]any, historyID, f
 		}
 	}
 
-	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
+	hasMore, nextOffset := calcPagination(offset, len(results), total)
 
 	// Limit structured results for context efficiency
 	const inlineSummaryLimit = 5
@@ -515,7 +507,7 @@ func (s *Server) buildLightweightResponse(results []map[string]any, historyID, f
 	structured := &SearchContentResult{
 		Count:        len(results),
 		Total:        len(results),
-		TotalResults: totalResults,
+		TotalResults: total,
 		HasMore:      hasMore,
 		NextOffset:   nextOffset,
 		Results:      topResults,
@@ -943,10 +935,10 @@ func extractQuestionIDFromURI(uri string) string {
 }
 
 // recordSearchHistory records a search to the research history.
-// Returns the history entry ID.
-func (s *Server) recordSearchHistory(query string, options map[string]any, results []map[string]any, filePath string, duration time.Duration) string {
+// If entryID is provided, it is used as the history entry ID (to match the cache file).
+func (s *Server) recordSearchHistory(query string, options map[string]any, results []map[string]any, filePath string, duration time.Duration, entryID string) {
 	if s.historyManager == nil {
-		return ""
+		return
 	}
 
 	// Build top results summary
@@ -972,8 +964,9 @@ func (s *Server) recordSearchHistory(query string, options map[string]any, resul
 		topResults = append(topResults, summary)
 	}
 
-	// Generate entry ID
-	entryID := GenerateRequestID()
+	if entryID == "" {
+		entryID = GenerateRequestID()
+	}
 
 	entry := ResearchEntry{
 		ID:         entryID,
@@ -991,14 +984,12 @@ func (s *Server) recordSearchHistory(query string, options map[string]any, resul
 
 	if err := s.historyManager.AddEntry(entry); err != nil {
 		slog.Warn("調査履歴の追加に失敗しました", "error", err)
-		return ""
+		return
 	}
 
 	if err := s.historyManager.Save(); err != nil {
 		slog.Warn("調査履歴の保存に失敗しました", "error", err)
 	}
-
-	return entryID
 }
 
 func ptrBool(b bool) *bool { return &b }

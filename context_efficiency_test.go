@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"unicode/utf8"
 )
@@ -184,6 +185,46 @@ func syntheticHistoryEntries(n int) []ResearchEntry {
 		}
 	}
 	return entries
+}
+
+// TestCacheFileFormat_Regression verifies that cache files have no HTML tags
+// in descriptions and that Total Results is accurate.
+func TestCacheFileFormat_Regression(t *testing.T) {
+	results := syntheticSearchResults(5)
+	// Inject HTML into descriptions
+	for i := range results {
+		results[i]["description"] = fmt.Sprintf("<span class=\"highlight\">Book %d</span> covers <div>important topics</div> in <p>software</p> development.", i)
+	}
+
+	cacheDir := t.TempDir()
+	filePath, err := saveResponseAsMarkdown(cacheDir, "regression test", results, "req_regression", 42)
+	if err != nil {
+		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read cache file: %v", err)
+	}
+	content := string(data)
+
+	// No HTML tags in output
+	htmlTags := []string{"<span", "</span>", "<div", "</div>", "<p>", "</p>"}
+	for _, tag := range htmlTags {
+		if strings.Contains(content, tag) {
+			t.Errorf("cache file contains HTML tag %q", tag)
+		}
+	}
+
+	// Total Results should be accurate
+	if !strings.Contains(content, "Total Results: 42") {
+		t.Error("cache file does not contain accurate Total Results")
+	}
+
+	// Text content should be preserved
+	if !strings.Contains(content, "important topics") {
+		t.Error("cache file should contain text content 'important topics'")
+	}
 }
 
 // TestLightweightResponseSize measures the JSON size of lightweight responses

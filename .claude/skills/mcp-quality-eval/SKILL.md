@@ -320,6 +320,7 @@ backlog-cli audit log-entry \
 | `agent_voc` | Agent Quality | VOC 検出 |
 | `memory_hygiene` | Backlog Health | MEMORY 重複チェック |
 | `backlog_health` | Backlog Health | audit --run 結果 (6 チェック) |
+| `agent_behavioral_lazy_loading` | Agent Quality | 遅延読み込み判断精度 (Total Results に基づく Read 要否) |
 
 ### 自己進化の流れ
 

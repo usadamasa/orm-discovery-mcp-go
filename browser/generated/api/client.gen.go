@@ -341,7 +341,10 @@ type SearchAPIResponse struct {
 	Items   *[]RawSearchResult   `json:"items,omitempty"`
 	Results *[]RawSearchResult   `json:"results,omitempty"`
 
-	// TotalCount Total number of matching results
+	// Total Total number of matching results (primary field from API)
+	Total *int `json:"total,omitempty"`
+
+	// TotalCount Total number of matching results (legacy alias)
 	TotalCount *int `json:"total_count,omitempty"`
 }
 
