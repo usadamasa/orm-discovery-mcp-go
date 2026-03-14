@@ -306,9 +306,12 @@ components:
       type: object
       description: Response from O'Reilly search API
       properties:
+        total:
+          type: integer
+          description: Total number of matching results (primary field from API)
         total_count:
           type: integer
-          description: Total number of matching results
+          description: Total number of matching results (legacy alias)
         data:
           $ref: '#/components/schemas/SearchDataContainer'
         results:

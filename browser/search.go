@@ -155,9 +155,11 @@ func (bc *BrowserClient) makeHTTPSearchRequest(query string, rows, offset, tzOff
 		return nil, 0, fmt.Errorf("no valid JSON response received")
 	}
 
-	// Extract total count
+	// Extract total count: prefer "total" (actual API field), fall back to "total_count"
 	totalCount := 0
-	if resp.JSON200.TotalCount != nil {
+	if resp.JSON200.Total != nil {
+		totalCount = *resp.JSON200.Total
+	} else if resp.JSON200.TotalCount != nil {
 		totalCount = *resp.JSON200.TotalCount
 	}
 
