@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.6.0] - Unreleased
 
 ### Breaking Changes
 - **Remove BFS/DFS mode distinction**: `oreilly_search_content` no longer accepts `mode` or `summarize` parameters. Search results are always saved to a local Markdown file (`~/.cache/orm-mcp-go/responses/`), and the tool response returns a lightweight summary (top 5) with the file path for lazy loading via Read tool.
