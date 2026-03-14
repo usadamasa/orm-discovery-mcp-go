@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -54,7 +55,7 @@ func (s *Server) registerHistoryResources() {
 			Description: descTmplHistFull,
 			MIMEType:    "application/json",
 		},
-		s.GetHistoryFullResponseResource,
+		s.GetHistoryCachedFileResource,
 	)
 }
 
@@ -225,8 +226,8 @@ func (s *Server) GetHistoryDetailResource(ctx context.Context, req *mcp.ReadReso
 	}, nil
 }
 
-// GetHistoryFullResponseResource は特定の履歴のフルレスポンスを取得する
-func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+// GetHistoryCachedFileResource は特定の履歴のフルレスポンスを取得する
+func (s *Server) GetHistoryCachedFileResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 	slog.Info("調査履歴フルレスポンスリソース取得リクエスト受信", "uri", req.Params.URI)
 
 	if s.historyManager == nil {
@@ -253,7 +254,7 @@ func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.Re
 
 	entry := s.historyManager.GetByID(id)
 	if entry == nil {
-		slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", false, "has_full_response", false)
+		slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", false)
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -262,48 +263,35 @@ func (s *Server) GetHistoryFullResponseResource(ctx context.Context, req *mcp.Re
 			}},
 		}, nil
 	}
-	slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", true, "has_full_response", entry.FullResponse != nil)
+	slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", true, "has_file", entry.FilePath != "")
 
-	// フルレスポンスがない場合
-	if entry.FullResponse == nil {
+	// FilePath が設定されている場合、ファイルの内容を読んで返す
+	if entry.FilePath != "" {
+		data, err := os.ReadFile(entry.FilePath)
+		if err != nil {
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{{
+					URI:      req.Params.URI,
+					MIMEType: "text/markdown",
+					Text:     fmt.Sprintf("Error reading cached file: %v\nFile path: %s", err, entry.FilePath),
+				}},
+			}, nil
+		}
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "full response not available for entry: %s"}`, id),
+				MIMEType: "text/markdown",
+				Text:     string(data),
 			}},
 		}, nil
 	}
 
-	// フルレスポンスを返す
-	response := struct {
-		ID           string `json:"id"`
-		Query        string `json:"query"`
-		Type         string `json:"type"`
-		FullResponse any    `json:"full_response"`
-	}{
-		ID:           entry.ID,
-		Query:        entry.Query,
-		Type:         entry.Type,
-		FullResponse: entry.FullResponse,
-	}
-
-	jsonBytes, err := json.Marshal(response)
-	if err != nil {
-		return &mcp.ReadResourceResult{
-			Contents: []*mcp.ResourceContents{{
-				URI:      req.Params.URI,
-				MIMEType: "application/json",
-				Text:     fmt.Sprintf(`{"error": "failed to marshal response: %v"}`, err),
-			}},
-		}, nil
-	}
-
+	// FilePath が未設定（旧エントリ）の場合
 	return &mcp.ReadResourceResult{
 		Contents: []*mcp.ResourceContents{{
 			URI:      req.Params.URI,
 			MIMEType: "application/json",
-			Text:     string(jsonBytes),
+			Text:     `{"error": "Full response data is no longer stored inline. Re-run the search to generate a cached file."}`,
 		}},
 	}, nil
 }

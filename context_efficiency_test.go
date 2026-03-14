@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"testing"
 	"unicode/utf8"
 )
@@ -35,7 +36,6 @@ func TestToolDescriptionSizes(t *testing.T) {
 }
 
 // estimateTokens returns an estimated token count for the given text.
-// Uses ~3.5 chars per token as a rough approximation for English text.
 func estimateTokens(s string) int {
 	return int(math.Ceil(float64(utf8.RuneCountInString(s)) / 3.5))
 }
@@ -52,9 +52,7 @@ type namedDesc struct {
 }
 
 // TestContextEfficiencyReport outputs a comprehensive report of all MCP metadata sizes.
-// This test always passes — it's a measurement tool for before/after comparison.
 func TestContextEfficiencyReport(t *testing.T) {
-	// A. Tool descriptions (from tool_descriptions.go constants)
 	toolDescs := []namedDesc{
 		{"oreilly_search_content", descSearchContent},
 		{"oreilly_ask_question", descAskQuestion},
@@ -71,7 +69,6 @@ func TestContextEfficiencyReport(t *testing.T) {
 	}
 	t.Logf("%-30s %8d %8d", "TOTAL (Tools)", totalToolChars, estimateTokensFromCount(totalToolChars))
 
-	// B. Resource descriptions (from tool_descriptions.go constants)
 	resourceDescs := []namedDesc{
 		{"book-details", descResBookDetails},
 		{"book-toc", descResBookTOC},
@@ -91,7 +88,6 @@ func TestContextEfficiencyReport(t *testing.T) {
 		t.Logf("%-30s %8d %8d", td.name, chars, estimateTokens(td.desc))
 	}
 
-	// C. Resource template descriptions (from tool_descriptions.go constants)
 	templateDescs := []namedDesc{
 		{"book-details-tmpl", descTmplBookDetails},
 		{"book-toc-tmpl", descTmplBookTOC},
@@ -113,7 +109,6 @@ func TestContextEfficiencyReport(t *testing.T) {
 		t.Logf("%-30s %8d %8d", td.name, chars, estimateTokens(td.desc))
 	}
 
-	// D. Prompt descriptions (from tool_descriptions.go constants)
 	promptDescs := []namedDesc{
 		{"learn-technology", descPromptLearnTech},
 		{"review-history", descPromptReviewHist},
@@ -134,7 +129,6 @@ func TestContextEfficiencyReport(t *testing.T) {
 		t.Logf("%-30s %8d %8d", td.name, chars, estimateTokens(td.desc))
 	}
 
-	// E. Total payload summary
 	grandTotal := totalToolChars + totalResourceChars + totalTemplateChars + totalPromptChars
 	t.Log("")
 	t.Log("=== E. Total MCP Metadata Payload ===")
@@ -147,21 +141,8 @@ func TestContextEfficiencyReport(t *testing.T) {
 	t.Logf("%-30s %8d %8d", "GRAND TOTAL", grandTotal, estimateTokensFromCount(grandTotal))
 }
 
-// syntheticBFSResults generates n synthetic BFS-mode search results.
-func syntheticBFSResults(n int) []map[string]any {
-	results := make([]map[string]any, n)
-	for i := range n {
-		results[i] = map[string]any{
-			"id":      fmt.Sprintf("978014310%04d", i),
-			"title":   fmt.Sprintf("Sample Book Title Number %d: A Comprehensive Guide", i),
-			"authors": []string{"John Author", "Jane Writer"},
-		}
-	}
-	return results
-}
-
-// syntheticDFSResults generates n synthetic DFS-mode search results with full detail.
-func syntheticDFSResults(n int) []map[string]any {
+// syntheticSearchResults generates n synthetic search results with full detail.
+func syntheticSearchResults(n int) []map[string]any {
 	results := make([]map[string]any, n)
 	for i := range n {
 		results[i] = map[string]any{
@@ -205,24 +186,44 @@ func syntheticHistoryEntries(n int) []ResearchEntry {
 	return entries
 }
 
-// TestBFSResponseSize measures the JSON size of BFS mode responses.
-func TestBFSResponseSize(t *testing.T) {
-	results := syntheticBFSResults(25)
-	data, err := json.Marshal(results)
+// TestLightweightResponseSize measures the JSON size of lightweight responses
+// and ensures they stay under 2KB for 25-result searches.
+func TestLightweightResponseSize(t *testing.T) {
+	srv := &Server{}
+	results := syntheticSearchResults(25)
+
+	_, structured := srv.buildLightweightResponse(results, "req_test123", "/tmp/cache/test.md", 0, 100)
+
+	data, err := json.Marshal(structured)
 	if err != nil {
-		t.Fatalf("failed to marshal BFS results: %v", err)
+		t.Fatalf("failed to marshal lightweight response: %v", err)
 	}
-	t.Logf("BFS response (25 results): %d bytes (~%.1f KB)", len(data), float64(len(data))/1024)
+
+	sizeKB := float64(len(data)) / 1024
+	t.Logf("Lightweight response (25 results): %d bytes (~%.1f KB)", len(data), sizeKB)
+
+	if len(data) > 2048 {
+		t.Errorf("Lightweight response is %d bytes (%.1f KB), exceeds 2KB guardrail", len(data), sizeKB)
+	}
 }
 
-// TestDFSResponseSize measures the JSON size of DFS mode responses.
-func TestDFSResponseSize(t *testing.T) {
-	results := syntheticDFSResults(25)
-	data, err := json.Marshal(results)
+// TestCacheFileSize measures the Markdown file size for 25-result searches.
+func TestCacheFileSize(t *testing.T) {
+	results := syntheticSearchResults(25)
+	cacheDir := t.TempDir()
+
+	filePath, err := saveResponseAsMarkdown(cacheDir, "test query", results, "req_test123", 100)
 	if err != nil {
-		t.Fatalf("failed to marshal DFS results: %v", err)
+		t.Fatalf("failed to save cache file: %v", err)
 	}
-	t.Logf("DFS response (25 results): %d bytes (~%.1f KB)", len(data), float64(len(data))/1024)
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("failed to stat cache file: %v", err)
+	}
+
+	sizeKB := float64(info.Size()) / 1024
+	t.Logf("Cache file (25 results): %d bytes (~%.1f KB)", info.Size(), sizeKB)
 }
 
 // TestHistoryRecentResponseSize measures the JSON size of history/recent responses.

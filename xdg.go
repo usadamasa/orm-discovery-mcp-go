@@ -113,6 +113,12 @@ func (x *XDGDirs) LogPath() string {
 	return filepath.Join(x.StateHome, "orm-mcp-go.log")
 }
 
+// ResponseCachePath はレスポンスキャッシュディレクトリのパスを返す
+// CacheHomeに保存（再生成可能なデータのため）
+func (x *XDGDirs) ResponseCachePath() string {
+	return filepath.Join(x.CacheHome, "responses")
+}
+
 // ResearchHistoryPath は調査履歴ファイルのパスを返す
 func (x *XDGDirs) ResearchHistoryPath() string {
 	return filepath.Join(x.StateHome, "research-history.json")

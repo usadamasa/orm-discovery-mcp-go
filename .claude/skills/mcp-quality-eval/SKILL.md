@@ -43,6 +43,22 @@ task ci
 
 Phase 1 の結果を記録: `ci_status = PASS | FAIL`
 
+## Phase 1.5: Binary Install & MCP Restart [BLOCKING]
+
+CI 通過後、最新のバイナリをインストールして MCP サーバーを再起動する。
+古いバイナリが動いたまま 2A (Functional) を実行すると、新機能の検証ができない。
+
+```bash
+task install
+```
+
+インストール完了後:
+
+1. `ReadMcpResourceTool` で `orm-mcp://server/status` を読み、`started_at` を記録する
+2. ユーザーに `/mcp` で MCP サーバーの再起動を依頼する
+3. 再起動後、再度 `orm-mcp://server/status` を読み、`started_at` が更新されたことを確認する
+4. `started_at` が変わっていなければ再起動されていないため、再度依頼する
+
 ## Phase 2: Parallel Dimension Evaluation
 
 4 つのディメンションを評価する。静的チェックは subagent で並列化、ライブテストはメインエージェントが直接実行する。
@@ -62,7 +78,7 @@ dogfood-verify の Phase 3-4 を委譲する。
 
 1. **認証確認**: `oreilly_reauthenticate` ツールを呼び出す
    - 失敗 -> 2A 全体を FAIL (認証エラー) とし、残りの 2A テストをスキップ
-2. **oreilly_search_content**: 「Docker」で 5 件検索 (BFS モード)
+2. **oreilly_search_content**: 「Docker」で 5 件検索
    - 成功条件: 結果が返り、認証エラーなし
 3. **oreilly_ask_question**: 「What is Docker?」(最大待機 60 秒)
    - 成功条件: answer フィールドが存在 (タイムアウトは WARNING)
@@ -135,7 +151,7 @@ head -40 plugins/agents/oreilly-researcher.md
 |---|----------|--------------|
 | 1 | Available Tools | `## Available Tools` |
 | 2 | Available Resources | `## Available Resources` |
-| 3 | BFS/DFS Mode Selection Criteria | `## BFS/DFS Mode Selection Criteria` |
+| 3 | Accessing Detailed Results | `## Accessing Detailed Results` |
 | 4 | Research Workflows | `## Research Workflows` |
 | 5 | Output Format | `## Output Format` |
 | 6 | Citation Requirements | `## Citation Requirements` |
@@ -266,7 +282,7 @@ backlog-cli audit log-entry \
   --findings '[
     {"check":"ci_gate","status":"pass","detail":"all CI checks passed"},
     {"check":"func_auth","status":"pass","detail":"cookie auth OK"},
-    {"check":"func_search","status":"pass","detail":"BFS/DFS both returned results"},
+    {"check":"func_search","status":"pass","detail":"search returned results with file path"},
     {"check":"func_ask","status":"warn","detail":"slow response 8.2s"},
     {"check":"func_resources","status":"pass","detail":"book-details, book-toc OK"},
     {"check":"func_prompts","status":"skip","detail":"MCP Prompts not available in subagent"},
@@ -274,8 +290,8 @@ backlog-cli audit log-entry \
     {"check":"skill_sync","status":"pass","detail":"no drift"},
     {"check":"agent_drift","status":"pass","detail":"no drift"},
     {"check":"agent_definition","status":"pass","detail":"frontmatter valid"},
-    {"check":"agent_behavioral_b1","status":"pass","detail":"BFS mode selected correctly"},
-    {"check":"agent_behavioral_b2","status":"pass","detail":"DFS deep-dive executed"},
+    {"check":"agent_behavioral_b1","status":"pass","detail":"quick search with inline summary"},
+    {"check":"agent_behavioral_b2","status":"pass","detail":"deep research with file read"},
     {"check":"agent_behavioral_b3","status":"pass","detail":"ask_question used for Q&A"},
     {"check":"agent_behavioral_b4","status":"pass","detail":"VOC issue created"},
     {"check":"agent_voc","status":"pass","detail":"no new VOC"},

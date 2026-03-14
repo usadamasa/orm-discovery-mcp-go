@@ -53,7 +53,7 @@ task check  # Quick quality check
 
 | Type | Name | Description |
 |------|------|-------------|
-| Tool | `oreilly_search_content` | Content discovery (BFS/DFS modes) |
+| Tool | `oreilly_search_content` | Content discovery (file-based lazy loading) |
 | Tool | `oreilly_ask_question` | O'Reilly Answers AI Q&A |
 | Resource | `oreilly://book-*` | Book details, TOC, chapters |
 | Resource | `orm-mcp://history/*` | Research history access |

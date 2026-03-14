@@ -245,6 +245,19 @@ func TestXDGDirs_LogPath(t *testing.T) {
 	}
 }
 
+func TestXDGDirs_ResponseCachePath(t *testing.T) {
+	dirs := &XDGDirs{
+		StateHome:  "/test/state/orm-mcp-go",
+		CacheHome:  "/test/cache/orm-mcp-go",
+		ConfigHome: "/test/config/orm-mcp-go",
+	}
+
+	expected := "/test/cache/orm-mcp-go/responses"
+	if got := dirs.ResponseCachePath(); got != expected {
+		t.Errorf("ResponseCachePath() = %q, want %q", got, expected)
+	}
+}
+
 func TestXDGDirs_ChromeSetupDataDir(t *testing.T) {
 	dirs := &XDGDirs{
 		StateHome:  "/test/state/orm-mcp-go",

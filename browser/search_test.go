@@ -9,7 +9,7 @@ import (
 
 func TestNormalizeSearchResult_ProductIDKey(t *testing.T) {
 	// Bug #130: normalizeSearchResult の戻り値に "product_id" キーが含まれること
-	// DFS 消費者が product_id で参照するため、id だけでなく product_id も必要
+	// product_id で参照するため、id だけでなく product_id も必要
 	productID := "9781492077992"
 	title := "Learning Go"
 	raw := api.RawSearchResult{

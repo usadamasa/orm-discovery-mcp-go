@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Breaking Changes
+- **Remove BFS/DFS mode distinction**: `oreilly_search_content` no longer accepts `mode` or `summarize` parameters. Search results are always saved to a local Markdown file (`~/.cache/orm-mcp-go/responses/`), and the tool response returns a lightweight summary (top 5) with the file path for lazy loading via Read tool.
+- **Remove `FullResponse` from research history**: `ResearchEntry` no longer stores inline API response data. Use `FilePath` field to access cached file content instead. Old entries without `FilePath` return an error message suggesting re-search.
+- **Remove `ORM_MCP_GO_DEFAULT_MODE` env var**: No longer needed since mode selection is removed.
+
 ## [v0.0.12](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.11...v0.0.12) - 2026-03-01
 - feat: oreilly_search_content にページネーション対応を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/66
 - fix: HTTPバインドアドレスを127.0.0.1に修正しOrigin検証を追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/68
