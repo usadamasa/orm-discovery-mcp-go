@@ -81,6 +81,7 @@ claude mcp add -s user orm-discovery-mcp-go \
 - **`orm-mcp://history/recent`**: 直近20件の調査履歴
 - **`orm-mcp://history/search?keyword=xxx`**: キーワードで履歴検索
 - **`orm-mcp://history/{id}`**: 特定の調査履歴の詳細
+- **`orm-mcp://server/status`**: サーバー起動時刻とバージョン
 
 ### MCPプロンプト
 - **`learn-technology`**: 特定技術の学習パスを生成（例: Kubernetes、React）
@@ -88,6 +89,7 @@ claude mcp add -s user orm-discovery-mcp-go \
 - **`debug-error`**: エラーメッセージのデバッグガイドを生成
 - **`review-history`**: 過去の調査履歴をレビューしてパターンや傾向を分析
 - **`continue-research`**: 過去の調査を継続して深掘りする
+- **`summarize-history`**: 特定の調査履歴エントリを要約して重要な知見を抽出
 
 ### 利用フロー
 

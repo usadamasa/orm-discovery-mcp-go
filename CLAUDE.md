@@ -55,8 +55,10 @@ task check  # Quick quality check
 |------|------|-------------|
 | Tool | `oreilly_search_content` | Content discovery (file-based lazy loading) |
 | Tool | `oreilly_ask_question` | O'Reilly Answers AI Q&A |
+| Tool | `oreilly_reauthenticate` | Session re-authentication (Chrome launch) |
 | Resource | `oreilly://book-*` | Book details, TOC, chapters |
 | Resource | `orm-mcp://history/*` | Research history access |
+| Resource | `orm-mcp://server/status` | Server startup time and version |
 
 ## Rules and Guides
 
