@@ -1,4 +1,4 @@
-> Generated: 2026-03-14 06:26
+> Generated: 2026-03-14 06:47
 
 # Issues
 
@@ -7,6 +7,7 @@
 | ID | Title | Tags | GH Issue |
 |----|-------|------|----------|
 | issue-20260307-e4f6 | oreilly-researcher: Q&Aプロンプトで oreilly_ask_question が呼び出されない | quality-eval, agent-behavior, server-side | - |
+| issue-20260314-56d4 | ドキュメントと実装の差異: continue-research の引数名が topic ではなく research_id | quality-eval, doc-drift | - |
 
 ## Medium
 
@@ -19,6 +20,7 @@
 | issue-20260307-7930 | mcp-quality-eval: prompts/get 検証を Go テストに置き換える | quality-eval, testing | - |
 | issue-20260307-f74e | mcp-quality-eval 実行中のユーザ問い合わせ (permission prompt) を削減する | quality-eval, dx | - |
 | issue-20260314-5ed4 | ツールインターフェース変更の blast radius が大きすぎる | architecture, dx | - |
+| issue-20260314-96f2 | ドキュメントと実装の差異: debug-error に technology 引数が required だが未記載 | quality-eval, doc-drift | - |
 
 ## Low
 
@@ -30,4 +32,5 @@
 | issue-20260314-eca9 | oreilly-researcher: deep research で file Read と book-details チェーンが使われない | quality-eval, agent-behavior | - |
 | issue-20260314-2c35 | oreilly-researcher: リスト要求に Summary Template を使用してしまう | quality-eval, agent-behavior | - |
 | issue-20260314-47b9 | oreilly-researcher: 調査後に MEMORY.md が更新されない | quality-eval, agent-behavior | - |
+| issue-20260314-87f4 | ドキュメントと実装の差異: 7件の未記載ツール/リソース/プロンプト | quality-eval, doc-drift | - |
 
