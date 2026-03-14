@@ -44,7 +44,7 @@ func TestRunAuditLast(t *testing.T) {
 
 	entry1 := makeAuditEntry("eval-001", 3, 4, []model.AuditFinding{
 		{Check: "B1", Status: "pass", Detail: "ok"},
-		{Check: "B2", Status: "fail", Detail: "DFS not used"},
+		{Check: "B2", Status: "fail", Detail: "file read not used"},
 		{Check: "B3", Status: "pass", Detail: "ok"},
 		{Check: "B4", Status: "pass", Detail: "ok"},
 	})
@@ -89,7 +89,7 @@ func TestRunAuditFailuresOnly(t *testing.T) {
 
 	entry := makeAuditEntry("eval-003", 2, 4, []model.AuditFinding{
 		{Check: "B1", Status: "pass", Detail: "ok"},
-		{Check: "B2", Status: "fail", Detail: "DFS not used"},
+		{Check: "B2", Status: "fail", Detail: "file read not used"},
 		{Check: "B3", Status: "warn", Detail: "no citation"},
 		{Check: "B4", Status: "pass", Detail: "ok"},
 	})
@@ -103,7 +103,7 @@ func TestRunAuditFailuresOnly(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(output, "[fail] B2: DFS not used") {
+	if !strings.Contains(output, "[fail] B2: file read not used") {
 		t.Errorf("missing fail finding:\n%s", output)
 	}
 	if !strings.Contains(output, "[warn] B3: no citation") {

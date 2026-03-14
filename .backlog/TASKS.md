@@ -1,4 +1,4 @@
-> Generated: 2026-03-09 12:59
+> Generated: 2026-03-14 04:28
 
 # Tasks
 
@@ -6,7 +6,7 @@
 
 | ID | Title | Tags | Source |
 |----|-------|------|--------|
-| task-20260309-8e11 | search レスポンスのファイル保存 + 遅延読み込みアーキテクチャ | architecture, context-efficiency, search | manual |
+| - | - | - | - |
 
 ## P2
 
@@ -18,6 +18,5 @@
 
 | ID | Title | Tags | Source |
 |----|-------|------|--------|
-| task-20260307-d232 | Sampling with Tools への移行検討 | pr-138, go-sdk, sampling, dfs | manual |
 | task-20260307-cec0 | Extensions capabilities の活用検討 | pr-138, go-sdk, extensions, capabilities | manual |
 

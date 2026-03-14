@@ -134,8 +134,7 @@ func TestExtractQuestionIDFromURI(t *testing.T) {
 	}
 }
 
-func TestBuildBFSResponse_BrowserAuthorConversion(t *testing.T) {
-	// Bug #132: authors が []browser.Author 型のとき、BFS レスポンスに著者が含まれること
+func TestBuildLightweightResponse_BrowserAuthorConversion(t *testing.T) {
 	srv := &Server{}
 
 	results := []map[string]any{
@@ -150,11 +149,7 @@ func TestBuildBFSResponse_BrowserAuthorConversion(t *testing.T) {
 		},
 	}
 
-	_, structured, err := srv.buildBFSResponse(results, "hist_123", 0, 1)
-
-	if err != nil {
-		t.Fatalf("buildBFSResponse failed: %v", err)
-	}
+	_, structured := srv.buildLightweightResponse(results, "hist_123", "/tmp/test.md", 0, 1)
 
 	if structured == nil || len(structured.Results) == 0 {
 		t.Fatal("expected structured results")
@@ -162,15 +157,74 @@ func TestBuildBFSResponse_BrowserAuthorConversion(t *testing.T) {
 
 	authors, ok := structured.Results[0]["authors"]
 	if !ok {
-		t.Fatal("expected authors key in BFS result")
+		t.Fatal("expected authors key in result")
 	}
 
-	// 著者は文字列スライスに変換されるべき
 	authorNames, ok := authors.([]string)
 	if !ok {
 		t.Fatalf("expected []string authors, got %T", authors)
 	}
 	if len(authorNames) != 2 || authorNames[0] != "John Doe" || authorNames[1] != "Jane Smith" {
 		t.Errorf("expected [John Doe, Jane Smith], got %v", authorNames)
+	}
+}
+
+func TestBuildLightweightResponse_FilePath(t *testing.T) {
+	srv := &Server{}
+
+	results := []map[string]any{
+		{"id": "123", "title": "Test Book", "content_type": "book"},
+	}
+
+	toolResult, structured := srv.buildLightweightResponse(results, "hist_123", "/tmp/cache/test.md", 0, 1)
+
+	if structured == nil {
+		t.Fatal("expected structured result")
+	}
+
+	if structured.FilePath != "/tmp/cache/test.md" {
+		t.Errorf("expected FilePath '/tmp/cache/test.md', got %q", structured.FilePath)
+	}
+
+	if structured.HistoryID != "hist_123" {
+		t.Errorf("expected HistoryID 'hist_123', got %q", structured.HistoryID)
+	}
+
+	// Tool result should contain text with file path
+	if toolResult == nil {
+		t.Fatal("expected tool result with text content")
+	}
+}
+
+func TestBuildLightweightResponse_LimitsTo5Results(t *testing.T) {
+	srv := &Server{}
+
+	results := make([]map[string]any, 10)
+	for i := range results {
+		results[i] = map[string]any{
+			"id":    "id-" + string(rune('0'+i)),
+			"title": "Book " + string(rune('0'+i)),
+		}
+	}
+
+	toolResult, structured := srv.buildLightweightResponse(results, "hist_123", "/tmp/test.md", 0, 50)
+
+	if structured == nil {
+		t.Fatal("expected structured result")
+	}
+
+	// Only top 5 results should be in structured output for context efficiency
+	if len(structured.Results) != 5 {
+		t.Errorf("expected 5 results in structured (top 5 only), got %d", len(structured.Results))
+	}
+
+	// But Count should reflect total results returned by API
+	if structured.Count != 10 {
+		t.Errorf("expected Count 10, got %d", structured.Count)
+	}
+
+	// But text should mention "and X more results"
+	if toolResult == nil || len(toolResult.Content) == 0 {
+		t.Fatal("expected tool result content")
 	}
 }

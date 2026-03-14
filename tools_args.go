@@ -12,18 +12,6 @@ const (
 	ResponseFormatMarkdown ResponseFormat = "markdown"
 )
 
-// SearchMode defines the exploration mode for oreilly_search_content tool.
-type SearchMode string
-
-const (
-	// SearchModeBFS is breadth-first search mode that returns lightweight results (id, title, authors only).
-	// This is the default mode for reduced context consumption.
-	SearchModeBFS SearchMode = "bfs"
-	// SearchModeDFS is depth-first search mode that returns full detailed results.
-	// Use this when you need complete information and are willing to consume more context.
-	SearchModeDFS SearchMode = "dfs"
-)
-
 // Input validation constants.
 const (
 	maxQueryLength    = 500
@@ -44,10 +32,6 @@ type SearchContentArgs struct {
 
 	// Pagination parameters
 	Offset int `json:"offset,omitempty" jsonschema:"Pagination offset (0-based, default: 0)"`
-
-	// Exploration mode parameters
-	Mode      SearchMode `json:"mode,omitempty" jsonschema:"Exploration mode: 'bfs' (default) returns lightweight results (id, title, authors), 'dfs' returns full detailed results"`
-	Summarize bool       `json:"summarize,omitempty" jsonschema:"In DFS mode, use MCP Sampling to generate a summary of results (reduces context consumption)"`
 
 	// Response format
 	Format ResponseFormat `json:"format,omitempty" jsonschema:"Output format: 'json' (default) or 'markdown' for human-readable output"`
@@ -71,11 +55,8 @@ type SearchContentResult struct {
 	HasMore      bool `json:"has_more"`              // Whether more results are available
 	NextOffset   int  `json:"next_offset,omitempty"` // Next page offset (only set when HasMore=true)
 
-	// BFS/DFS mode specific fields
-	Mode      SearchMode `json:"mode,omitempty"`       // The mode used for this search
-	HistoryID string     `json:"history_id,omitempty"` // Research history ID for accessing full data later
-	Summary   string     `json:"summary,omitempty"`    // AI-generated summary (DFS mode with Summarize=true)
-	Note      string     `json:"note,omitempty"`       // Helpful note for the user (BFS mode)
+	HistoryID string `json:"history_id,omitempty"` // Research history ID
+	FilePath  string `json:"file_path,omitempty"`  // Path to cached Markdown file with full results
 }
 
 // calcPagination computes pagination state from offset, result count, and total results.
@@ -87,13 +68,6 @@ func calcPagination(offset, resultCount, totalResults int) (hasMore bool, nextOf
 		return true, offset + resultCount
 	}
 	return false, 0
-}
-
-// BFSResult represents a lightweight search result for BFS mode.
-type BFSResult struct {
-	ID      string   `json:"id"`                // product_id or ISBN
-	Title   string   `json:"title"`             // Book/content title
-	Authors []string `json:"authors,omitempty"` // Author names
 }
 
 // ReauthResult represents the structured output for the oreilly_reauthenticate tool.

@@ -1,4 +1,4 @@
-> Generated: 2026-03-09 12:56
+> Generated: 2026-03-14 04:24
 
 # Ideas
 
@@ -8,7 +8,6 @@
 | idea-20260301-b2c1 | ユーザー固有コンテンツアクセス (プレイリスト/ブックマーク) | api-expansion, user-content | active |
 | idea-20260301-c3d2 | 書籍内キーワード検索 | search-enhancement, resource | active |
 | idea-20260301-d4e3 | コンテンツ要約機能 | api-expansion, ai, context-efficiency | active |
-| idea-20260301-g7h6 | BFSモード全コンテンツタイプ対応 | search-enhancement | active |
 | idea-20260301-h8i7 | 動画トランスクリプトアクセス | api-expansion, resource | active |
 | idea-20260301-i9j8 | ラーニングパスリソース | api-expansion, resource | active |
 | idea-20260301-j0k9 | セッション内クエリキャッシュ | context-efficiency, performance | active |

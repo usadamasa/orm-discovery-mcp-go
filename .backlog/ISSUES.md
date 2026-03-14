@@ -1,4 +1,4 @@
-> Generated: 2026-03-09 12:56
+> Generated: 2026-03-14 04:24
 
 # Issues
 
@@ -6,7 +6,6 @@
 
 | ID | Title | Tags | GH Issue |
 |----|-------|------|----------|
-| issue-20260307-bc8d | oreilly-researcher: 比較リクエストで DFS モードが選択されない | quality-eval, agent-behavior, server-side | - |
 | issue-20260307-e4f6 | oreilly-researcher: Q&Aプロンプトで oreilly_ask_question が呼び出されない | quality-eval, agent-behavior, server-side | - |
 
 ## Medium

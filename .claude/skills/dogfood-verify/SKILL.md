@@ -70,7 +70,7 @@ which orm-discovery-mcp-go
 
 `orm-discovery-mcp-go:oreilly-researcher` subagent で以下を実行:
 
-> 「Docker」で5件検索してください (BFS モード)
+> 「Docker」で5件検索してください
 
 | 成功条件 | 失敗時の対応 |
 |---------|------------|

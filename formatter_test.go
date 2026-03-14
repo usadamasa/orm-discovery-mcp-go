@@ -13,7 +13,6 @@ func TestFormatSearchResultsMarkdown(t *testing.T) {
 			Count:        2,
 			Total:        2,
 			TotalResults: 50,
-			Mode:         SearchModeBFS,
 			HistoryID:    "req_abc123",
 			Results: []map[string]any{
 				{"id": "123", "title": "Docker: Up & Running", "authors": []any{"Sean P. Kane"}},
@@ -35,7 +34,6 @@ func TestFormatSearchResultsMarkdown(t *testing.T) {
 			Count:        0,
 			Total:        0,
 			TotalResults: 0,
-			Mode:         SearchModeBFS,
 			Results:      []map[string]any{},
 		}
 
@@ -51,7 +49,6 @@ func TestFormatSearchResultsMarkdown(t *testing.T) {
 			TotalResults: 100,
 			HasMore:      true,
 			NextOffset:   25,
-			Mode:         SearchModeBFS,
 			Results: []map[string]any{
 				{"id": "123", "title": "Test Book"},
 			},
@@ -65,12 +62,10 @@ func TestFormatSearchResultsMarkdown(t *testing.T) {
 }
 
 func TestFormatSearchResultsMarkdown_BrowserAuthor(t *testing.T) {
-	// Bug #132: authors が []browser.Author 型のとき、Markdown に著者名が表示されること
 	result := &SearchContentResult{
 		Count:        1,
 		Total:        1,
 		TotalResults: 1,
-		Mode:         SearchModeBFS,
 		Results: []map[string]any{
 			{
 				"id":    "123",
@@ -91,12 +86,10 @@ func TestFormatSearchResultsMarkdown_BrowserAuthor(t *testing.T) {
 }
 
 func TestFormatSearchResultsMarkdown_StringAuthors(t *testing.T) {
-	// Bug #132: authors が []string 型のとき、Markdown に著者名が表示されること
 	result := &SearchContentResult{
 		Count:        1,
 		Total:        1,
 		TotalResults: 1,
-		Mode:         SearchModeBFS,
 		Results: []map[string]any{
 			{
 				"id":      "456",

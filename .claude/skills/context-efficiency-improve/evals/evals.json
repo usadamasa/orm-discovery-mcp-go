@@ -27,18 +27,18 @@
     {
       "id": 2,
       "prompt": "oreilly_search_content のレスポンスが大きすぎてコンテキストを圧迫してる",
-      "expected_output": "レスポンスサイズの計測 → BFS/DFS 比較 → 改善提案",
+      "expected_output": "レスポンスサイズの計測 → インライン vs キャッシュファイル比較 → 改善提案",
       "files": [],
       "assertions": [
         {
           "type": "content_present",
-          "text": "BFS と DFS のレスポンスサイズが比較される",
-          "check": "BFS ~3KB vs DFS ~16KB のようなサイズ比較が含まれる"
+          "text": "インラインレスポンスとキャッシュファイルのサイズが計測される",
+          "check": "インラインレスポンス ~2KB、キャッシュファイルサイズのような計測結果が含まれる"
         },
         {
           "type": "content_present",
           "text": "具体的な改善案が提示される",
-          "check": "BFS モード推奨、history/recent スリム化、等の改善提案がある"
+          "check": "レスポンスサイズ削減、history/recent スリム化、等の改善提案がある"
         }
       ]
     },

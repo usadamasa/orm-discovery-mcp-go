@@ -258,22 +258,15 @@ func TestGenerateRequestID(t *testing.T) {
 	}
 }
 
-func TestResearchEntry_FullResponse(t *testing.T) {
+func TestResearchEntry_FilePath(t *testing.T) {
 	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, "research-history.json")
+	historyFile := filepath.Join(tmpDir, "research-history.json")
 
-	manager := NewResearchHistoryManager(filePath, 100)
+	manager := NewResearchHistoryManager(historyFile, 100)
 	if err := manager.Load(); err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
 
-	// Create full response data
-	fullResponse := []map[string]any{
-		{"id": "123", "title": "Docker: Up & Running", "authors": []string{"Sean P. Kane"}},
-		{"id": "456", "title": "Kubernetes Patterns", "authors": []string{"Bilgin Ibryam"}},
-	}
-
-	// Add entry with full response
 	entry := ResearchEntry{
 		ID:       "req_test123",
 		Type:     "search",
@@ -285,8 +278,8 @@ func TestResearchEntry_FullResponse(t *testing.T) {
 				{Title: "Docker: Up & Running", Author: "Sean P. Kane", ProductID: "123"},
 			},
 		},
-		FullResponse: fullResponse,
-		DurationMs:   1000,
+		FilePath:   "/tmp/cache/responses/20260314-120000_docker-containers.md",
+		DurationMs: 1000,
 	}
 
 	if err := manager.AddEntry(entry); err != nil {
@@ -296,47 +289,32 @@ func TestResearchEntry_FullResponse(t *testing.T) {
 		t.Fatalf("failed to save: %v", err)
 	}
 
-	// Retrieve and verify
 	retrieved := manager.GetByID("req_test123")
 	if retrieved == nil {
 		t.Fatal("expected to find entry by ID")
 	}
 
-	// Check full response is preserved
-	if retrieved.FullResponse == nil {
-		t.Error("expected FullResponse to be preserved")
-	}
-
-	// Verify full response content
-	fullResp, ok := retrieved.FullResponse.([]map[string]any)
-	if !ok {
-		t.Errorf("expected FullResponse to be []map[string]any, got %T", retrieved.FullResponse)
-	} else if len(fullResp) != 2 {
-		t.Errorf("expected 2 items in FullResponse, got %d", len(fullResp))
+	if retrieved.FilePath != "/tmp/cache/responses/20260314-120000_docker-containers.md" {
+		t.Errorf("expected FilePath to be preserved, got %q", retrieved.FilePath)
 	}
 }
 
-func TestResearchEntry_FullResponsePersistence(t *testing.T) {
+func TestResearchEntry_FilePathPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, "research-history.json")
+	historyFile := filepath.Join(tmpDir, "research-history.json")
 
-	// Create and add entry with full response
-	manager1 := NewResearchHistoryManager(filePath, 100)
+	manager1 := NewResearchHistoryManager(historyFile, 100)
 	if err := manager1.Load(); err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
 
-	fullResponse := []map[string]any{
-		{"id": "789", "title": "Test Book"},
-	}
-
 	entry := ResearchEntry{
-		ID:           "req_persist",
-		Type:         "search",
-		Query:        "Test query",
-		ToolName:     "oreilly_search_content",
-		FullResponse: fullResponse,
-		DurationMs:   500,
+		ID:         "req_persist",
+		Type:       "search",
+		Query:      "Test query",
+		ToolName:   "oreilly_search_content",
+		FilePath:   "/tmp/cache/responses/test.md",
+		DurationMs: 500,
 	}
 
 	if err := manager1.AddEntry(entry); err != nil {
@@ -346,18 +324,16 @@ func TestResearchEntry_FullResponsePersistence(t *testing.T) {
 		t.Fatalf("failed to save: %v", err)
 	}
 
-	// Load from file with new manager
-	manager2 := NewResearchHistoryManager(filePath, 100)
+	manager2 := NewResearchHistoryManager(historyFile, 100)
 	if err := manager2.Load(); err != nil {
 		t.Fatalf("failed to load from file: %v", err)
 	}
 
-	// Verify full response was persisted
 	retrieved := manager2.GetByID("req_persist")
 	if retrieved == nil {
 		t.Fatal("expected to find entry by ID after reload")
 	}
-	if retrieved.FullResponse == nil {
-		t.Error("expected FullResponse to be persisted")
+	if retrieved.FilePath != "/tmp/cache/responses/test.md" {
+		t.Errorf("expected FilePath to be persisted, got %q", retrieved.FilePath)
 	}
 }

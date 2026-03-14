@@ -6,11 +6,11 @@ package main
 
 // Tool descriptions.
 
-const descSearchContent = `Search O'Reilly content and return books/videos/articles with product_id for resource access.
+const descSearchContent = `Search O'Reilly content. Returns top 5 inline + saves full results to a local file for Read tool access.
 
 Example: "Docker containers" (Good) / "How to use Docker" (Poor)
 
-Results: Use product_id with oreilly://book-details/{id} or oreilly://book-chapter/{id}/{chapter}
+Results: Use product_id with oreilly://book-details/{id}. Read the file path for full details.
 
 IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`
 
@@ -41,7 +41,7 @@ const (
 	descTmplAnswer      = "Use question_id from oreilly_ask_question to retrieve the answer."
 	descTmplHistSearch  = "Search past research by keyword or type (search/question)."
 	descTmplHistDetail  = "Get details of a specific research entry by ID."
-	descTmplHistFull    = "Get the full API response data for a research entry. Use with BFS mode to access complete data later."
+	descTmplHistFull    = "Get the full cached response for a research entry from the saved Markdown file."
 )
 
 // Prompt descriptions.

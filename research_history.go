@@ -41,10 +41,8 @@ type ResearchEntry struct {
 	ResultSummary ResultSummary  `json:"result_summary"`
 	DurationMs    int64          `json:"duration_ms"`
 
-	// FullResponse stores the complete API response for later access via orm-mcp://history/{id}/full.
-	// This is used to enable BFS mode where lightweight results are returned immediately,
-	// but full data can be accessed later through the resource endpoint.
-	FullResponse any `json:"full_response,omitempty"`
+	// FilePath stores the path to the cached Markdown file with full results.
+	FilePath string `json:"file_path,omitempty"`
 }
 
 // ResultSummary は結果のサマリー（タイプ別に異なる構造）

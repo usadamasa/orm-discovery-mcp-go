@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,8 @@ type Server struct {
 	historyManager  *ResearchHistoryManager
 	samplingManager *SamplingManager
 	cookieManager   cookie.Manager // 再認証時の BrowserClient 再生成に使用
+	startedAt       time.Time      // サーバー起動時刻 (MCP 再起動検証用)
+	serverVersion   string
 }
 
 // NewServer creates a new server instance.
@@ -71,6 +74,8 @@ func NewServer(browserClient browser.Client, config *Config, cookieManager cooki
 		historyManager:  historyManager,
 		samplingManager: samplingManager,
 		cookieManager:   cookieManager,
+		startedAt:       time.Now(),
+		serverVersion:   serverVersion,
 	}
 
 	// Add middleware for logging
@@ -262,6 +267,17 @@ func (s *Server) registerResources() {
 		s.GetAnswerResource,
 	)
 
+	// Server status resource (for MCP restart verification)
+	s.server.AddResource(
+		&mcp.Resource{
+			URI:         "orm-mcp://server/status",
+			Name:        "MCP Server Status",
+			Description: "Server startup time and version for restart verification",
+			MIMEType:    "application/json",
+		},
+		s.GetServerStatusResource,
+	)
+
 	// Resource Templates for dynamic discovery
 	s.server.AddResourceTemplate(
 		&mcp.ResourceTemplate{
@@ -304,6 +320,22 @@ func (s *Server) registerResources() {
 	)
 }
 
+// GetServerStatusResource returns server startup time and version for restart verification.
+func (s *Server) GetServerStatusResource(_ context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+	status := map[string]string{
+		"started_at": s.startedAt.UTC().Format(time.RFC3339),
+		"version":    s.serverVersion,
+	}
+	jsonBytes, _ := json.Marshal(status)
+	return &mcp.ReadResourceResult{
+		Contents: []*mcp.ResourceContents{{
+			URI:      req.Params.URI,
+			MIMEType: "application/json",
+			Text:     string(jsonBytes),
+		}},
+	}, nil
+}
+
 // SearchContentHandler handles search requests.
 func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequest, args SearchContentArgs) (*mcp.CallToolResult, *SearchContentResult, error) {
 	slog.Debug("検索リクエスト受信")
@@ -336,15 +368,8 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		args.Languages = []string{"en", "ja"}
 	}
 
-	// Set default mode from config
-	mode := args.Mode
-	if mode == "" {
-		mode = s.config.DefaultSearchMode
-	}
-
 	// Prepare options for BrowserClient
 	options := map[string]any{
-		"mode":          mode,
 		"rows":          args.Rows,
 		"offset":        args.Offset,
 		"languages":     args.Languages,
@@ -356,7 +381,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	// Execute search using BrowserClient
-	slog.Debug("BrowserClient検索開始", "query", args.Query, "mode", mode, "offset", args.Offset, "rows", args.Rows)
+	slog.Debug("BrowserClient検索開始", "query", args.Query, "offset", args.Offset, "rows", args.Rows)
 	results, totalResults, err := s.getBrowserClient().SearchContent(args.Query, options)
 	if err != nil && categorizeError(err) == ErrorCategoryAuth {
 		// Attempt re-authentication
@@ -371,23 +396,24 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	if err != nil {
 		return newToolResultError(sanitizeError(err, "operation", "search", "query", args.Query)), nil, nil
 	}
-	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
-	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults, "mode", mode)
+	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
+	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
 
-	// Record to research history and get the history ID
-	historyID := s.recordSearchHistoryWithFullResponse(args.Query, options, results, time.Since(start))
-
-	// Build response based on mode
-	var toolResult *mcp.CallToolResult
-	var structured *SearchContentResult
-	var resultErr error
-
-	switch mode {
-	case SearchModeDFS:
-		toolResult, structured, resultErr = s.buildDFSResponse(ctx, req.Session, args.Query, results, historyID, args.Summarize, args.Offset, totalResults)
-	default:
-		toolResult, structured, resultErr = s.buildBFSResponse(results, historyID, args.Offset, totalResults)
+	// Save full results to cache file
+	cacheDir := s.config.XDGDirs.ResponseCachePath()
+	filePath, cacheErr := saveResponseAsMarkdown(cacheDir, args.Query, results, "", totalResults)
+	if cacheErr != nil {
+		slog.Warn("レスポンスキャッシュの保存に失敗しました", "error", cacheErr)
 	}
+
+	// Record to research history
+	historyID := s.recordSearchHistory(args.Query, options, results, filePath, time.Since(start))
+
+	// Update cache file with history ID (best-effort)
+	filePath = updateCacheWithHistoryID(cacheDir, args.Query, results, historyID, totalResults, filePath)
+
+	// Build lightweight response
+	toolResult, structured := s.buildLightweightResponse(results, historyID, filePath, args.Offset, totalResults)
 
 	// Return Markdown format if requested
 	if args.Format == ResponseFormatMarkdown && structured != nil {
@@ -396,12 +422,31 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 		}, structured, nil
 	}
 
-	return toolResult, structured, resultErr
+	return toolResult, structured, nil
 }
 
-// buildBFSResponse builds a lightweight response for BFS mode.
+// updateCacheWithHistoryID re-saves the cache file with history ID embedded.
+// Returns the updated file path, or the original if update fails.
+func updateCacheWithHistoryID(cacheDir, query string, results []map[string]any, historyID string, totalResults int, origPath string) string {
+	if origPath == "" || historyID == "" {
+		return origPath
+	}
+	updatedPath, err := saveResponseAsMarkdown(cacheDir, query, results, historyID, totalResults)
+	if err != nil {
+		return origPath
+	}
+	if updatedPath != origPath {
+		if removeErr := os.Remove(origPath); removeErr != nil {
+			slog.Warn("failed to remove old cache file", "path", origPath, "error", removeErr)
+		}
+	}
+	return updatedPath
+}
+
+// buildLightweightResponse builds a lightweight response with file path for lazy loading.
 // Book results include ResourceLink entries for direct resource navigation.
-func (s *Server) buildBFSResponse(results []map[string]any, historyID string, offset, totalResults int) (*mcp.CallToolResult, *SearchContentResult, error) {
+// Returns up to 5 results in the text summary.
+func (s *Server) buildLightweightResponse(results []map[string]any, historyID, filePath string, offset, totalResults int) (*mcp.CallToolResult, *SearchContentResult) {
 	lightweightResults := make([]map[string]any, 0, len(results))
 	var resourceLinks []mcp.Content
 
@@ -440,9 +485,31 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 
 	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
 
-	note := "Use oreilly://book-details/{id} for full details. Full data available at orm-mcp://history/" + historyID + "/full"
+	// Limit structured results for context efficiency
+	const inlineSummaryLimit = 5
+	topResults := lightweightResults
+	if len(topResults) > inlineSummaryLimit {
+		topResults = topResults[:inlineSummaryLimit]
+	}
+
+	// Build text summary with top results and file path
+	var textParts []string
+	for i, r := range topResults {
+		title, _ := r["title"].(string)
+		id, _ := r["id"].(string)
+		line := fmt.Sprintf("%d. %s (ID: %s)", i+1, title, id)
+		textParts = append(textParts, line)
+	}
+	if len(lightweightResults) > inlineSummaryLimit {
+		textParts = append(textParts, fmt.Sprintf("... and %d more results", len(lightweightResults)-5))
+	}
+
+	if filePath != "" {
+		textParts = append(textParts, fmt.Sprintf("\nFull details saved to: %s\nUse the Read tool to access detailed results.", filePath))
+	}
+
 	if hasMore {
-		note += fmt.Sprintf(". More results available: use offset=%d to get next page.", nextOffset)
+		textParts = append(textParts, fmt.Sprintf("\nMore results available: use offset=%d to get next page.", nextOffset))
 	}
 
 	structured := &SearchContentResult{
@@ -451,16 +518,21 @@ func (s *Server) buildBFSResponse(results []map[string]any, historyID string, of
 		TotalResults: totalResults,
 		HasMore:      hasMore,
 		NextOffset:   nextOffset,
-		Results:      lightweightResults,
-		Mode:         SearchModeBFS,
+		Results:      topResults,
 		HistoryID:    historyID,
-		Note:         note,
+		FilePath:     filePath,
 	}
 
-	if len(resourceLinks) > 0 {
-		return &mcp.CallToolResult{Content: resourceLinks}, structured, nil
+	var content []mcp.Content
+	if len(textParts) > 0 {
+		content = append(content, &mcp.TextContent{Text: strings.Join(textParts, "\n")})
 	}
-	return nil, structured, nil
+	content = append(content, resourceLinks...)
+
+	if len(content) > 0 {
+		return &mcp.CallToolResult{Content: content}, structured
+	}
+	return nil, structured
 }
 
 // extractStringField returns the first non-empty string value from the map for the given keys.
@@ -471,58 +543,6 @@ func extractStringField(m map[string]any, keys ...string) string {
 		}
 	}
 	return ""
-}
-
-// buildDFSResponse builds a detailed response for DFS mode.
-func (s *Server) buildDFSResponse(
-	ctx context.Context,
-	session *mcp.ServerSession,
-	query string,
-	results []map[string]any,
-	historyID string,
-	summarize bool,
-	offset, totalResults int,
-) (*mcp.CallToolResult, *SearchContentResult, error) {
-	resultMaps := make([]map[string]any, len(results))
-	copy(resultMaps, results)
-
-	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
-
-	response := &SearchContentResult{
-		Count:        len(results),
-		Total:        len(results),
-		TotalResults: totalResults,
-		HasMore:      hasMore,
-		NextOffset:   nextOffset,
-		Results:      resultMaps,
-		Mode:         SearchModeDFS,
-		HistoryID:    historyID,
-	}
-
-	if hasMore {
-		response.Note = fmt.Sprintf("More results available: use offset=%d to get next page.", nextOffset)
-	}
-
-	// Generate summary using MCP Sampling if requested
-	if summarize && s.samplingManager != nil {
-		summary, err := s.samplingManager.SummarizeSearchResults(ctx, session, query, results)
-		if err != nil {
-			slog.Warn("Sampling summarization failed", "error", err)
-			if response.Note != "" {
-				response.Note += " "
-			}
-			response.Note += "Summarization failed. Full results are included."
-		} else if summary != "" {
-			response.Summary = summary
-		} else {
-			if response.Note != "" {
-				response.Note += " "
-			}
-			response.Note += "Summarization not available. Full results are included."
-		}
-	}
-
-	return nil, response, nil
 }
 
 // AskQuestionHandler processes question requests for O'Reilly Answers.
@@ -922,9 +942,9 @@ func extractQuestionIDFromURI(uri string) string {
 	return id
 }
 
-// recordSearchHistoryWithFullResponse records a search to the research history with full response data.
+// recordSearchHistory records a search to the research history.
 // Returns the history entry ID.
-func (s *Server) recordSearchHistoryWithFullResponse(query string, options map[string]any, results []map[string]any, duration time.Duration) string {
+func (s *Server) recordSearchHistory(query string, options map[string]any, results []map[string]any, filePath string, duration time.Duration) string {
 	if s.historyManager == nil {
 		return ""
 	}
@@ -965,8 +985,8 @@ func (s *Server) recordSearchHistoryWithFullResponse(query string, options map[s
 			Count:      len(results),
 			TopResults: topResults,
 		},
-		DurationMs:   duration.Milliseconds(),
-		FullResponse: results, // Store full response for later access
+		DurationMs: duration.Milliseconds(),
+		FilePath:   filePath,
 	}
 
 	if err := s.historyManager.AddEntry(entry); err != nil {

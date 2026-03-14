@@ -32,7 +32,7 @@ task measure:context-efficiency
 | B. Resource 説明 | リソースの description 文字数 | resources/list |
 | C. Prompt 説明 | プロンプトの description 文字数 | prompts/list |
 | D. 合計ペイロード | A+B+C の合計 + 推定トークン数 | 全体 |
-| E-G. レスポンス | BFS/DFS/history のレスポンスサイズ | 使用時のみ |
+| E-G. レスポンス | search/history のレスポンスサイズ + キャッシュファイルサイズ | 使用時のみ |
 
 ガードレールテストも同時に実行:
 
@@ -90,7 +90,7 @@ IMPORTANT: [引用要件]
 ### 削除候補の典型パターン
 
 - 3つ以上の Good 例 (1 Good/1 Poor で十分)
-- `Modes: bfs/dfs` のサイズ説明 (jsonschema の mode パラメータに既出)
+- ファイルベース遅延読み込みの冗長な説明 (jsonschema に既出)
 - `Rate limit` ガイダンス (運用情報は agent 定義に移動)
 - `Set format="markdown"` (jsonschema の format パラメータに既出)
 - `Default timeout` (jsonschema に既出)

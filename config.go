@@ -29,9 +29,6 @@ type Config struct {
 	// Research History 設定
 	HistoryMaxEntries int // 保持する最大エントリ数、デフォルト: 1000
 
-	// Search Mode 設定
-	DefaultSearchMode SearchMode // デフォルトの探索モード: SearchModeBFS | SearchModeDFS
-
 	// Sampling 設定
 	EnableSampling    bool // Sampling機能を有効にするか、デフォルト: true
 	SamplingMaxTokens int  // Sampling時の最大トークン数、デフォルト: 500
@@ -113,7 +110,6 @@ func LoadConfig() (*Config, error) {
 		LogMaxBackups:     envInt("ORM_MCP_GO_LOG_MAX_BACKUPS", 3, 1),
 		LogMaxAgeDays:     envInt("ORM_MCP_GO_LOG_MAX_AGE_DAYS", 30, 1),
 		HistoryMaxEntries: envInt("ORM_MCP_GO_HISTORY_MAX_ENTRIES", 1000, 1),
-		DefaultSearchMode: SearchMode(envString("ORM_MCP_GO_DEFAULT_MODE", string(SearchModeBFS))),
 		EnableSampling:    envBool("ORM_MCP_GO_ENABLE_SAMPLING", true),
 		SamplingMaxTokens: envInt("ORM_MCP_GO_SAMPLING_MAX_TOKENS", 500, 1),
 		BindAddress:       envString("BIND_ADDRESS", "127.0.0.1"),

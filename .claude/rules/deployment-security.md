@@ -21,9 +21,6 @@ paths:
 PORT=8080                                  # HTTP サーバーポート (オプション)
 TRANSPORT=stdio                            # トランスポートモード: stdio or http
 
-# Search Mode 設定
-ORM_MCP_GO_DEFAULT_MODE=bfs               # デフォルト検索モード: bfs | dfs
-
 # Sampling 設定
 ORM_MCP_GO_ENABLE_SAMPLING=true           # MCP Sampling による要約 (default: true)
 ORM_MCP_GO_SAMPLING_MAX_TOKENS=500        # Sampling レスポンスの最大トークン (default: 500)

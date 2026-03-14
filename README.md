@@ -92,9 +92,9 @@ claude mcp add -s user orm-discovery-mcp-go \
 ### 利用フロー
 
 #### コンテンツ検索・アクセス
-1. `oreilly_search_content`で検索 → `product_id`取得
-2. `book-details`で書籍情報確認
-3. `book-chapter`で必要な章を取得
+1. `oreilly_search_content`で検索 → 上位5件のサマリ + キャッシュファイルパスを取得
+2. 詳細比較が必要な場合はReadツールでキャッシュファイルを参照
+3. `book-details`で書籍情報確認、`book-chapter`で必要な章を取得
 
 #### AI質問応答
 1. `oreilly_ask_question`で技術的な質問を投稿 → `question_id`取得
@@ -119,6 +119,7 @@ XDG Base Directory Specificationに準拠しています。
 |------|-------------|----------------|
 | ログ、Chrome一時データ、スクリーンショット | `$XDG_STATE_HOME` | `~/.local/state/orm-mcp-go/` |
 | Cookie | `$XDG_CACHE_HOME` | `~/.cache/orm-mcp-go/` |
+| 検索レスポンスキャッシュ | `$XDG_CACHE_HOME` | `~/.cache/orm-mcp-go/responses/` |
 | 調査履歴 | `$XDG_DATA_HOME` | `~/.local/share/orm-mcp-go/research_history.json` |
 | 将来の設定ファイル | `$XDG_CONFIG_HOME` | `~/.config/orm-mcp-go/` |
 
