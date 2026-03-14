@@ -400,7 +400,6 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
 
 	// Save full results to cache file
-	var filePath string
 	cacheDir := s.config.XDGDirs.ResponseCachePath()
 	filePath, cacheErr := saveResponseAsMarkdown(cacheDir, args.Query, results, "", totalResults)
 	if cacheErr != nil {
@@ -486,13 +485,14 @@ func (s *Server) buildLightweightResponse(results []map[string]any, historyID, f
 
 	hasMore, nextOffset := calcPagination(offset, len(results), totalResults)
 
-	// Limit structured results to top 5 for context efficiency
+	// Limit structured results for context efficiency
+	const inlineSummaryLimit = 5
 	topResults := lightweightResults
-	if len(topResults) > 5 {
-		topResults = topResults[:5]
+	if len(topResults) > inlineSummaryLimit {
+		topResults = topResults[:inlineSummaryLimit]
 	}
 
-	// Build text summary with top 5 results and file path
+	// Build text summary with top results and file path
 	var textParts []string
 	for i, r := range topResults {
 		title, _ := r["title"].(string)
@@ -500,7 +500,7 @@ func (s *Server) buildLightweightResponse(results []map[string]any, historyID, f
 		line := fmt.Sprintf("%d. %s (ID: %s)", i+1, title, id)
 		textParts = append(textParts, line)
 	}
-	if len(lightweightResults) > 5 {
+	if len(lightweightResults) > inlineSummaryLimit {
 		textParts = append(textParts, fmt.Sprintf("... and %d more results", len(lightweightResults)-5))
 	}
 

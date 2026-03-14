@@ -228,7 +228,7 @@ func (s *Server) GetHistoryDetailResource(ctx context.Context, req *mcp.ReadReso
 
 // GetHistoryCachedFileResource は特定の履歴のフルレスポンスを取得する
 func (s *Server) GetHistoryCachedFileResource(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-	slog.Info("調査履歴フルレスポンスリソース取得リクエスト受信", "uri", req.Params.URI)
+	slog.Info("調査履歴キャッシュファイルリソース取得リクエスト受信", "uri", req.Params.URI)
 
 	if s.historyManager == nil {
 		return &mcp.ReadResourceResult{
@@ -254,7 +254,7 @@ func (s *Server) GetHistoryCachedFileResource(ctx context.Context, req *mcp.Read
 
 	entry := s.historyManager.GetByID(id)
 	if entry == nil {
-		slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", false)
+		slog.Info("調査履歴キャッシュファイル取得完了", "id", id, "found", false)
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{{
 				URI:      req.Params.URI,
@@ -263,7 +263,7 @@ func (s *Server) GetHistoryCachedFileResource(ctx context.Context, req *mcp.Read
 			}},
 		}, nil
 	}
-	slog.Info("調査履歴フルレスポンス取得完了", "id", id, "found", true, "has_file", entry.FilePath != "")
+	slog.Info("調査履歴キャッシュファイル取得完了", "id", id, "found", true, "has_file", entry.FilePath != "")
 
 	// FilePath が設定されている場合、ファイルの内容を読んで返す
 	if entry.FilePath != "" {
