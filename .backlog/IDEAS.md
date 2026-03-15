@@ -1,4 +1,4 @@
-> Generated: 2026-03-14 06:26
+> Generated: 2026-03-15 03:09
 
 # Ideas
 
@@ -22,3 +22,11 @@
 | idea-20260307-4bfa | MCP Prompts が Claude Code で利用可能になったら func_prompts を SKIP から通常テストに戻す | quality-eval, mcp-prompts | active |
 | idea-20260309-c7bb | 統合テストでサーバーログのエラーチェックを行う | testing, observability | active |
 | idea-20260314-bdeb | 遅延読み込み判断を情報検索・情報設計の観点で再設計する |  | active |
+| idea-20260315-07a1 | server: resource handler boilerplate の共通化 | refactor, code-quality | active |
+| idea-20260315-6a0e | server: extractProductIDFromURI / extractQuestionIDFromURI の統合 | refactor, code-quality | active |
+| idea-20260315-eed9 | server: getBrowserClient() の per-request 複数呼出し削減 | performance, code-quality | active |
+| idea-20260315-297a | history: Save()のper-request disk write最適化 | performance | active |
+| idea-20260315-dc78 | server: buildLightweightResponse の関心分離 | refactor, testability | active |
+| idea-20260315-4b69 | config: LoadConfig の log.Fatalf を error return に変更 | code-quality | active |
+| idea-20260315-5f21 | cache/server: extractAuthorString の重複統合 | refactor, code-quality | active |
+| idea-20260315-cf76 | history: pruneUnlocked のスライスメモリリーク修正 | bug, performance | active |

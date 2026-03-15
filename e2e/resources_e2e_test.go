@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
 )
 
 // TestMCPResource_BookDetails tests the book-details resource with real API.

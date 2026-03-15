@@ -5,8 +5,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 )
 
 // runLogin は手動ログインからCookieを保存するフローを実行します
@@ -23,7 +24,7 @@ func runLoginWithOutput(out io.Writer) error {
 	fmt.Fprintln(out)
 
 	// XDGディレクトリを解決（OREILLY_USER_ID/PASSWORDは不要）
-	xdgDirs, err := GetXDGDirs(os.Getenv("ORM_MCP_GO_DEBUG_DIR"))
+	xdgDirs, err := config.GetXDGDirs(os.Getenv("ORM_MCP_GO_DEBUG_DIR"))
 	if err != nil {
 		return fmt.Errorf("XDGディレクトリの解決に失敗しました: %w", err)
 	}

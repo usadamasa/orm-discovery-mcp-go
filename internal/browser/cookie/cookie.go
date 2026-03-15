@@ -1,0 +1,336 @@
+package cookie
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+const (
+	cookieFileName = "orm-mcp-go-cookies.json"
+)
+
+// Manager の前方宣言（main パッケージの構造体）
+type Manager interface {
+	SaveCookiesFromData(cookies []*http.Cookie) error
+	LoadCookies() error
+	CookieFileExists() bool
+	DeleteCookieFile() error
+	GetCookiesForURL(url *url.URL) []*http.Cookie
+	SetCookies(url *url.URL, cookies []*http.Cookie) error
+	SeedDebugCookieIfNeeded(seedPath string) error
+}
+
+// entry はCookieの情報を保持する構造体
+type entry struct {
+	Name     string    `json:"name"`
+	Value    string    `json:"value"`
+	Domain   string    `json:"domain"`
+	Path     string    `json:"path"`
+	Expires  time.Time `json:"expires"`
+	HTTPOnly bool      `json:"httpOnly"`
+	Secure   bool      `json:"secure"`
+}
+
+// cookieCache はCookieキャッシュファイルの構造体
+type cookieCache struct {
+	Cookies []entry   `json:"cookies"`
+	SavedAt time.Time `json:"saved_at"`
+}
+
+// cookieKey はCookieのユニークキー（名前＋ドメインの複合キー）
+type cookieKey struct {
+	name   string
+	domain string
+}
+
+// managerImpl はCookieの保存と復元を管理する
+type managerImpl struct {
+	cacheDir string
+	filePath string
+	cookies  []*http.Cookie
+}
+
+// NewCookieManager は新しいCookieManagerを作成する
+// cacheDir: XDG CacheHome ディレクトリ（例: ~/.cache/orm-mcp-go）
+func NewCookieManager(cacheDir string) Manager {
+	return &managerImpl{
+		cacheDir: cacheDir,
+		filePath: filepath.Join(cacheDir, cookieFileName),
+		cookies:  make([]*http.Cookie, 0),
+	}
+}
+
+// SaveCookiesFromData は渡されたCookieをファイルに保存する（chromedp不要）
+// login()から取得済みのCookieを直接保存する際に使用する
+func (cm *managerImpl) SaveCookiesFromData(cookies []*http.Cookie) error {
+	// 重要なCookieのみをフィルタリング
+	var filteredCookies []entry
+	var httpCookies []*http.Cookie
+	for _, cookie := range cookies {
+		if cm.isImportantCookie(cookie.Name) {
+			cookieData := entry{
+				Name:     cookie.Name,
+				Value:    cookie.Value,
+				Domain:   cookie.Domain,
+				Path:     cookie.Path,
+				HTTPOnly: cookie.HttpOnly,
+				Secure:   cookie.Secure,
+				Expires:  cookie.Expires,
+			}
+			filteredCookies = append(filteredCookies, cookieData)
+			httpCookies = append(httpCookies, cookie)
+		}
+	}
+
+	// 内部のクッキーストレージを更新
+	cm.cookies = httpCookies
+
+	cache := cookieCache{
+		Cookies: filteredCookies,
+		SavedAt: time.Now(),
+	}
+
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal cookies: %w", err)
+	}
+
+	err = os.WriteFile(cm.filePath, data, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write cookies file: %w", err)
+	}
+
+	slog.Info("Cookieを保存しました", "count", len(filteredCookies), "file_path", cm.filePath)
+	return nil
+}
+
+// LoadCookies はファイルからCookieを読み込んで内部ストレージに設定する
+// chromedpを使用せずにHTTPクライアントで使用可能なCookieを復元する
+func (cm *managerImpl) LoadCookies() error {
+	data, err := os.ReadFile(cm.filePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("cookie file does not exist: %s", cm.filePath)
+		}
+		return fmt.Errorf("failed to read cookies file: %w", err)
+	}
+
+	var cache cookieCache
+	err = json.Unmarshal(data, &cache)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal cookies: %w", err)
+	}
+
+	// Cookieの有効期限をチェック
+	var validCookies []entry
+	now := time.Now()
+	for _, cookie := range cache.Cookies {
+		if cookie.Expires.IsZero() || cookie.Expires.After(now) {
+			validCookies = append(validCookies, cookie)
+		}
+	}
+
+	if len(validCookies) == 0 {
+		return fmt.Errorf("no valid cookies found")
+	}
+
+	// http.Cookieとして内部ストレージに保存
+	httpCookies := make([]*http.Cookie, 0, len(validCookies))
+	for _, cookie := range validCookies {
+		httpCookie := &http.Cookie{
+			Name:     cookie.Name,
+			Value:    cookie.Value,
+			Domain:   cookie.Domain,
+			Path:     cookie.Path,
+			HttpOnly: cookie.HTTPOnly,
+			Secure:   cookie.Secure,
+		}
+		if !cookie.Expires.IsZero() {
+			httpCookie.Expires = cookie.Expires
+		}
+		httpCookies = append(httpCookies, httpCookie)
+	}
+	cm.cookies = httpCookies
+
+	slog.Info("Cookieを読み込みました", "count", len(validCookies), "file_path", cm.filePath)
+	return nil
+}
+
+// CookieFileExists はCookieファイルが存在するかどうかをチェックする
+func (cm *managerImpl) CookieFileExists() bool {
+	_, err := os.Stat(cm.filePath)
+	return err == nil
+}
+
+// DeleteCookieFile はCookieファイルを削除する
+func (cm *managerImpl) DeleteCookieFile() error {
+	err := os.Remove(cm.filePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
+}
+
+// GetCookiesForURL は指定されたURLに対して適切なCookieを返す
+func (cm *managerImpl) GetCookiesForURL(url *url.URL) []*http.Cookie {
+	result := make([]*http.Cookie, 0, len(cm.cookies))
+	now := time.Now()
+
+	for _, cookie := range cm.cookies {
+		// 期限切れチェック
+		if !cookie.Expires.IsZero() && cookie.Expires.Before(now) {
+			continue
+		}
+
+		// ドメインマッチング
+		if !cm.cookieMatchesDomain(cookie, url.Host) {
+			continue
+		}
+
+		// パスマッチング
+		if !cm.cookieMatchesPath(cookie, url.Path) {
+			continue
+		}
+
+		// Secure属性チェック
+		if cookie.Secure && url.Scheme != "https" {
+			continue
+		}
+
+		result = append(result, cookie)
+	}
+
+	return result
+}
+
+// SetCookies は指定されたURLに対してCookieを設定する
+func (cm *managerImpl) SetCookies(url *url.URL, cookies []*http.Cookie) error {
+	// 既存のクッキーをマップに変換（名前とドメインをキーとして使用）
+	existingCookies := make(map[cookieKey]*http.Cookie)
+	for _, cookie := range cm.cookies {
+		existingCookies[cookieKey{name: cookie.Name, domain: cookie.Domain}] = cookie
+	}
+
+	// 新しいクッキーを追加または更新
+	for _, newCookie := range cookies {
+		// ドメインが設定されていない場合はURLのホストを使用
+		if newCookie.Domain == "" {
+			newCookie.Domain = url.Host
+		}
+		// パスが設定されていない場合はデフォルトパスを使用
+		if newCookie.Path == "" {
+			newCookie.Path = "/"
+		}
+
+		existingCookies[cookieKey{name: newCookie.Name, domain: newCookie.Domain}] = newCookie
+	}
+
+	// マップから配列に戻す
+	cm.cookies = make([]*http.Cookie, 0, len(existingCookies))
+	for _, cookie := range existingCookies {
+		cm.cookies = append(cm.cookies, cookie)
+	}
+
+	return nil
+}
+
+// cookieMatchesDomain はクッキーがドメインにマッチするかをチェック
+func (cm *managerImpl) cookieMatchesDomain(cookie *http.Cookie, host string) bool {
+	domain := cookie.Domain
+	if domain == "" {
+		return false
+	}
+
+	// ドメインが"."で始まる場合（例：.oreilly.com）
+	if strings.HasPrefix(domain, ".") {
+		// サブドメインマッチング
+		return strings.HasSuffix(host, domain) || host == domain[1:]
+	}
+
+	// 完全一致
+	return host == domain
+}
+
+// cookieMatchesPath はクッキーがパスにマッチするかをチェック
+func (cm *managerImpl) cookieMatchesPath(cookie *http.Cookie, path string) bool {
+	cookiePath := cookie.Path
+	if cookiePath == "" {
+		cookiePath = "/"
+	}
+
+	// パスプレフィックスマッチング
+	if !strings.HasPrefix(path, cookiePath) {
+		return false
+	}
+
+	// 完全一致またはスラッシュで区切られている
+	return len(path) == len(cookiePath) || cookiePath[len(cookiePath)-1] == '/' || path[len(cookiePath)] == '/'
+}
+
+// SeedDebugCookieIfNeeded はデバッグモードで cookie が存在しない場合にシード元からコピーする。
+// デバッグ環境の初回起動時に、共有 XDG パスのログイン済み cookie を
+// ローカル (per-worktree) にコピーしてブラウザログインを回避する。
+//
+// 条件:
+//   - seedPath が空 or filePath と同一 → 何もしない
+//   - ローカルに cookie が既にある → 何もしない（上書きしない）
+//   - シード元が存在しない → 何もしない（エラーにしない）
+func (cm *managerImpl) SeedDebugCookieIfNeeded(seedPath string) error {
+	if seedPath == "" || seedPath == cm.filePath {
+		return nil
+	}
+	if cm.CookieFileExists() {
+		return nil
+	}
+	data, err := os.ReadFile(seedPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			slog.Info("デバッグ用シード元Cookieが見つかりません", "seed_path", seedPath)
+			return nil
+		}
+		return fmt.Errorf("デバッグ用シード元Cookieの読み込みに失敗: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cm.filePath), 0700); err != nil {
+		return fmt.Errorf("Cookieディレクトリの作成に失敗: %w", err)
+	}
+	if err := os.WriteFile(cm.filePath, data, 0600); err != nil {
+		return fmt.Errorf("デバッグ用Cookieのシードに失敗: %w", err)
+	}
+	slog.Info("デバッグ用Cookieをシードしました", "from", seedPath, "to", cm.filePath)
+	return nil
+}
+
+// isImportantCookie は保存すべき重要なCookieかどうかを判定する
+func (cm *managerImpl) isImportantCookie(name string) bool {
+	// 除外すべきCookieのリスト（一般的な分析・トラッキング系）
+	excludedCookies := []string{
+		"_ga",                                            // Google Analytics
+		"_gid",                                           // Google Analytics
+		"_gat",                                           // Google Analytics
+		"_gtm",                                           // Google Tag Manager
+		"_fbp",                                           // Facebook Pixel
+		"_hjid",                                          // Hotjar
+		"_hjIncludedInPageviewSample",                    // Hotjar
+		"optimizelyEndUserId",                            // Optimizely
+		"__utma", "__utmb", "__utmc", "__utmt", "__utmz", // Old Google Analytics
+	}
+
+	// 除外対象かチェック
+	for _, excluded := range excludedCookies {
+		if name == excluded {
+			return false
+		}
+	}
+
+	// O'Reilly関連の全Cookieを保存する
+	// 認証、セッション、設定、機能関連のCookieを幅広く含める
+	return true
+}

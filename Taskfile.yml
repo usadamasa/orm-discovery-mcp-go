@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  OREILLY_DIR: browser
+  OREILLY_DIR: internal/browser
   SPEC_FILE: openapi.yaml
   OUTPUT_DIR: generated/api
   CONFIG_FILE: oapi-codegen.yaml
@@ -197,8 +197,8 @@ tasks:
   plugin:validate:agent-drift:
     desc: エージェント定義と server.go の登録内容のドリフトを検出
     sources:
-      - 'server.go'
-      - 'history_resources.go'
+      - 'internal/server/server.go'
+      - 'internal/server/history_resources.go'
       - 'plugins/agents/**/*.md'
       - 'scripts/plugin/validate-agent-drift.sh'
     cmds:

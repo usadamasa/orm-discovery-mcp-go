@@ -8,8 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/server"
 	versionpkg "github.com/usadamasa/orm-discovery-mcp-go/internal/version"
 )
 
@@ -56,7 +58,7 @@ func runMCPServer() {
 	}()
 
 	// Load configuration
-	cfg, err := LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		slog.Error("設定の読み込みに失敗しました", "error", err)
 		os.Exit(1)
@@ -70,8 +72,8 @@ func runMCPServer() {
 	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
 	// デバッグモード: 共有 XDG パスからデバッグ用 cookie をシード
-	if debugDir := getEnv("ORM_MCP_GO_DEBUG_DIR"); debugDir != "" {
-		defaultDirs, err := GetXDGDirs("")
+	if debugDir := os.Getenv("ORM_MCP_GO_DEBUG_DIR"); debugDir != "" {
+		defaultDirs, err := config.GetXDGDirs("")
 		if err != nil {
 			slog.Warn("デフォルトXDGディレクトリの取得に失敗しました", "error", err)
 		} else if err := cookieManager.SeedDebugCookieIfNeeded(defaultDirs.CookiePath()); err != nil {
@@ -83,7 +85,7 @@ func runMCPServer() {
 	// browser.Client インターフェースとして宣言し、エラー時は nil (interface nil) のまま渡す。
 	// typed nil (*BrowserClient(nil)) を渡すと == nil チェックが正しく動作しないため。
 	var browserClient browser.Client
-	bc, err := browser.NewBrowserClient(cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
+	bc, err := browser.NewBrowserClient(cookieManager, cfg.Debug.Enabled, cfg.XDGDirs.StateHome)
 	if err != nil {
 		slog.Warn("ブラウザクライアントの初期化に失敗しました。degraded モードで起動します。"+
 			"oreilly_reauthenticate ツールで再認証してください。", "error", err)
@@ -91,12 +93,12 @@ func runMCPServer() {
 		browserClient = bc
 		slog.Info("ブラウザクライアントの初期化が完了しました")
 	}
-	s := NewServer(browserClient, cfg, cookieManager, version)
+	s := server.NewServer(browserClient, cfg, cookieManager, version)
 	defer s.Close() // Clean up browser on process exit (includes clients created in degraded mode)
 
-	if cfg.Transport == "http" {
-		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.BindAddress, cfg.Port)); err != nil {
-			slog.Error("HTTPサーバーの起動に失敗しました", "error", err, "addr", cfg.BindAddress, "port", cfg.Port)
+	if cfg.Server.Transport == "http" {
+		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.Server.BindAddress, cfg.Server.Port)); err != nil {
+			slog.Error("HTTPサーバーの起動に失敗しました", "error", err, "addr", cfg.Server.BindAddress, "port", cfg.Server.Port)
 			os.Exit(1)
 		}
 	} else {

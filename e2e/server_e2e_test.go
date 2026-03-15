@@ -5,8 +5,8 @@ package e2e
 import (
 	"testing"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 )
 
 // TestMCPServerInitialization tests that the browser client can be created
