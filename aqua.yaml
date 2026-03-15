@@ -18,4 +18,5 @@ packages:
   - name: Songmu/tagpr@v1.5.0
   - name: goreleaser/goreleaser@v2.6.0
   - name: securego/gosec@v2.24.7
+  - name: golang/vuln/govulncheck@v1.1.4
   - name: fe3dback/go-arch-lint@v1.14.0 # アーキテクチャ依存関係チェッカー
