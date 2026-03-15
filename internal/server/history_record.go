@@ -47,10 +47,6 @@ func (s *Server) recordSearchHistory(query string, options map[string]any, resul
 		topResults = append(topResults, summary)
 	}
 
-	if entryID == "" {
-		entryID = generateRequestID()
-	}
-
 	s.saveHistoryEntry(history.Entry{
 		ID:         entryID,
 		Type:       history.EntryTypeSearch,
