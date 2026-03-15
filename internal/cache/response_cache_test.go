@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestSlugify_ASCII(t *testing.T) {
+func Test_slugify_ASCII(t *testing.T) {
 	tests := []struct {
 		input string
 		want  string
@@ -20,38 +20,38 @@ func TestSlugify_ASCII(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := Slugify(tt.input)
+			got := slugify(tt.input)
 			if got != tt.want {
-				t.Errorf("Slugify(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("slugify(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestSlugify_Japanese(t *testing.T) {
+func Test_slugify_Japanese(t *testing.T) {
 	// Japanese characters are non-ASCII, should be replaced with "-"
-	got := Slugify("日本語テスト")
+	got := slugify("日本語テスト")
 	if got == "" {
-		t.Error("Slugify should not return empty for Japanese input")
+		t.Error("slugify should not return empty for Japanese input")
 	}
 	// Should produce a hash-based fallback since all chars are non-alphanumeric ASCII
 	if !strings.HasPrefix(got, "query-") {
-		t.Errorf("Slugify(Japanese) = %q, expected hash-based fallback starting with 'query-'", got)
+		t.Errorf("slugify(Japanese) = %q, expected hash-based fallback starting with 'query-'", got)
 	}
 }
 
-func TestSlugify_Empty(t *testing.T) {
-	got := Slugify("")
+func Test_slugify_Empty(t *testing.T) {
+	got := slugify("")
 	if !strings.HasPrefix(got, "query-") {
-		t.Errorf("Slugify('') = %q, expected hash-based fallback", got)
+		t.Errorf("slugify('') = %q, expected hash-based fallback", got)
 	}
 }
 
-func TestSlugify_TruncatesLong(t *testing.T) {
+func Test_slugify_TruncatesLong(t *testing.T) {
 	long := strings.Repeat("abcdefghij", 10) // 100 chars
-	got := Slugify(long)
+	got := slugify(long)
 	if len(got) > 50 {
-		t.Errorf("Slugify should truncate to 50 chars, got %d: %q", len(got), got)
+		t.Errorf("slugify should truncate to 50 chars, got %d: %q", len(got), got)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestSaveResponseAsMarkdown_NonWritableDir(t *testing.T) {
 	}
 }
 
-func TestStripHTML(t *testing.T) {
+func Test_stripHTML(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -164,15 +164,15 @@ func TestStripHTML(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := StripHTML(tt.input)
+			got := stripHTML(tt.input)
 			if got != tt.want {
-				t.Errorf("StripHTML(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("stripHTML(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestWriteResultMarkdown_StripsHTML(t *testing.T) {
+func Test_writeResultMarkdown_StripsHTML(t *testing.T) {
 	result := map[string]any{
 		"title":       "Test Book",
 		"product_id":  "123",
@@ -180,7 +180,7 @@ func TestWriteResultMarkdown_StripsHTML(t *testing.T) {
 	}
 
 	var b strings.Builder
-	WriteResultMarkdown(&b, 1, result)
+	writeResultMarkdown(&b, 1, result)
 	output := b.String()
 
 	if strings.Contains(output, "<span") || strings.Contains(output, "<div") || strings.Contains(output, "</span>") || strings.Contains(output, "</div>") {

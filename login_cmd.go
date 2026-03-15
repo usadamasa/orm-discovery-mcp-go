@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 )
 

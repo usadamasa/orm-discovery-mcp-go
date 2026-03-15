@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 )
 
 // TestChromeDP_BrowserLifecycle tests ChromeDP browser startup and shutdown.

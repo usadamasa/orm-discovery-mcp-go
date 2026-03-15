@@ -2,9 +2,10 @@
 
 setup() {
   TEST_DIR="$(mktemp -d)"
+  mkdir -p "$TEST_DIR/internal/server"
 
-  # server.go フィクスチャ
-  cat > "$TEST_DIR/server.go" <<'GO'
+  # internal/server/server.go フィクスチャ
+  cat > "$TEST_DIR/internal/server/server.go" <<'GO'
 	searchTool := &mcp.Tool{
 		Name:  "oreilly_search_content",
 	}
@@ -41,8 +42,8 @@ setup() {
 	)
 GO
 
-  # history_resources.go フィクスチャ
-  cat > "$TEST_DIR/history_resources.go" <<'GO'
+  # internal/server/history_resources.go フィクスチャ
+  cat > "$TEST_DIR/internal/server/history_resources.go" <<'GO'
 	s.server.AddResource(
 		&mcp.Resource{
 			URI:         "orm-mcp://history/recent",

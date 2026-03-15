@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 )
 
 // visibleLoginTempDir はビジブルログイン用の一時ディレクトリパスを返す。

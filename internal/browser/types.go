@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 )
 
 // Operation timeouts

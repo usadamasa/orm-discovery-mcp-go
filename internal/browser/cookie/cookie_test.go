@@ -59,11 +59,12 @@ func TestManagerImpl_SaveAndLoad(t *testing.T) {
 func TestManagerImpl_GetCookiesForURL(t *testing.T) {
 	tmpDir := t.TempDir()
 	cm := NewCookieManager(tmpDir)
+	impl := cm.(*managerImpl)
 
 	validExpiry := time.Now().Add(24 * time.Hour)
 	expiredExpiry := time.Now().Add(-1 * time.Hour)
 
-	cm.cookies = []*http.Cookie{
+	impl.cookies = []*http.Cookie{
 		{Name: "exact", Value: "v1", Domain: "learning.oreilly.com", Path: "/", Expires: validExpiry},
 		{Name: "dot-domain", Value: "v2", Domain: ".oreilly.com", Path: "/", Expires: validExpiry},
 		{Name: "other-domain", Value: "v3", Domain: "example.com", Path: "/", Expires: validExpiry},
@@ -156,8 +157,9 @@ func TestManagerImpl_SetCookies(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	impl2 := cm.(*managerImpl)
 	found := false
-	for _, c := range cm.cookies {
+	for _, c := range impl2.cookies {
 		if c.Name == "no-domain" {
 			found = true
 			assert.Equal(t, "learning.oreilly.com", c.Domain)
@@ -304,7 +306,8 @@ func TestManagerImpl_SeedDebugCookieIfNeeded(t *testing.T) {
 		localDir := t.TempDir()
 
 		cm := NewCookieManager(localDir)
-		err := cm.SeedDebugCookieIfNeeded(cm.filePath)
+		impl := cm.(*managerImpl)
+		err := cm.SeedDebugCookieIfNeeded(impl.filePath)
 		assert.NoError(t, err)
 	})
 }
@@ -312,6 +315,7 @@ func TestManagerImpl_SeedDebugCookieIfNeeded(t *testing.T) {
 func TestIsImportantCookie(t *testing.T) {
 	tmpDir := t.TempDir()
 	cm := NewCookieManager(tmpDir)
+	impl := cm.(*managerImpl)
 
 	tests := []struct {
 		name     string
@@ -336,7 +340,7 @@ func TestIsImportantCookie(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, cm.isImportantCookie(tt.cookie))
+			assert.Equal(t, tt.expected, impl.isImportantCookie(tt.cookie))
 		})
 	}
 }

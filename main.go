@@ -8,9 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/server"
 	versionpkg "github.com/usadamasa/orm-discovery-mcp-go/internal/version"
 )
 
@@ -92,7 +93,7 @@ func runMCPServer() {
 		browserClient = bc
 		slog.Info("ブラウザクライアントの初期化が完了しました")
 	}
-	s := NewServer(browserClient, cfg, cookieManager, version)
+	s := server.NewServer(browserClient, cfg, cookieManager, version)
 	defer s.Close() // Clean up browser on process exit (includes clients created in degraded mode)
 
 	if cfg.Transport == "http" {

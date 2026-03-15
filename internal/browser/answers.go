@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/generated/api"
 )
 
 // DefaultFilterQuery Default question request parameters based on the provided JSON specification

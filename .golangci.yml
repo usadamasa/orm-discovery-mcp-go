@@ -39,7 +39,7 @@ linters:
   exclusions:
     rules:
       # 生成コードはすべての複雑度チェック対象外
-      - path: "browser/generated/"
+      - path: "internal/browser/generated/"
         linters:
           - gocognit
           - gocyclo
@@ -48,13 +48,13 @@ linters:
           - maintidx
 
       # runVisibleLogin: select/channel polling loop は構造上の必然 (gocognit 64→31)
-      - path: "browser/login\\.go"
+      - path: "internal/browser/login\\.go"
         text: "runVisibleLogin"
         linters:
           - gocognit
 
       # nestif は text フィールドで関数名マッチ不可のためファイル単位で除外
-      - path: "browser/login\\.go"
+      - path: "internal/browser/login\\.go"
         linters:
           - nestif
 

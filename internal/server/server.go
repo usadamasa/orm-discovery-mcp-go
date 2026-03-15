@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/cache"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"

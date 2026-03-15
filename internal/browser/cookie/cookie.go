@@ -24,6 +24,7 @@ type Manager interface {
 	DeleteCookieFile() error
 	GetCookiesForURL(url *url.URL) []*http.Cookie
 	SetCookies(url *url.URL, cookies []*http.Cookie) error
+	SeedDebugCookieIfNeeded(seedPath string) error
 }
 
 // entry はCookieの情報を保持する構造体
@@ -43,8 +44,8 @@ type cookieCache struct {
 	SavedAt time.Time `json:"saved_at"`
 }
 
-// ManagerImpl はCookieの保存と復元を管理する
-type ManagerImpl struct {
+// managerImpl はCookieの保存と復元を管理する
+type managerImpl struct {
 	cacheDir string
 	filePath string
 	cookies  []*http.Cookie
@@ -52,8 +53,8 @@ type ManagerImpl struct {
 
 // NewCookieManager は新しいCookieManagerを作成する
 // cacheDir: XDG CacheHome ディレクトリ（例: ~/.cache/orm-mcp-go）
-func NewCookieManager(cacheDir string) *ManagerImpl {
-	return &ManagerImpl{
+func NewCookieManager(cacheDir string) Manager {
+	return &managerImpl{
 		cacheDir: cacheDir,
 		filePath: filepath.Join(cacheDir, cookieFileName),
 		cookies:  make([]*http.Cookie, 0),
@@ -62,7 +63,7 @@ func NewCookieManager(cacheDir string) *ManagerImpl {
 
 // SaveCookiesFromData は渡されたCookieをファイルに保存する（chromedp不要）
 // login()から取得済みのCookieを直接保存する際に使用する
-func (cm *ManagerImpl) SaveCookiesFromData(cookies []*http.Cookie) error {
+func (cm *managerImpl) SaveCookiesFromData(cookies []*http.Cookie) error {
 	// 重要なCookieのみをフィルタリング
 	var filteredCookies []entry
 	var httpCookies []*http.Cookie
@@ -106,7 +107,7 @@ func (cm *ManagerImpl) SaveCookiesFromData(cookies []*http.Cookie) error {
 
 // LoadCookies はファイルからCookieを読み込んで内部ストレージに設定する
 // chromedpを使用せずにHTTPクライアントで使用可能なCookieを復元する
-func (cm *ManagerImpl) LoadCookies() error {
+func (cm *managerImpl) LoadCookies() error {
 	if !cm.CookieFileExists() {
 		return fmt.Errorf("cookie file does not exist: %s", cm.filePath)
 	}
@@ -158,13 +159,13 @@ func (cm *ManagerImpl) LoadCookies() error {
 }
 
 // CookieFileExists はCookieファイルが存在するかどうかをチェックする
-func (cm *ManagerImpl) CookieFileExists() bool {
+func (cm *managerImpl) CookieFileExists() bool {
 	_, err := os.Stat(cm.filePath)
 	return err == nil
 }
 
 // DeleteCookieFile はCookieファイルを削除する
-func (cm *ManagerImpl) DeleteCookieFile() error {
+func (cm *managerImpl) DeleteCookieFile() error {
 	if !cm.CookieFileExists() {
 		return nil
 	}
@@ -172,7 +173,7 @@ func (cm *ManagerImpl) DeleteCookieFile() error {
 }
 
 // GetCookiesForURL は指定されたURLに対して適切なCookieを返す
-func (cm *ManagerImpl) GetCookiesForURL(url *url.URL) []*http.Cookie {
+func (cm *managerImpl) GetCookiesForURL(url *url.URL) []*http.Cookie {
 	result := make([]*http.Cookie, 0, len(cm.cookies))
 	now := time.Now()
 
@@ -204,7 +205,7 @@ func (cm *ManagerImpl) GetCookiesForURL(url *url.URL) []*http.Cookie {
 }
 
 // SetCookies は指定されたURLに対してCookieを設定する
-func (cm *ManagerImpl) SetCookies(url *url.URL, cookies []*http.Cookie) error {
+func (cm *managerImpl) SetCookies(url *url.URL, cookies []*http.Cookie) error {
 	// 既存のクッキーをマップに変換（名前とドメインをキーとして使用）
 	existingCookies := make(map[string]*http.Cookie)
 	for _, cookie := range cm.cookies {
@@ -237,7 +238,7 @@ func (cm *ManagerImpl) SetCookies(url *url.URL, cookies []*http.Cookie) error {
 }
 
 // cookieMatchesDomain はクッキーがドメインにマッチするかをチェック
-func (cm *ManagerImpl) cookieMatchesDomain(cookie *http.Cookie, host string) bool {
+func (cm *managerImpl) cookieMatchesDomain(cookie *http.Cookie, host string) bool {
 	domain := cookie.Domain
 	if domain == "" {
 		return false
@@ -254,7 +255,7 @@ func (cm *ManagerImpl) cookieMatchesDomain(cookie *http.Cookie, host string) boo
 }
 
 // cookieMatchesPath はクッキーがパスにマッチするかをチェック
-func (cm *ManagerImpl) cookieMatchesPath(cookie *http.Cookie, path string) bool {
+func (cm *managerImpl) cookieMatchesPath(cookie *http.Cookie, path string) bool {
 	cookiePath := cookie.Path
 	if cookiePath == "" {
 		cookiePath = "/"
@@ -277,7 +278,7 @@ func (cm *ManagerImpl) cookieMatchesPath(cookie *http.Cookie, path string) bool 
 //   - seedPath が空 or filePath と同一 → 何もしない
 //   - ローカルに cookie が既にある → 何もしない（上書きしない）
 //   - シード元が存在しない → 何もしない（エラーにしない）
-func (cm *ManagerImpl) SeedDebugCookieIfNeeded(seedPath string) error {
+func (cm *managerImpl) SeedDebugCookieIfNeeded(seedPath string) error {
 	if seedPath == "" || seedPath == cm.filePath {
 		return nil
 	}
@@ -303,7 +304,7 @@ func (cm *ManagerImpl) SeedDebugCookieIfNeeded(seedPath string) error {
 }
 
 // isImportantCookie は保存すべき重要なCookieかどうかを判定する
-func (cm *ManagerImpl) isImportantCookie(name string) bool {
+func (cm *managerImpl) isImportantCookie(name string) bool {
 	// 除外すべきCookieのリスト（一般的な分析・トラッキング系）
 	excludedCookies := []string{
 		"_ga",                                            // Google Analytics

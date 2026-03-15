@@ -1,6 +1,6 @@
-package main
+package server
 
-import "github.com/usadamasa/orm-discovery-mcp-go/browser"
+import "github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
 
 // ResponseFormat defines the output format for tool results.
 type ResponseFormat string

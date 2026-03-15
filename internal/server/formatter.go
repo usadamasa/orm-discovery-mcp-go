@@ -1,10 +1,10 @@
-package main
+package server
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
 )
 
 // formatSearchResultsMarkdown formats search results as human-readable Markdown.

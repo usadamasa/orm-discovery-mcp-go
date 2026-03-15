@@ -1,4 +1,4 @@
-package main
+package server
 
 // MCP description constants.
 // Extracted for testability and progressive-disclosure optimization.

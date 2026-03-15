@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
 )
 
 func TestFindSystemChrome(t *testing.T) {

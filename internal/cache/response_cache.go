@@ -13,8 +13,8 @@ import (
 
 var nonAlphaNum = regexp.MustCompile(`[^a-z0-9]+`)
 
-// Slugify converts a query string into a filesystem-safe slug.
-func Slugify(query string) string {
+// slugify converts a query string into a filesystem-safe slug.
+func slugify(query string) string {
 	s := strings.ToLower(query)
 	s = nonAlphaNum.ReplaceAllString(s, "-")
 	s = strings.Trim(s, "-")
@@ -40,7 +40,7 @@ func SaveResponseAsMarkdown(cacheDir, query string, results []map[string]any, hi
 		return "", fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
-	filename := time.Now().Format("20060102-150405") + "_" + Slugify(query) + ".md"
+	filename := time.Now().Format("20060102-150405") + "_" + slugify(query) + ".md"
 	filePath := filepath.Join(cacheDir, filename)
 	tmpPath := filePath + ".tmp"
 
@@ -57,7 +57,7 @@ func SaveResponseAsMarkdown(cacheDir, query string, results []map[string]any, hi
 
 	// Results
 	for i, result := range results {
-		WriteResultMarkdown(&b, i+1, result)
+		writeResultMarkdown(&b, i+1, result)
 	}
 
 	if err := os.WriteFile(tmpPath, []byte(b.String()), 0600); err != nil {
@@ -77,8 +77,8 @@ func SaveResponseAsMarkdown(cacheDir, query string, results []map[string]any, hi
 // htmlTagPattern matches HTML tags (opening, closing, self-closing).
 var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
 
-// StripHTML removes HTML tags from a string and normalizes whitespace.
-func StripHTML(s string) string {
+// stripHTML removes HTML tags from a string and normalizes whitespace.
+func stripHTML(s string) string {
 	if !strings.ContainsAny(s, "<>") {
 		return s // fast path: no HTML tags
 	}
@@ -86,8 +86,8 @@ func StripHTML(s string) string {
 	return strings.Join(strings.Fields(stripped), " ")
 }
 
-// WriteResultMarkdown writes a single search result as Markdown to the builder.
-func WriteResultMarkdown(b *strings.Builder, index int, result map[string]any) {
+// writeResultMarkdown writes a single search result as Markdown to the builder.
+func writeResultMarkdown(b *strings.Builder, index int, result map[string]any) {
 	title, _ := result["title"].(string)
 	fmt.Fprintf(b, "\n## Result %d: %s\n\n", index, title)
 
@@ -117,7 +117,7 @@ func WriteResultMarkdown(b *strings.Builder, index int, result map[string]any) {
 	}
 
 	if desc, ok := result["description"].(string); ok && desc != "" {
-		fmt.Fprintf(b, "- Description: %s\n", StripHTML(desc))
+		fmt.Fprintf(b, "- Description: %s\n", stripHTML(desc))
 	}
 }
 

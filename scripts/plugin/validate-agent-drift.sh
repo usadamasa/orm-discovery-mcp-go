@@ -12,7 +12,7 @@ DRIFT=0
 
 # 1. server.go + history_resources.go からツール名を抽出
 extract_server_tools() {
-  grep -h 'Name:.*"oreilly_' server.go | sed 's/.*"\(oreilly_[^"]*\)".*/\1/' | sort
+  grep -h 'Name:.*"oreilly_' internal/server/server.go | sed 's/.*"\(oreilly_[^"]*\)".*/\1/' | sort
 }
 
 # 2. 除外リストを適用
@@ -27,7 +27,7 @@ filter_excluded_tools() {
 
 # 3. server.go + history_resources.go からリソース URI を抽出
 extract_server_resources() {
-  grep -hE '(URI:|URITemplate:).*"(oreilly://|orm-mcp://)' server.go history_resources.go \
+  grep -hE '(URI:|URITemplate:).*"(oreilly://|orm-mcp://)' internal/server/server.go internal/server/history_resources.go \
     | sed 's/.*"\([^"]*\)".*/\1/' | sort -u
 }
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/generated/api"
 )
 
 func TestNormalizeSearchResult_ProductIDKey(t *testing.T) {

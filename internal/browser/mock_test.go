@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/cookie"
 )
 
 // MockCookieManager は cookie.Manager インターフェースのモック実装
@@ -71,6 +71,11 @@ func (m *MockCookieManager) SetCookies(url *url.URL, cookies []*http.Cookie) err
 	}
 	m.savedCookiesURLs = append(m.savedCookiesURLs, url)
 	m.cookies = cookies
+	return nil
+}
+
+// SeedDebugCookieIfNeeded はデバッグ用Cookieをシードする（モック、何もしない）
+func (m *MockCookieManager) SeedDebugCookieIfNeeded(_ string) error {
 	return nil
 }
 

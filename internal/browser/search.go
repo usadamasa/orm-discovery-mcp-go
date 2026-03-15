@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/usadamasa/orm-discovery-mcp-go/browser/generated/api"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/generated/api"
 )
 
 // firstString returns the value of the first non-nil, non-empty string pointer.

@@ -1,10 +1,10 @@
-package main
+package server
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/usadamasa/orm-discovery-mcp-go/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
 )
 
 func TestFormatSearchResultsMarkdown(t *testing.T) {

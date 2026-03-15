@@ -1,7 +1,7 @@
 version: 3
 
 excludeFiles:
-  - "browser/generated/.*\\.go$"  # OpenAPI 生成コードはチェック対象外
+  - "internal/browser/generated/.*\\.go$"  # OpenAPI 生成コードはチェック対象外
   - "e2e/.*\\.go$"                # E2E テストはチェック対象外
   - ".*_test\\.go$"               # テストファイルはアーキテクチャチェック対象外
   - "\\.claude/skills/backlog-manage/cli/.*\\.go$"  # 独立 Go モジュール (別 go.mod)
@@ -29,11 +29,11 @@ components:
   main:
     in: .
   browser:
-    in: browser
+    in: internal/browser
   generated:
-    in: browser/generated/api  # OpenAPI 生成クライアント
+    in: internal/browser/generated/api  # OpenAPI 生成クライアント
   cookie:
-    in: browser/cookie
+    in: internal/browser/cookie
   cache:
     in: internal/cache
   config:
@@ -44,6 +44,8 @@ components:
     in: internal/mcputil
   sampling:
     in: internal/sampling
+  server:
+    in: internal/server
   version:
     in: internal/version
 
@@ -57,6 +59,7 @@ deps:
       - history
       - mcputil
       - sampling
+      - server
       - version
     canUse:
       - mcp-sdk
@@ -98,6 +101,21 @@ deps:
       - config
     canUse:
       - mcp-sdk
+
+  server:
+    mayDependOn:
+      - browser
+      - cache
+      - cookie
+      - config
+      - history
+      - mcputil
+      - sampling
+      - version
+    canUse:
+      - mcp-sdk
+      - net-http
+      - uuid
 
   version:
     anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可
