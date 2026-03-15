@@ -269,7 +269,7 @@ func (bc *BrowserClient) createRequestEditorInternal(referer string) func(ctx co
 
 		// Debug logging for cookie transmission
 		if bc.debug {
-			slog.Debug("API呼び出し準備", "url", req.URL.String(), "cookie_count", len(cookies))
+			slog.Debug("API呼び出し準備", "url", req.URL.String(), "cookie_count", len(cookies)) // #nosec G706 -- debug log, values are from internal API client
 			if referer != "" {
 				slog.Debug("Referer設定", "referer", referer)
 			}
@@ -278,7 +278,7 @@ func (bc *BrowserClient) createRequestEditorInternal(referer string) func(ctx co
 				if len(value) > 20 {
 					value = value[:20] + "..."
 				}
-				slog.Debug("送信Cookie", "name", cookie.Name, "value", value, "domain", cookie.Domain, "path", cookie.Path)
+				slog.Debug("送信Cookie", "name", cookie.Name, "value", value, "domain", cookie.Domain, "path", cookie.Path) // #nosec G706 -- debug log, cookie values are from local cookie jar
 			}
 		}
 

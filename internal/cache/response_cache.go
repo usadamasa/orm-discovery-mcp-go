@@ -56,7 +56,7 @@ func slugify(query string) string {
 
 	if s == "" {
 		h := fnv.New32a()
-		h.Write([]byte(query))
+		h.Write([]byte(query)) // #nosec G104 -- hash.Write never returns an error per hash.Hash interface contract
 		s = fmt.Sprintf("query-%08x", h.Sum32())
 	}
 
