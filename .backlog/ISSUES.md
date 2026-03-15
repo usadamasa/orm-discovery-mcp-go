@@ -1,4 +1,4 @@
-> Generated: 2026-03-15 09:50
+> Generated: 2026-03-15 10:36
 
 # Issues
 
@@ -6,7 +6,7 @@
 
 | ID | Title | Tags | GH Issue |
 |----|-------|------|----------|
-| issue-20260307-e4f6 | oreilly-researcher: Q&Aプロンプトで oreilly_ask_question が呼び出されない | quality-eval, agent-behavior, server-side | - |
+| - | - | - | - |
 
 ## Medium
 
@@ -19,6 +19,7 @@
 | issue-20260307-7930 | mcp-quality-eval: prompts/get 検証を Go テストに置き換える | quality-eval, testing | - |
 | issue-20260307-f74e | mcp-quality-eval 実行中のユーザ問い合わせ (permission prompt) を削減する | quality-eval, dx | - |
 | issue-20260314-5ed4 | ツールインターフェース変更の blast radius が大きすぎる | architecture, dx | - |
+| issue-20260315-e415 | oreilly_ask_question の回答をローカルファイルに保存する |  | - |
 
 ## Low
 

@@ -1,6 +1,12 @@
 repos:
   - repo: local
     hooks:
+      - id: backlog-sync
+        name: Backlog MD sync
+        entry: .claude/skills/backlog-manage/scripts/pre-commit-sync.sh
+        language: script
+        pass_filenames: false
+        always_run: true
       - id: task-ci
         name: task ci
         entry: task ci
