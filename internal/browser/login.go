@@ -158,7 +158,7 @@ func startChromeForLogin(chromePath, tempDir string) (*exec.Cmd, string, chan er
 		return nil, "", nil, fmt.Errorf("一時ディレクトリの作成に失敗しました: %w", err)
 	}
 
-	cmd := exec.Command(
+	cmd := exec.Command( // #nosec G204 -- chromePath is from exec.LookPath, port/tempDir are internally generated
 		chromePath,
 		"--remote-debugging-port="+port,
 		"--user-data-dir="+tempDir,

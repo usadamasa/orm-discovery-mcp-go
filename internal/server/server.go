@@ -148,7 +148,7 @@ func (s *Server) StartStreamableHTTPServer(ctx context.Context, addr string) err
 	slog.Info("HTTPサーバーを作成しました")
 
 	// Handle graceful shutdown
-	go func() {
+	go func() { // #nosec G118 -- shutdown handler intentionally uses context.Background for cleanup after parent ctx is cancelled
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
 		defer cancel()

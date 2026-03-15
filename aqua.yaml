@@ -9,7 +9,7 @@
 #   - all
 registries:
   - type: standard
-    ref: v4.441.0  # renovate: depName=aquaproj/aqua-registry
+    ref: v4.441.0 # renovate: depName=aquaproj/aqua-registry
 packages:
   - name: go-task/task@v3.44.0
   - name: golang/tools/goimports@v0.34.0
@@ -17,4 +17,5 @@ packages:
   - name: deepmap/oapi-codegen@v2.4.1
   - name: Songmu/tagpr@v1.5.0
   - name: goreleaser/goreleaser@v2.6.0
-  - name: fe3dback/go-arch-lint@v1.14.0  # アーキテクチャ依存関係チェッカー
+  - name: securego/gosec@v2.24.7
+  - name: fe3dback/go-arch-lint@v1.14.0 # アーキテクチャ依存関係チェッカー

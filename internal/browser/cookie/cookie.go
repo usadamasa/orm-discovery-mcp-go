@@ -290,7 +290,7 @@ func (cm *managerImpl) SeedDebugCookieIfNeeded(seedPath string) error {
 	if cm.CookieFileExists() {
 		return nil
 	}
-	data, err := os.ReadFile(seedPath)
+	data, err := os.ReadFile(seedPath) // #nosec G304 -- seedPath is derived from internal config, not user input
 	if err != nil {
 		if os.IsNotExist(err) {
 			slog.Info("デバッグ用シード元Cookieが見つかりません", "seed_path", seedPath)
@@ -301,7 +301,7 @@ func (cm *managerImpl) SeedDebugCookieIfNeeded(seedPath string) error {
 	if err := os.MkdirAll(filepath.Dir(cm.filePath), 0700); err != nil {
 		return fmt.Errorf("Cookieディレクトリの作成に失敗: %w", err)
 	}
-	if err := os.WriteFile(cm.filePath, data, 0600); err != nil {
+	if err := os.WriteFile(cm.filePath, data, 0600); err != nil { // #nosec G703 -- filePath is from internal config, not user input
 		return fmt.Errorf("デバッグ用Cookieのシードに失敗: %w", err)
 	}
 	slog.Info("デバッグ用Cookieをシードしました", "from", seedPath, "to", cm.filePath)

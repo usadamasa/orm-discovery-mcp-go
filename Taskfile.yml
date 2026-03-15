@@ -44,8 +44,12 @@ tasks:
     sources:
       - '**/*.go'
       - '.golangci.yml'
+      - 'go.mod'
+      - 'go.sum'
     cmds:
       - golangci-lint run --timeout=5m
+      - go tool govulncheck ./...
+      - gosec -quiet ./...
 
   arch-lint:
     desc: パッケージ依存方向のアーキテクチャリントを実行
