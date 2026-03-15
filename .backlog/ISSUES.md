@@ -1,4 +1,4 @@
-> Generated: 2026-03-15 03:09
+> Generated: 2026-03-15 09:50
 
 # Issues
 
@@ -25,7 +25,6 @@
 | ID | Title | Tags | GH Issue |
 |----|-------|------|----------|
 | issue-20260301-ee96 | refactor-auth-code: パスワード認証廃止PRの作成とマージ | auth, refactor, handoff | - |
-| issue-20260314-68ce | saveResponseAsMarkdown の二重書き込みを解消する | performance, code-quality | - |
 | issue-20260314-0407 | キャッシュディレクトリに eviction policy がない | architecture, reliability | - |
 | issue-20260314-eca9 | oreilly-researcher: deep research で file Read と book-details チェーンが使われない | quality-eval, agent-behavior | - |
 | issue-20260314-2c35 | oreilly-researcher: リスト要求に Summary Template を使用してしまう | quality-eval, agent-behavior | - |
