@@ -1,4 +1,4 @@
-package main
+package mcputil
 
 import (
 	"fmt"
@@ -19,8 +19,8 @@ const (
 	ErrorCategoryInternal   ErrorCategory = "internal"
 )
 
-// categorizeError classifies an error into a category based on its message.
-func categorizeError(err error) ErrorCategory {
+// CategorizeError classifies an error into a category based on its message.
+func CategorizeError(err error) ErrorCategory {
 	if err == nil {
 		return ErrorCategoryInternal
 	}
@@ -53,8 +53,8 @@ func categorizeError(err error) ErrorCategory {
 	return ErrorCategoryInternal
 }
 
-// userFacingErrorMessage returns a safe, actionable message for the given error category.
-func userFacingErrorMessage(category ErrorCategory) string {
+// UserFacingErrorMessage returns a safe, actionable message for the given error category.
+func UserFacingErrorMessage(category ErrorCategory) string {
 	switch category {
 	case ErrorCategoryAuth:
 		return "Authentication failed. Please use oreilly_reauthenticate to refresh your session."
@@ -71,19 +71,19 @@ func userFacingErrorMessage(category ErrorCategory) string {
 	}
 }
 
-// sanitizeError logs the internal error details and returns a user-facing message.
-func sanitizeError(err error, logAttrs ...any) string {
-	category := categorizeError(err)
+// SanitizeError logs the internal error details and returns a user-facing message.
+func SanitizeError(err error, logAttrs ...any) string {
+	category := CategorizeError(err)
 	attrs := make([]any, 0, 4+len(logAttrs))
 	attrs = append(attrs, "error", err, "category", string(category))
 	attrs = append(attrs, logAttrs...)
 	slog.Error("Operation failed", attrs...)
-	return userFacingErrorMessage(category)
+	return UserFacingErrorMessage(category)
 }
 
-// errorResourceContents creates a ReadResourceResult with a sanitized error message.
-func errorResourceContents(uri string, err error, logAttrs ...any) *mcp.ReadResourceResult {
-	msg := sanitizeError(err, logAttrs...)
+// ErrorResourceContents creates a ReadResourceResult with a sanitized error message.
+func ErrorResourceContents(uri string, err error, logAttrs ...any) *mcp.ReadResourceResult {
+	msg := SanitizeError(err, logAttrs...)
 	return &mcp.ReadResourceResult{
 		Contents: []*mcp.ResourceContents{{
 			URI:      uri,

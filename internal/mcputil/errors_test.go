@@ -1,4 +1,4 @@
-package main
+package mcputil
 
 import (
 	"errors"
@@ -73,7 +73,7 @@ func TestCategorizeError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := categorizeError(tt.err)
+			result := CategorizeError(tt.err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -88,28 +88,28 @@ func TestSanitizeError(t *testing.T) {
 		{
 			name:            "auth error returns user-facing message",
 			err:             fmt.Errorf("API request failed with status 401: invalid token xyz123"),
-			expectedMessage: userFacingErrorMessage(ErrorCategoryAuth),
+			expectedMessage: UserFacingErrorMessage(ErrorCategoryAuth),
 		},
 		{
 			name:            "network error returns user-facing message",
 			err:             fmt.Errorf("connection timeout: dial tcp 10.0.0.1:443"),
-			expectedMessage: userFacingErrorMessage(ErrorCategoryNetwork),
+			expectedMessage: UserFacingErrorMessage(ErrorCategoryNetwork),
 		},
 		{
 			name:            "not found error returns user-facing message",
 			err:             fmt.Errorf("API request failed with status 404: /api/v2/books/12345"),
-			expectedMessage: userFacingErrorMessage(ErrorCategoryNotFound),
+			expectedMessage: UserFacingErrorMessage(ErrorCategoryNotFound),
 		},
 		{
 			name:            "internal error returns user-facing message",
 			err:             fmt.Errorf("unexpected nil pointer at server.go:123"),
-			expectedMessage: userFacingErrorMessage(ErrorCategoryInternal),
+			expectedMessage: UserFacingErrorMessage(ErrorCategoryInternal),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sanitizeError(tt.err)
+			result := SanitizeError(tt.err)
 			assert.Equal(t, tt.expectedMessage, result)
 		})
 	}
@@ -126,7 +126,7 @@ func TestUserFacingErrorMessage(t *testing.T) {
 	}
 
 	for _, cat := range categories {
-		msg := userFacingErrorMessage(cat)
+		msg := UserFacingErrorMessage(cat)
 		assert.NotEmpty(t, msg, "category %s should have a user-facing message", cat)
 	}
 }
@@ -135,7 +135,7 @@ func TestErrorResourceContents(t *testing.T) {
 	uri := "oreilly://book-details/12345"
 	err := errors.New("internal database error: connection pool exhausted")
 
-	result := errorResourceContents(uri, err)
+	result := ErrorResourceContents(uri, err)
 
 	assert.NotNil(t, result)
 	assert.Len(t, result.Contents, 1)

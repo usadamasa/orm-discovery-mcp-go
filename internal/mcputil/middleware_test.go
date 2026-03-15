@@ -1,4 +1,4 @@
-package main
+package mcputil
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func mockNextHandler(result mcp.Result, err error) (mcp.MethodHandler, *int) {
 }
 
 func TestLoggingMiddleware_PassesThrough(t *testing.T) {
-	middleware := createLoggingMiddleware(slog.LevelInfo)
+	middleware := CreateLoggingMiddleware(slog.LevelInfo)
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
@@ -35,7 +35,7 @@ func TestLoggingMiddleware_PassesThrough(t *testing.T) {
 }
 
 func TestLoggingMiddleware_LogsOnError(t *testing.T) {
-	middleware := createLoggingMiddleware(slog.LevelInfo)
+	middleware := CreateLoggingMiddleware(slog.LevelInfo)
 	expectedErr := errors.New("test error")
 	next, callCount := mockNextHandler(nil, expectedErr)
 
@@ -48,7 +48,7 @@ func TestLoggingMiddleware_LogsOnError(t *testing.T) {
 }
 
 func TestLoggingMiddleware_DebugLevel(t *testing.T) {
-	middleware := createLoggingMiddleware(slog.LevelDebug)
+	middleware := CreateLoggingMiddleware(slog.LevelDebug)
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
@@ -61,12 +61,12 @@ func TestLoggingMiddleware_DebugLevel(t *testing.T) {
 }
 
 func TestToolLoggingMiddleware_ToolsCall(t *testing.T) {
-	middleware := createToolLoggingMiddleware(slog.LevelInfo)
+	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
 	wrapped := middleware(next)
-	result, err := wrapped(context.Background(), mcpMethodToolsCall, nil)
+	result, err := wrapped(context.Background(), MCPMethodToolsCall, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedResult, result)
@@ -74,12 +74,12 @@ func TestToolLoggingMiddleware_ToolsCall(t *testing.T) {
 }
 
 func TestToolLoggingMiddleware_ResourcesRead(t *testing.T) {
-	middleware := createToolLoggingMiddleware(slog.LevelInfo)
+	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
 	expectedResult := &mcp.ReadResourceResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
 	wrapped := middleware(next)
-	result, err := wrapped(context.Background(), mcpMethodResourcesRead, nil)
+	result, err := wrapped(context.Background(), MCPMethodResourcesRead, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedResult, result)
@@ -87,7 +87,7 @@ func TestToolLoggingMiddleware_ResourcesRead(t *testing.T) {
 }
 
 func TestToolLoggingMiddleware_OtherMethod(t *testing.T) {
-	middleware := createToolLoggingMiddleware(slog.LevelInfo)
+	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
@@ -100,12 +100,12 @@ func TestToolLoggingMiddleware_OtherMethod(t *testing.T) {
 }
 
 func TestToolLoggingMiddleware_PropagatesError(t *testing.T) {
-	middleware := createToolLoggingMiddleware(slog.LevelInfo)
+	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
 	expectedErr := errors.New("tool error")
 	next, _ := mockNextHandler(nil, expectedErr)
 
 	wrapped := middleware(next)
-	_, err := wrapped(context.Background(), mcpMethodToolsCall, nil)
+	_, err := wrapped(context.Background(), MCPMethodToolsCall, nil)
 
 	assert.ErrorIs(t, err, expectedErr)
 }

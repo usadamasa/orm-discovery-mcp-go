@@ -40,6 +40,8 @@ components:
     in: internal/config
   history:
     in: internal/history
+  mcputil:
+    in: internal/mcputil
   version:
     in: internal/version
 
@@ -51,6 +53,7 @@ deps:
       - cookie    # main は browser/cookie を直接 import する
       - config
       - history
+      - mcputil
       - version
     canUse:
       - mcp-sdk
@@ -82,6 +85,10 @@ deps:
   history:
     canUse:
       - uuid
+
+  mcputil:
+    canUse:
+      - mcp-sdk
 
   version:
     anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可
