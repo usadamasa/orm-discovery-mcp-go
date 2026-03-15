@@ -30,6 +30,8 @@ components:
     in: .
   browser:
     in: internal/browser
+  htmlparse:
+    in: internal/browser/htmlparse
   generated:
     in: internal/browser/generated/api  # OpenAPI 生成クライアント
   cookie:
@@ -70,11 +72,16 @@ deps:
     mayDependOn:
       - cookie
       - generated  # OpenAPI 生成クライアントを使用
+      - htmlparse  # HTML パーサーサブパッケージ
     canUse:
       - chromedp
       - net-html
       - net-http
       - oapi-codegen
+
+  htmlparse:
+    canUse:
+      - net-html
 
   generated:
     anyVendorDeps: true  # OpenAPI 生成コードは外部 vendor を自由に使用

@@ -11,6 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/mcputil"
 )
 
 // registerHistoryResources は履歴リソースを登録する
@@ -306,7 +307,6 @@ func extractHistoryIDFromFullURI(uri string) string {
 	if err != nil {
 		return ""
 	}
-	// Path: "/{id}/full"
 	p := strings.TrimPrefix(u.Path, "/")
 	p = strings.TrimSuffix(p, "/full")
 	if p == "" || p == "search" || p == "recent" {
@@ -334,14 +334,7 @@ func extractHistorySearchParams(uri string) (keyword, entryType string) {
 // extractHistoryIDFromURI はURIからIDを抽出する
 func extractHistoryIDFromURI(uri string) string {
 	// orm-mcp://history/{id} の形式
-	if uri == "" {
-		return ""
-	}
-	u, err := url.Parse(uri)
-	if err != nil {
-		return ""
-	}
-	id := strings.TrimPrefix(u.Path, "/")
+	id := mcputil.ExtractProductIDFromURI(uri)
 	if id == "" || id == "search" || id == "recent" {
 		return ""
 	}

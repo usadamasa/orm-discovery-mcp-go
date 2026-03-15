@@ -18,4 +18,7 @@ packages:
   - name: Songmu/tagpr@v1.5.0
   - name: goreleaser/goreleaser@v2.6.0
   - name: securego/gosec@v2.24.7
+  # govulncheck: aqua の pre-built binary は Go 1.24 製。Go 1.25 プロジェクトでは
+  # 解析不可のため Taskfile で go run @v1.1.4 によるソースビルドを使用。
+  # Go 1.25 対応リリース後に aqua 管理へ復帰予定。
   - name: fe3dback/go-arch-lint@v1.14.0 # アーキテクチャ依存関係チェッカー

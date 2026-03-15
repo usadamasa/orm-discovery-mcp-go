@@ -12,6 +12,7 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/mcputil"
 )
 
 // mockBrowserClient implements browser.Client for testing.
@@ -180,9 +181,9 @@ func TestExtractProductIDFromURI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractProductIDFromURI(tt.uri)
+			result := mcputil.ExtractProductIDFromURI(tt.uri)
 			if result != tt.expected {
-				t.Errorf("extractProductIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
+				t.Errorf("mcputil.ExtractProductIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
 			}
 		})
 	}
@@ -229,7 +230,7 @@ func TestExtractProductIDAndChapterFromURI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			product, chapter := extractProductIDAndChapterFromURI(tt.uri)
+			product, chapter := mcputil.ExtractProductIDAndChapterFromURI(tt.uri)
 			if product != tt.expectedProduct {
 				t.Errorf("product: got %q, want %q", product, tt.expectedProduct)
 			}
@@ -265,9 +266,9 @@ func TestExtractQuestionIDFromURI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractQuestionIDFromURI(tt.uri)
+			result := mcputil.ExtractQuestionIDFromURI(tt.uri)
 			if result != tt.expected {
-				t.Errorf("extractQuestionIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
+				t.Errorf("mcputil.ExtractQuestionIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
 			}
 		})
 	}
