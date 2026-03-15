@@ -51,9 +51,9 @@ func NewServer(browserClient browser.Client, cfg *config.Config, cookieManager c
 		},
 		&mcp.ServerOptions{
 			Instructions: "O'Reilly Learning Platform MCP Server. " +
-				"Use oreilly_search_content to discover books/videos/articles, " +
-				"oreilly_ask_question for AI-powered Q&A, " +
-				"and oreilly://book-* resources for detailed content access. " +
+				"ROUTING: use oreilly_ask_question for direct questions (what/why/how/best-practice), " +
+				"oreilly_search_content for topic/keyword discovery. " +
+				"Access details via oreilly://book-* resources. " +
 				"Always cite sources with title, author(s), and O'Reilly Media.",
 		},
 	)

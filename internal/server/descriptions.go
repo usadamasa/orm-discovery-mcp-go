@@ -8,15 +8,15 @@ package server
 
 const descSearchContent = `Search O'Reilly content. Returns top 5 inline + saves full results to a local file for Read tool access.
 
-Example: "Docker containers" (Good) / "How to use Docker" (Poor)
+Example: "Docker containers" (Good) / "How to use Docker?" → oreilly_ask_question.
 
-Results: Use product_id with oreilly://book-details/{id}. Read the file path for full details.
+Use product_id with oreilly://book-details/{id}. Read file path for full details.
 
 IMPORTANT: Cite sources with title, author(s), and O'Reilly Media.`
 
-const descAskQuestion = `Ask technical questions to O'Reilly Answers AI and get sourced responses.
+const descAskQuestion = `Ask technical questions (what/why/how) to O'Reilly Answers AI. Not for keyword searches.
 
-Example: "How to optimize React performance?" (Good) / "Explain everything about React" (Poor)
+Example: "How to optimize React performance?" (Good) / "React performance" → oreilly_search_content.
 
 Response: Markdown answer, sources, related resources, question_id (use with oreilly://answer/{id})
 
