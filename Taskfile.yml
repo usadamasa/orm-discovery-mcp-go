@@ -213,8 +213,10 @@ tasks:
     sources:
       - 'scripts/**/tests/*.bats'
       - 'scripts/**/*.sh'
+      - '.claude/**/tests/*.bats'
+      - '.claude/**/scripts/*.sh'
     cmds:
-      - bats scripts/**/tests/*.bats
+      - bash -O globstar -O nullglob -c 'bats scripts/**/tests/*.bats .claude/**/tests/*.bats'
 
   # === Backlog CLI ===
   backlog:build:

@@ -18,6 +18,7 @@ user_invocable: true
 !(gh issue list -R usadamasa/orm-discovery-mcp-go --label voc --state open --json number 2>/dev/null | jq length 2>/dev/null || echo "N/A") | xargs printf ", VOC issues: %s"
 !(ls .backlog/*.bak 2>/dev/null | wc -l | tr -d ' ' || printf "0") | xargs printf ", Backup files: %s"
 !(grep -c . .backlog/audit-log.jsonl 2>/dev/null || printf "0") | xargs printf ", Audit runs: %s"
+!([ -f .claude/skills/backlog-manage/cli/bin/backlog-cli ] && printf "backlog-cli: built" || printf "backlog-cli: NOT BUILT - run: task backlog:build")
 
 ## Setup
 
