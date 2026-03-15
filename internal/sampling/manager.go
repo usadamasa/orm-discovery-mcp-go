@@ -1,4 +1,4 @@
-package main
+package sampling
 
 import (
 	"context"
@@ -16,20 +16,20 @@ const (
 	RoleAssistant mcp.Role = "assistant"
 )
 
-// SamplingManager handles MCP Sampling requests to generate summaries.
-type SamplingManager struct {
+// Manager handles MCP Sampling requests to generate summaries.
+type Manager struct {
 	config *config.Config
 }
 
-// NewSamplingManager creates a new SamplingManager.
-func NewSamplingManager(cfg *config.Config) *SamplingManager {
-	return &SamplingManager{
+// NewManager creates a new Manager.
+func NewManager(cfg *config.Config) *Manager {
+	return &Manager{
 		config: cfg,
 	}
 }
 
 // CanSample checks if the client supports sampling capability.
-func (sm *SamplingManager) CanSample(session *mcp.ServerSession) bool {
+func (sm *Manager) CanSample(session *mcp.ServerSession) bool {
 	if session == nil {
 		return false
 	}
@@ -47,7 +47,7 @@ func (sm *SamplingManager) CanSample(session *mcp.ServerSession) bool {
 
 // SummarizeSearchResults generates a summary of search results using MCP Sampling.
 // It sends a request to the client's LLM to summarize the results.
-func (sm *SamplingManager) SummarizeSearchResults(
+func (sm *Manager) SummarizeSearchResults(
 	ctx context.Context,
 	session *mcp.ServerSession,
 	query string,
@@ -121,7 +121,7 @@ Respond in the same language as the user's query.`,
 }
 
 // SummarizeQuestionAnswer generates a summary of a question and answer.
-func (sm *SamplingManager) SummarizeQuestionAnswer(
+func (sm *Manager) SummarizeQuestionAnswer(
 	ctx context.Context,
 	session *mcp.ServerSession,
 	question string,

@@ -18,6 +18,7 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/mcputil"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/sampling"
 )
 
 // HTTP server timeout constants.
@@ -35,7 +36,7 @@ type Server struct {
 	server          *mcp.Server
 	config          *config.Config
 	historyManager  *history.Manager
-	samplingManager *SamplingManager
+	samplingManager *sampling.Manager
 	cookieManager   cookie.Manager // 再認証時の BrowserClient 再生成に使用
 	startedAt       time.Time      // サーバー起動時刻 (MCP 再起動検証用)
 	serverVersion   string
@@ -68,7 +69,7 @@ func NewServer(browserClient browser.Client, cfg *config.Config, cookieManager c
 	}
 
 	// Initialize sampling manager
-	samplingManager := NewSamplingManager(cfg)
+	samplingManager := sampling.NewManager(cfg)
 
 	srv := &Server{
 		browserClient:   browserClient,

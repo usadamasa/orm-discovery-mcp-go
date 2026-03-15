@@ -1,4 +1,4 @@
-package main
+package sampling
 
 import (
 	"testing"
@@ -7,8 +7,8 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 )
 
-func TestSamplingManager_CanSample_NilSession(t *testing.T) {
-	sm := NewSamplingManager(&config.Config{EnableSampling: true})
+func TestManager_CanSample_NilSession(t *testing.T) {
+	sm := NewManager(&config.Config{EnableSampling: true})
 	result := sm.CanSample(nil)
 	assert.False(t, result, "CanSample should return false when session is nil")
 }
