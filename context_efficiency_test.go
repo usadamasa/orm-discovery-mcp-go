@@ -9,6 +9,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/cache"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
 )
 
@@ -199,7 +200,7 @@ func TestCacheFileFormat_Regression(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	filePath, err := saveResponseAsMarkdown(cacheDir, "regression test", results, "req_regression", 42)
+	filePath, err := cache.SaveResponseAsMarkdown(cacheDir, "regression test", results, "req_regression", 42)
 	if err != nil {
 		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
 	}
@@ -255,7 +256,7 @@ func TestCacheFileSize(t *testing.T) {
 	results := syntheticSearchResults(25)
 	cacheDir := t.TempDir()
 
-	filePath, err := saveResponseAsMarkdown(cacheDir, "test query", results, "req_test123", 100)
+	filePath, err := cache.SaveResponseAsMarkdown(cacheDir, "test query", results, "req_test123", 100)
 	if err != nil {
 		t.Fatalf("failed to save cache file: %v", err)
 	}

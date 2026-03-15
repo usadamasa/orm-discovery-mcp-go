@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"fmt"
@@ -20,9 +20,9 @@ func TestSlugify_ASCII(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := slugify(tt.input)
+			got := Slugify(tt.input)
 			if got != tt.want {
-				t.Errorf("slugify(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("Slugify(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -30,28 +30,28 @@ func TestSlugify_ASCII(t *testing.T) {
 
 func TestSlugify_Japanese(t *testing.T) {
 	// Japanese characters are non-ASCII, should be replaced with "-"
-	got := slugify("日本語テスト")
+	got := Slugify("日本語テスト")
 	if got == "" {
-		t.Error("slugify should not return empty for Japanese input")
+		t.Error("Slugify should not return empty for Japanese input")
 	}
 	// Should produce a hash-based fallback since all chars are non-alphanumeric ASCII
 	if !strings.HasPrefix(got, "query-") {
-		t.Errorf("slugify(Japanese) = %q, expected hash-based fallback starting with 'query-'", got)
+		t.Errorf("Slugify(Japanese) = %q, expected hash-based fallback starting with 'query-'", got)
 	}
 }
 
 func TestSlugify_Empty(t *testing.T) {
-	got := slugify("")
+	got := Slugify("")
 	if !strings.HasPrefix(got, "query-") {
-		t.Errorf("slugify('') = %q, expected hash-based fallback", got)
+		t.Errorf("Slugify('') = %q, expected hash-based fallback", got)
 	}
 }
 
 func TestSlugify_TruncatesLong(t *testing.T) {
 	long := strings.Repeat("abcdefghij", 10) // 100 chars
-	got := slugify(long)
+	got := Slugify(long)
 	if len(got) > 50 {
-		t.Errorf("slugify should truncate to 50 chars, got %d: %q", len(got), got)
+		t.Errorf("Slugify should truncate to 50 chars, got %d: %q", len(got), got)
 	}
 }
 
@@ -76,9 +76,9 @@ func TestSaveResponseAsMarkdown_CreatesFile(t *testing.T) {
 		},
 	}
 
-	filePath, err := saveResponseAsMarkdown(cacheDir, "Docker containers", results, "req_abc123", 100)
+	filePath, err := SaveResponseAsMarkdown(cacheDir, "Docker containers", results, "req_abc123", 100)
 	if err != nil {
-		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
+		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}
 
 	// File should exist
@@ -141,7 +141,7 @@ func TestSaveResponseAsMarkdown_NonWritableDir(t *testing.T) {
 		{"title": "Test"},
 	}
 
-	_, err := saveResponseAsMarkdown(cacheDir, "test", results, "req_123", 1)
+	_, err := SaveResponseAsMarkdown(cacheDir, "test", results, "req_123", 1)
 	if err == nil {
 		t.Error("expected error for non-writable directory")
 	}
@@ -164,9 +164,9 @@ func TestStripHTML(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := stripHTML(tt.input)
+			got := StripHTML(tt.input)
 			if got != tt.want {
-				t.Errorf("stripHTML(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Errorf("StripHTML(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -180,7 +180,7 @@ func TestWriteResultMarkdown_StripsHTML(t *testing.T) {
 	}
 
 	var b strings.Builder
-	writeResultMarkdown(&b, 1, result)
+	WriteResultMarkdown(&b, 1, result)
 	output := b.String()
 
 	if strings.Contains(output, "<span") || strings.Contains(output, "<div") || strings.Contains(output, "</span>") || strings.Contains(output, "</div>") {
@@ -203,9 +203,9 @@ func TestSaveResponseAsMarkdown_TotalResultsFallback(t *testing.T) {
 	}
 
 	// totalResults=0 but 3 results → should fall back to len(results)=3
-	filePath, err := saveResponseAsMarkdown(cacheDir, "test query", results, "req_fallback", 0)
+	filePath, err := SaveResponseAsMarkdown(cacheDir, "test query", results, "req_fallback", 0)
 	if err != nil {
-		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
+		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}
 
 	data, err := os.ReadFile(filePath)
@@ -227,9 +227,9 @@ func TestSaveResponseAsMarkdown_TotalResultsFromAPI(t *testing.T) {
 	}
 
 	// totalResults=500 from API → should use API value
-	filePath, err := saveResponseAsMarkdown(cacheDir, "test query", results, "req_api", 500)
+	filePath, err := SaveResponseAsMarkdown(cacheDir, "test query", results, "req_api", 500)
 	if err != nil {
-		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
+		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}
 
 	data, err := os.ReadFile(filePath)
@@ -246,9 +246,9 @@ func TestSaveResponseAsMarkdown_TotalResultsFromAPI(t *testing.T) {
 func TestSaveResponseAsMarkdown_EmptyResults(t *testing.T) {
 	cacheDir := filepath.Join(t.TempDir(), "responses")
 
-	filePath, err := saveResponseAsMarkdown(cacheDir, "empty query", []map[string]any{}, "req_empty", 0)
+	filePath, err := SaveResponseAsMarkdown(cacheDir, "empty query", []map[string]any{}, "req_empty", 0)
 	if err != nil {
-		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
+		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}
 
 	data, err := os.ReadFile(filePath)

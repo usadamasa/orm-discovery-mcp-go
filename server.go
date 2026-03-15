@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/cache"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
 )
@@ -405,7 +406,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 
 	// Save full results to cache file (single save with history ID)
 	cacheDir := s.config.XDGDirs.ResponseCachePath()
-	filePath, cacheErr := saveResponseAsMarkdown(cacheDir, args.Query, results, historyID, totalResults)
+	filePath, cacheErr := cache.SaveResponseAsMarkdown(cacheDir, args.Query, results, historyID, totalResults)
 	if cacheErr != nil {
 		slog.Warn("レスポンスキャッシュの保存に失敗しました", "error", cacheErr)
 	}
@@ -429,17 +430,8 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 // buildLightweightResponse builds a lightweight response with file path for lazy loading.
 // Book results include ResourceLink entries for direct resource navigation.
 // Returns up to 5 results in the text summary.
-// effectiveTotalResults returns totalResults if positive, or falls back to
-// len(results) when the API returns 0 (e.g. nil *int pointer).
-func effectiveTotalResults(totalResults, resultCount int) int {
-	if totalResults == 0 && resultCount > 0 {
-		return resultCount
-	}
-	return totalResults
-}
-
 func (s *Server) buildLightweightResponse(results []map[string]any, historyID, filePath string, offset, totalResults int) (*mcp.CallToolResult, *SearchContentResult) {
-	total := effectiveTotalResults(totalResults, len(results))
+	total := cache.EffectiveTotalResults(totalResults, len(results))
 
 	lightweightResults := make([]map[string]any, 0, len(results))
 	var resourceLinks []mcp.Content
@@ -447,7 +439,7 @@ func (s *Server) buildLightweightResponse(results []map[string]any, historyID, f
 	for _, result := range results {
 		lightweight := make(map[string]any)
 
-		id := extractStringField(result, "product_id", "isbn", "id")
+		id := cache.ExtractStringField(result, "product_id", "isbn", "id")
 		if id != "" {
 			lightweight["id"] = id
 		}
@@ -527,16 +519,6 @@ func (s *Server) buildLightweightResponse(results []map[string]any, historyID, f
 		return &mcp.CallToolResult{Content: content}, structured
 	}
 	return nil, structured
-}
-
-// extractStringField returns the first non-empty string value from the map for the given keys.
-func extractStringField(m map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if v, ok := m[key].(string); ok && v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 // AskQuestionHandler processes question requests for O'Reilly Answers.

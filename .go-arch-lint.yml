@@ -34,6 +34,8 @@ components:
     in: browser/generated/api  # OpenAPI 生成クライアント
   cookie:
     in: browser/cookie
+  cache:
+    in: internal/cache
   config:
     in: internal/config
   history:
@@ -45,6 +47,7 @@ deps:
   main:
     mayDependOn:
       - browser
+      - cache
       - cookie    # main は browser/cookie を直接 import する
       - config
       - history
