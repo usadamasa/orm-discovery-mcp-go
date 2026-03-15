@@ -14,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 )
 
 // HTTP server timeout constants.
@@ -29,7 +30,7 @@ type Server struct {
 	clientMu        sync.RWMutex
 	browserClient   browser.Client
 	server          *mcp.Server
-	config          *Config
+	config          *config.Config
 	historyManager  *ResearchHistoryManager
 	samplingManager *SamplingManager
 	cookieManager   cookie.Manager // 再認証時の BrowserClient 再生成に使用
@@ -38,7 +39,7 @@ type Server struct {
 }
 
 // NewServer creates a new server instance.
-func NewServer(browserClient browser.Client, config *Config, cookieManager cookie.Manager, serverVersion string) *Server {
+func NewServer(browserClient browser.Client, cfg *config.Config, cookieManager cookie.Manager, serverVersion string) *Server {
 	// Create MCP server
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
@@ -56,20 +57,20 @@ func NewServer(browserClient browser.Client, config *Config, cookieManager cooki
 
 	// Initialize research history manager
 	historyManager := NewResearchHistoryManager(
-		config.XDGDirs.ResearchHistoryPath(),
-		config.HistoryMaxEntries,
+		cfg.XDGDirs.ResearchHistoryPath(),
+		cfg.HistoryMaxEntries,
 	)
 	if err := historyManager.Load(); err != nil {
 		slog.Warn("調査履歴の読み込みに失敗しました", "error", err)
 	}
 
 	// Initialize sampling manager
-	samplingManager := NewSamplingManager(config)
+	samplingManager := NewSamplingManager(cfg)
 
 	srv := &Server{
 		browserClient:   browserClient,
 		server:          mcpServer,
-		config:          config,
+		config:          cfg,
 		historyManager:  historyManager,
 		samplingManager: samplingManager,
 		cookieManager:   cookieManager,
@@ -79,8 +80,8 @@ func NewServer(browserClient browser.Client, config *Config, cookieManager cooki
 
 	// Add middleware for logging
 	mcpServer.AddReceivingMiddleware(
-		createLoggingMiddleware(config.LogLevel),
-		createToolLoggingMiddleware(config.LogLevel),
+		createLoggingMiddleware(cfg.LogLevel),
+		createToolLoggingMiddleware(cfg.LogLevel),
 	)
 
 	slog.Info("サーバーを初期化しました")

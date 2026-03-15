@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 )
 
 // mockBrowserClient implements browser.Client for testing.
@@ -46,8 +47,8 @@ func newTestServer(t *testing.T, mock *mockBrowserClient) *Server {
 	t.Helper()
 	tmpDir := t.TempDir()
 
-	config := &Config{
-		XDGDirs: &XDGDirs{
+	cfg := &config.Config{
+		XDGDirs: &config.XDGDirs{
 			CacheHome: filepath.Join(tmpDir, "cache"),
 			StateHome: filepath.Join(tmpDir, "state"),
 		},
@@ -55,14 +56,14 @@ func newTestServer(t *testing.T, mock *mockBrowserClient) *Server {
 	}
 
 	historyManager := NewResearchHistoryManager(
-		config.XDGDirs.ResearchHistoryPath(),
-		config.HistoryMaxEntries,
+		cfg.XDGDirs.ResearchHistoryPath(),
+		cfg.HistoryMaxEntries,
 	)
 	_ = historyManager.Load()
 
 	return &Server{
 		browserClient:  mock,
-		config:         config,
+		config:         cfg,
 		historyManager: historyManager,
 		startedAt:      time.Now(),
 		serverVersion:  "test",

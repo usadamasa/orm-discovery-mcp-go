@@ -10,6 +10,7 @@ import (
 
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 	versionpkg "github.com/usadamasa/orm-discovery-mcp-go/internal/version"
 )
 
@@ -56,7 +57,7 @@ func runMCPServer() {
 	}()
 
 	// Load configuration
-	cfg, err := LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		slog.Error("設定の読み込みに失敗しました", "error", err)
 		os.Exit(1)
@@ -70,8 +71,8 @@ func runMCPServer() {
 	cookieManager := cookie.NewCookieManager(cfg.XDGDirs.CacheHome)
 
 	// デバッグモード: 共有 XDG パスからデバッグ用 cookie をシード
-	if debugDir := getEnv("ORM_MCP_GO_DEBUG_DIR"); debugDir != "" {
-		defaultDirs, err := GetXDGDirs("")
+	if debugDir := os.Getenv("ORM_MCP_GO_DEBUG_DIR"); debugDir != "" {
+		defaultDirs, err := config.GetXDGDirs("")
 		if err != nil {
 			slog.Warn("デフォルトXDGディレクトリの取得に失敗しました", "error", err)
 		} else if err := cookieManager.SeedDebugCookieIfNeeded(defaultDirs.CookiePath()); err != nil {

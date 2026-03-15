@@ -34,6 +34,8 @@ components:
     in: browser/generated/api  # OpenAPI 生成クライアント
   cookie:
     in: browser/cookie
+  config:
+    in: internal/config
   version:
     in: internal/version
 
@@ -42,6 +44,7 @@ deps:
     mayDependOn:
       - browser
       - cookie    # main は browser/cookie を直接 import する
+      - config
       - version
     canUse:
       - mcp-sdk
@@ -65,6 +68,10 @@ deps:
   cookie:
     canUse:
       - net-http
+
+  config:
+    canUse:
+      - lumberjack
 
   version:
     anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可

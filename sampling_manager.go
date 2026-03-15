@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
 )
 
 // MCP Role constants
@@ -17,13 +18,13 @@ const (
 
 // SamplingManager handles MCP Sampling requests to generate summaries.
 type SamplingManager struct {
-	config *Config
+	config *config.Config
 }
 
 // NewSamplingManager creates a new SamplingManager.
-func NewSamplingManager(config *Config) *SamplingManager {
+func NewSamplingManager(cfg *config.Config) *SamplingManager {
 	return &SamplingManager{
-		config: config,
+		config: cfg,
 	}
 }
 
