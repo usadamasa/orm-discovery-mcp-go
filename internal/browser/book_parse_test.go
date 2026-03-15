@@ -4,18 +4,15 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser/htmlparse"
 )
 
-func newTestClient() *BrowserClient {
-	return &BrowserClient{}
-}
-
-func mustParse(t *testing.T, html string) *ParsedChapterContent {
+func mustParse(t *testing.T, htmlContent string) *htmlparse.ParsedChapterContent {
 	t.Helper()
-	bc := newTestClient()
-	result, err := bc.parseHTMLContent(html)
+	result, err := htmlparse.ParseHTMLContent(htmlContent)
 	if err != nil {
-		t.Fatalf("parseHTMLContent failed: %v", err)
+		t.Fatalf("ParseHTMLContent failed: %v", err)
 	}
 	return result
 }
@@ -93,12 +90,12 @@ func TestParseHTMLContent_CodeBlockLanguage(t *testing.T) {
 	}
 	found := false
 	for _, item := range r.Sections[0].Content {
-		if cb, ok := item.(CodeBlockElement); ok && cb.Language == "go" {
+		if cb, ok := item.(htmlparse.CodeBlockElement); ok && cb.Language == "go" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected CodeBlockElement with language 'go'")
+		t.Error("expected htmlparse.CodeBlockElement with language 'go'")
 	}
 }
 
@@ -117,14 +114,14 @@ func TestParseHTMLContent_DocumentOrder(t *testing.T) {
 	if len(s.Content) != 3 {
 		t.Fatalf("expected 3 content items, got %d", len(s.Content))
 	}
-	if _, ok := s.Content[0].(ParagraphElement); !ok {
-		t.Errorf("expected content[0] to be ParagraphElement, got %T", s.Content[0])
+	if _, ok := s.Content[0].(htmlparse.ParagraphElement); !ok {
+		t.Errorf("expected content[0] to be htmlparse.ParagraphElement, got %T", s.Content[0])
 	}
-	if _, ok := s.Content[1].(CodeBlockElement); !ok {
-		t.Errorf("expected content[1] to be CodeBlockElement, got %T", s.Content[1])
+	if _, ok := s.Content[1].(htmlparse.CodeBlockElement); !ok {
+		t.Errorf("expected content[1] to be htmlparse.CodeBlockElement, got %T", s.Content[1])
 	}
-	if _, ok := s.Content[2].(ParagraphElement); !ok {
-		t.Errorf("expected content[2] to be ParagraphElement, got %T", s.Content[2])
+	if _, ok := s.Content[2].(htmlparse.ParagraphElement); !ok {
+		t.Errorf("expected content[2] to be htmlparse.ParagraphElement, got %T", s.Content[2])
 	}
 }
 
@@ -140,12 +137,12 @@ func TestParseHTMLContent_InlineCodeNotDuplicated(t *testing.T) {
 	}
 	codeCount := 0
 	for _, item := range r.Sections[0].Content {
-		if _, ok := item.(CodeBlockElement); ok {
+		if _, ok := item.(htmlparse.CodeBlockElement); ok {
 			codeCount++
 		}
 	}
 	if codeCount != 1 {
-		t.Errorf("expected exactly 1 CodeBlockElement, got %d", codeCount)
+		t.Errorf("expected exactly 1 htmlparse.CodeBlockElement, got %d", codeCount)
 	}
 }
 
@@ -161,7 +158,7 @@ func TestParseHTMLContent_ListInSection(t *testing.T) {
 	}
 	listCount := 0
 	for _, item := range r.Sections[0].Content {
-		if le, ok := item.(ListElement); ok {
+		if le, ok := item.(htmlparse.ListElement); ok {
 			listCount++
 			if listCount == 1 && le.Ordered {
 				t.Error("expected first list to be unordered")
@@ -172,7 +169,7 @@ func TestParseHTMLContent_ListInSection(t *testing.T) {
 		}
 	}
 	if listCount != 2 {
-		t.Errorf("expected 2 ListElements, got %d", listCount)
+		t.Errorf("expected 2 htmlparse.ListElements, got %d", listCount)
 	}
 }
 
@@ -187,14 +184,14 @@ func TestParseHTMLContent_LinkInSection(t *testing.T) {
 	}
 	found := false
 	for _, item := range r.Sections[0].Content {
-		if le, ok := item.(LinkElement); ok {
+		if le, ok := item.(htmlparse.LinkElement); ok {
 			if le.Href == "https://example.com" && le.Text == "Example" && le.LinkType == "external" {
 				found = true
 			}
 		}
 	}
 	if !found {
-		t.Error("expected LinkElement with href 'https://example.com'")
+		t.Error("expected htmlparse.LinkElement with href 'https://example.com'")
 	}
 }
 
