@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.0.14](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.13...v0.0.14) - 2026-03-15
+- feat: improve local cache quality and fix total results by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/159
+- docs: fix 7 doc-vs-implementation drifts by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/161
+- refactor: Go package re-architecture (God Package elimination) by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/162
+- chore: update audit-log with go-arch quality eval results by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/163
+- chore: integrate govulncheck and gosec into lint pipeline by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/164
+- refactor: reduce LOC in browser and server packages via subpackage extraction by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/165
+- refactor(server): remove dead entryID fallback (#68ce) by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/166
+- fix(server): improve oreilly_ask_question routing via tool description cross-references by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/167
+- feat(backlog): add pre-commit hook for MD summary auto-sync by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/168
+
 ## [v0.0.13](https://github.com/usadamasa/orm-discovery-mcp-go/compare/v0.0.12...v0.0.13) - 2026-03-14
 - feat: バックログ管理基盤の導入と VOC 収集の GitHub Issue 化 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/128
 - feat: デバッグモード Cookie シード機能の追加 by @usadamasa in https://github.com/usadamasa/orm-discovery-mcp-go/pull/133
