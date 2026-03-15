@@ -2,16 +2,24 @@ package history
 
 import "time"
 
-// History は調査履歴全体を保持する構造体
-type History struct {
+// EntryType は調査エントリの種別を表す
+type EntryType = string
+
+const (
+	EntryTypeSearch   EntryType = "search"
+	EntryTypeQuestion EntryType = "question"
+)
+
+// historyData は調査履歴全体を保持する構造体
+type historyData struct {
 	Version     int       `json:"version"`
 	LastUpdated time.Time `json:"last_updated"`
 	Entries     []Entry   `json:"entries"`
-	Index       Index     `json:"index"`
+	Index       index     `json:"index"`
 }
 
-// Index は検索用インデックス
-type Index struct {
+// index は検索用インデックス
+type index struct {
 	ByKeyword map[string][]string `json:"by_keyword"`
 	ByType    map[string][]string `json:"by_type"`
 	ByDate    map[string][]string `json:"by_date"`

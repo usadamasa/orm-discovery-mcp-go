@@ -9,14 +9,19 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// CreateLoggingMiddleware creates middleware for logging MCP requests and responses.
-func CreateLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
+// MiddlewareFactory creates MCP middleware with a configured log level.
+type MiddlewareFactory struct {
+	LogLevel slog.Level
+}
+
+// Logging creates middleware for logging MCP requests and responses.
+func (mf MiddlewareFactory) Logging() mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			start := time.Now()
 
 			// Log request
-			if logLevel <= slog.LevelDebug {
+			if mf.LogLevel <= slog.LevelDebug {
 				reqJSON, _ := json.Marshal(req)
 				slog.Debug("MCP受信",
 					"method", method,
@@ -38,7 +43,7 @@ func CreateLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
 					"duration", duration,
 					"error", err.Error())
 			} else {
-				if logLevel <= slog.LevelDebug {
+				if mf.LogLevel <= slog.LevelDebug {
 					resultJSON, _ := json.Marshal(result)
 					resultSize := len(resultJSON)
 					if resultSize > 1000 {
@@ -67,17 +72,17 @@ func CreateLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
 
 // MCP method constants used in middleware routing.
 const (
-	MCPMethodToolsCall     = "tools/call"
-	MCPMethodResourcesRead = "resources/read"
+	mcpMethodToolsCall     = "tools/call"
+	mcpMethodResourcesRead = "resources/read"
 )
 
-// CreateToolLoggingMiddleware creates middleware for logging tool calls.
-func CreateToolLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
+// ToolLogging creates middleware for logging tool calls and resource reads.
+func (mf MiddlewareFactory) ToolLogging() mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			// Only log for tool calls
-			if method == MCPMethodToolsCall {
-				if logLevel <= slog.LevelDebug {
+			if method == mcpMethodToolsCall {
+				if mf.LogLevel <= slog.LevelDebug {
 					reqJSON, _ := json.Marshal(req)
 					slog.Debug("ツール呼び出し開始",
 						"method", method,
@@ -89,7 +94,7 @@ func CreateToolLoggingMiddleware(logLevel slog.Level) mcp.Middleware {
 			}
 
 			// Only log for resource reads
-			if method == MCPMethodResourcesRead {
+			if method == mcpMethodResourcesRead {
 				slog.Debug("リソース読み込み開始",
 					"method", method)
 			}

@@ -11,6 +11,36 @@ import (
 	"time"
 )
 
+// SaveParams groups the parameters for SaveResponseAsMarkdown.
+type SaveParams struct {
+	Dir          string
+	Query        string
+	Results      []map[string]any
+	HistoryID    string
+	TotalResults int
+}
+
+// markdownHeader groups the header fields for markdown generation.
+type markdownHeader struct {
+	query        string
+	date         string
+	totalResults int
+	resultCount  int
+	historyID    string
+}
+
+// resultView holds extracted fields from a search result map.
+type resultView struct {
+	title       string
+	id          string
+	authors     string
+	contentType string
+	publisher   string
+	pubDate     string
+	url         string
+	description string
+}
+
 var nonAlphaNum = regexp.MustCompile(`[^a-z0-9]+`)
 
 // slugify converts a query string into a filesystem-safe slug.
@@ -35,28 +65,37 @@ func slugify(query string) string {
 
 // SaveResponseAsMarkdown saves search results as a Markdown file.
 // Returns the file path on success.
-func SaveResponseAsMarkdown(cacheDir, query string, results []map[string]any, historyID string, totalResults int) (string, error) {
-	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+func SaveResponseAsMarkdown(p SaveParams) (string, error) {
+	if err := os.MkdirAll(p.Dir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
-	filename := time.Now().Format("20060102-150405") + "_" + slugify(query) + ".md"
-	filePath := filepath.Join(cacheDir, filename)
+	now := time.Now()
+	filename := now.Format("20060102-150405") + "_" + slugify(p.Query) + ".md"
+	filePath := filepath.Join(p.Dir, filename)
 	tmpPath := filePath + ".tmp"
+
+	hdr := markdownHeader{
+		query:        p.Query,
+		date:         now.Format(time.RFC3339),
+		totalResults: EffectiveTotalResults(p.TotalResults, len(p.Results)),
+		resultCount:  len(p.Results),
+		historyID:    p.HistoryID,
+	}
 
 	var b strings.Builder
 
 	// Header
 	b.WriteString("# O'Reilly Search Results\n\n")
-	fmt.Fprintf(&b, "- Query: %s\n", query)
-	fmt.Fprintf(&b, "- Date: %s\n", time.Now().Format(time.RFC3339))
-	fmt.Fprintf(&b, "- Total Results: %d\n", EffectiveTotalResults(totalResults, len(results)))
-	fmt.Fprintf(&b, "- Results in this file: %d\n", len(results))
-	fmt.Fprintf(&b, "- History ID: %s\n", historyID)
+	fmt.Fprintf(&b, "- Query: %s\n", hdr.query)
+	fmt.Fprintf(&b, "- Date: %s\n", hdr.date)
+	fmt.Fprintf(&b, "- Total Results: %d\n", hdr.totalResults)
+	fmt.Fprintf(&b, "- Results in this file: %d\n", hdr.resultCount)
+	fmt.Fprintf(&b, "- History ID: %s\n", hdr.historyID)
 	b.WriteString("\n---\n")
 
 	// Results
-	for i, result := range results {
+	for i, result := range p.Results {
 		writeResultMarkdown(&b, i+1, result)
 	}
 
@@ -88,36 +127,47 @@ func stripHTML(s string) string {
 
 // writeResultMarkdown writes a single search result as Markdown to the builder.
 func writeResultMarkdown(b *strings.Builder, index int, result map[string]any) {
-	title, _ := result["title"].(string)
-	fmt.Fprintf(b, "\n## Result %d: %s\n\n", index, title)
-
-	id := ExtractStringField(result, "product_id", "isbn", "id")
-	if id != "" {
-		fmt.Fprintf(b, "- ID: %s\n", id)
+	v := resultView{}
+	v.title, _ = result["title"].(string)
+	v.id = ExtractStringField(result, "product_id", "isbn", "id")
+	v.authors = extractAuthorStringSimple(result["authors"])
+	if ct, ok := result["content_type"].(string); ok {
+		v.contentType = ct
+	}
+	if p, ok := result["publisher"].(string); ok {
+		v.publisher = p
+	}
+	if pd, ok := result["published_date"].(string); ok {
+		v.pubDate = pd
+	}
+	if u, ok := result["url"].(string); ok {
+		v.url = u
+	}
+	if d, ok := result["description"].(string); ok {
+		v.description = stripHTML(d)
 	}
 
-	if authorStr := extractAuthorStringSimple(result["authors"]); authorStr != "" {
-		fmt.Fprintf(b, "- Authors: %s\n", authorStr)
+	fmt.Fprintf(b, "\n## Result %d: %s\n\n", index, v.title)
+	if v.id != "" {
+		fmt.Fprintf(b, "- ID: %s\n", v.id)
 	}
-
-	if ct, ok := result["content_type"].(string); ok && ct != "" {
-		fmt.Fprintf(b, "- Content Type: %s\n", ct)
+	if v.authors != "" {
+		fmt.Fprintf(b, "- Authors: %s\n", v.authors)
 	}
-
-	if publisher, ok := result["publisher"].(string); ok && publisher != "" {
-		fmt.Fprintf(b, "- Publisher: %s\n", publisher)
+	if v.contentType != "" {
+		fmt.Fprintf(b, "- Content Type: %s\n", v.contentType)
 	}
-
-	if pubDate, ok := result["published_date"].(string); ok && pubDate != "" {
-		fmt.Fprintf(b, "- Published: %s\n", pubDate)
+	if v.publisher != "" {
+		fmt.Fprintf(b, "- Publisher: %s\n", v.publisher)
 	}
-
-	if u, ok := result["url"].(string); ok && u != "" {
-		fmt.Fprintf(b, "- URL: %s\n", u)
+	if v.pubDate != "" {
+		fmt.Fprintf(b, "- Published: %s\n", v.pubDate)
 	}
-
-	if desc, ok := result["description"].(string); ok && desc != "" {
-		fmt.Fprintf(b, "- Description: %s\n", stripHTML(desc))
+	if v.url != "" {
+		fmt.Fprintf(b, "- URL: %s\n", v.url)
+	}
+	if v.description != "" {
+		fmt.Fprintf(b, "- Description: %s\n", v.description)
 	}
 }
 

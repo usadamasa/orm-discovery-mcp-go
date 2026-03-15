@@ -241,9 +241,9 @@ func TestManager_Persistence(t *testing.T) {
 	}
 }
 
-func TestGenerateRequestID(t *testing.T) {
-	id1 := GenerateRequestID()
-	id2 := GenerateRequestID()
+func Test_generateRequestID(t *testing.T) {
+	id1 := generateRequestID()
+	id2 := generateRequestID()
 
 	if id1 == id2 {
 		t.Error("expected unique IDs")

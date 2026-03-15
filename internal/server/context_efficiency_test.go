@@ -200,7 +200,7 @@ func TestCacheFileFormat_Regression(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	filePath, err := cache.SaveResponseAsMarkdown(cacheDir, "regression test", results, "req_regression", 42)
+	filePath, err := cache.SaveResponseAsMarkdown(cache.SaveParams{Dir: cacheDir, Query: "regression test", Results: results, HistoryID: "req_regression", TotalResults: 42})
 	if err != nil {
 		t.Fatalf("saveResponseAsMarkdown failed: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestCacheFileSize(t *testing.T) {
 	results := syntheticSearchResults(25)
 	cacheDir := t.TempDir()
 
-	filePath, err := cache.SaveResponseAsMarkdown(cacheDir, "test query", results, "req_test123", 100)
+	filePath, err := cache.SaveResponseAsMarkdown(cache.SaveParams{Dir: cacheDir, Query: "test query", Results: results, HistoryID: "req_test123", TotalResults: 100})
 	if err != nil {
 		t.Fatalf("failed to save cache file: %v", err)
 	}

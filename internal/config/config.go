@@ -11,31 +11,52 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+// ServerOpts はサーバー設定を保持する
+type ServerOpts struct {
+	Port        string
+	Transport   string
+	BindAddress string
+}
+
+// debugOpts はデバッグ設定を保持する (外部パッケージからの構築不要)
+type debugOpts struct {
+	Enabled  bool
+	MCPDebug bool
+}
+
+// LogOpts はログ設定を保持する
+type LogOpts struct {
+	Level    slog.Level
+	File     string
+	Rotation logRotation
+}
+
+// logRotation はログローテーション設定を保持する (外部パッケージからの構築不要)
+type logRotation struct {
+	MaxSizeMB  int
+	MaxBackups int
+	MaxAgeDays int
+}
+
+// HistoryOpts は調査履歴設定を保持する
+type HistoryOpts struct {
+	MaxEntries int
+}
+
+// SamplingOpts はサンプリング設定を保持する
+type SamplingOpts struct {
+	Enabled   bool
+	MaxTokens int
+}
+
 // Config はアプリケーションの設定を保持します
 type Config struct {
-	Port      string
-	Debug     bool
-	MCPDebug  bool
-	Transport string
-	XDGDirs   *XDGDirs // XDG Base Directory準拠のディレクトリパス
-	LogLevel  slog.Level
-	LogFile   string // ログファイルパス(空の場合はstderrのみ)
-
-	// ログローテーション設定
-	LogMaxSizeMB  int // メインログ最大サイズ (MB)、デフォルト: 10
-	LogMaxBackups int // メインログ世代数、デフォルト: 3
-	LogMaxAgeDays int // メインログ保持日数、デフォルト: 30
-
-	// Research History 設定
-	HistoryMaxEntries int // 保持する最大エントリ数、デフォルト: 1000
-
-	// Sampling 設定
-	EnableSampling    bool // Sampling機能を有効にするか、デフォルト: true
-	SamplingMaxTokens int  // Sampling時の最大トークン数、デフォルト: 500
-
-	// HTTP サーバー設定
-	BindAddress string // バインドアドレス、デフォルト: "127.0.0.1"
-
+	Server   ServerOpts
+	Debug    debugOpts
+	XDGDirs  *XDGDirs
+	Log      LogOpts
+	History  HistoryOpts
+	Sampling SamplingOpts
 }
 
 // envString returns the environment variable value, or defaultVal if unset.
@@ -100,19 +121,31 @@ func LoadConfig() (*Config, error) {
 	}
 
 	config := &Config{
-		Port:              envString("PORT", "8080"),
-		Debug:             envBool("ORM_MCP_GO_DEBUG", false),
-		Transport:         envString("TRANSPORT", "stdio"),
-		XDGDirs:           xdgDirs,
-		LogLevel:          logLevel,
-		LogFile:           xdgDirs.LogPath(),
-		LogMaxSizeMB:      envInt("ORM_MCP_GO_LOG_MAX_SIZE_MB", 10, 1),
-		LogMaxBackups:     envInt("ORM_MCP_GO_LOG_MAX_BACKUPS", 3, 1),
-		LogMaxAgeDays:     envInt("ORM_MCP_GO_LOG_MAX_AGE_DAYS", 30, 1),
-		HistoryMaxEntries: envInt("ORM_MCP_GO_HISTORY_MAX_ENTRIES", 1000, 1),
-		EnableSampling:    envBool("ORM_MCP_GO_ENABLE_SAMPLING", true),
-		SamplingMaxTokens: envInt("ORM_MCP_GO_SAMPLING_MAX_TOKENS", 500, 1),
-		BindAddress:       envString("BIND_ADDRESS", "127.0.0.1"),
+		Server: ServerOpts{
+			Port:        envString("PORT", "8080"),
+			Transport:   envString("TRANSPORT", "stdio"),
+			BindAddress: envString("BIND_ADDRESS", "127.0.0.1"),
+		},
+		Debug: debugOpts{
+			Enabled: envBool("ORM_MCP_GO_DEBUG", false),
+		},
+		XDGDirs: xdgDirs,
+		Log: LogOpts{
+			Level: logLevel,
+			File:  xdgDirs.LogPath(),
+			Rotation: logRotation{
+				MaxSizeMB:  envInt("ORM_MCP_GO_LOG_MAX_SIZE_MB", 10, 1),
+				MaxBackups: envInt("ORM_MCP_GO_LOG_MAX_BACKUPS", 3, 1),
+				MaxAgeDays: envInt("ORM_MCP_GO_LOG_MAX_AGE_DAYS", 30, 1),
+			},
+		},
+		History: HistoryOpts{
+			MaxEntries: envInt("ORM_MCP_GO_HISTORY_MAX_ENTRIES", 1000, 1),
+		},
+		Sampling: SamplingOpts{
+			Enabled:   envBool("ORM_MCP_GO_ENABLE_SAMPLING", true),
+			MaxTokens: envInt("ORM_MCP_GO_SAMPLING_MAX_TOKENS", 500, 1),
+		},
 	}
 
 	setupLogger(config)
@@ -125,20 +158,20 @@ func setupLogger(config *Config) {
 	var writer io.Writer = os.Stderr
 
 	// ログファイルが指定されている場合はLumberjackでローテーションを設定
-	if config.LogFile != "" {
+	if config.Log.File != "" {
 		lumberjackLogger := &lumberjack.Logger{
-			Filename:   config.LogFile,
-			MaxSize:    config.LogMaxSizeMB,  // MB
-			MaxBackups: config.LogMaxBackups, // 世代数
-			MaxAge:     config.LogMaxAgeDays, // 日数
-			Compress:   true,                 // 古いログを圧縮
+			Filename:   config.Log.File,
+			MaxSize:    config.Log.Rotation.MaxSizeMB,
+			MaxBackups: config.Log.Rotation.MaxBackups,
+			MaxAge:     config.Log.Rotation.MaxAgeDays,
+			Compress:   true,
 		}
 		writer = io.MultiWriter(os.Stderr, lumberjackLogger)
 	}
 
 	// シンプルなテキストハンドラー設定
 	opts := &slog.HandlerOptions{
-		Level:     config.LogLevel,
+		Level:     config.Log.Level,
 		AddSource: true, // 関数名と行番号を表示
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			// ソースパスを簡潔に表示
@@ -162,15 +195,15 @@ func setupLogger(config *Config) {
 
 	// 設定完了後にデバッグ情報をログ出力
 	logAttrs := []any{
-		"log_level", config.LogLevel.String(),
-		"debug_mode", config.Debug,
+		"log_level", config.Log.Level.String(),
+		"debug_mode", config.Debug.Enabled,
 	}
-	if config.LogFile != "" {
+	if config.Log.File != "" {
 		logAttrs = append(logAttrs,
-			"log_file", config.LogFile,
-			"log_max_size_mb", config.LogMaxSizeMB,
-			"log_max_backups", config.LogMaxBackups,
-			"log_max_age_days", config.LogMaxAgeDays,
+			"log_file", config.Log.File,
+			"log_max_size_mb", config.Log.Rotation.MaxSizeMB,
+			"log_max_backups", config.Log.Rotation.MaxBackups,
+			"log_max_age_days", config.Log.Rotation.MaxAgeDays,
 		)
 	}
 	slog.Info("ログシステムを初期化しました", logAttrs...)

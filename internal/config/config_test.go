@@ -15,8 +15,8 @@ func TestLoadConfig_BindAddress_Default(t *testing.T) {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
 
-	if cfg.BindAddress != "127.0.0.1" {
-		t.Errorf("BindAddress = %q, want %q", cfg.BindAddress, "127.0.0.1")
+	if cfg.Server.BindAddress != "127.0.0.1" {
+		t.Errorf("BindAddress = %q, want %q", cfg.Server.BindAddress, "127.0.0.1")
 	}
 }
 
@@ -29,7 +29,7 @@ func TestLoadConfig_BindAddress_EnvOverride(t *testing.T) {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
 
-	if cfg.BindAddress != "0.0.0.0" {
-		t.Errorf("BindAddress = %q, want %q", cfg.BindAddress, "0.0.0.0")
+	if cfg.Server.BindAddress != "0.0.0.0" {
+		t.Errorf("BindAddress = %q, want %q", cfg.Server.BindAddress, "0.0.0.0")
 	}
 }

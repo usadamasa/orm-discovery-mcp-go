@@ -21,12 +21,12 @@ func mockNextHandler(result mcp.Result, err error) (mcp.MethodHandler, *int) {
 	return handler, &callCount
 }
 
-func TestLoggingMiddleware_PassesThrough(t *testing.T) {
-	middleware := CreateLoggingMiddleware(slog.LevelInfo)
+func TestMiddlewareFactory_Logging_PassesThrough(t *testing.T) {
+	mf := MiddlewareFactory{LogLevel: slog.LevelInfo}
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
-	wrapped := middleware(next)
+	wrapped := mf.Logging()(next)
 	result, err := wrapped(context.Background(), "tools/call", nil)
 
 	require.NoError(t, err)
@@ -34,12 +34,12 @@ func TestLoggingMiddleware_PassesThrough(t *testing.T) {
 	assert.Equal(t, 1, *callCount)
 }
 
-func TestLoggingMiddleware_LogsOnError(t *testing.T) {
-	middleware := CreateLoggingMiddleware(slog.LevelInfo)
+func TestMiddlewareFactory_Logging_LogsOnError(t *testing.T) {
+	mf := MiddlewareFactory{LogLevel: slog.LevelInfo}
 	expectedErr := errors.New("test error")
 	next, callCount := mockNextHandler(nil, expectedErr)
 
-	wrapped := middleware(next)
+	wrapped := mf.Logging()(next)
 	result, err := wrapped(context.Background(), "tools/call", nil)
 
 	assert.Nil(t, result)
@@ -47,12 +47,12 @@ func TestLoggingMiddleware_LogsOnError(t *testing.T) {
 	assert.Equal(t, 1, *callCount)
 }
 
-func TestLoggingMiddleware_DebugLevel(t *testing.T) {
-	middleware := CreateLoggingMiddleware(slog.LevelDebug)
+func TestMiddlewareFactory_Logging_DebugLevel(t *testing.T) {
+	mf := MiddlewareFactory{LogLevel: slog.LevelDebug}
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
-	wrapped := middleware(next)
+	wrapped := mf.Logging()(next)
 	result, err := wrapped(context.Background(), "tools/call", nil)
 
 	require.NoError(t, err)
@@ -60,38 +60,38 @@ func TestLoggingMiddleware_DebugLevel(t *testing.T) {
 	assert.Equal(t, 1, *callCount)
 }
 
-func TestToolLoggingMiddleware_ToolsCall(t *testing.T) {
-	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
+func TestMiddlewareFactory_ToolLogging_ToolsCall(t *testing.T) {
+	mf := MiddlewareFactory{LogLevel: slog.LevelInfo}
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
-	wrapped := middleware(next)
-	result, err := wrapped(context.Background(), MCPMethodToolsCall, nil)
+	wrapped := mf.ToolLogging()(next)
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedResult, result)
 	assert.Equal(t, 1, *callCount)
 }
 
-func TestToolLoggingMiddleware_ResourcesRead(t *testing.T) {
-	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
+func TestMiddlewareFactory_ToolLogging_ResourcesRead(t *testing.T) {
+	mf := MiddlewareFactory{LogLevel: slog.LevelInfo}
 	expectedResult := &mcp.ReadResourceResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
-	wrapped := middleware(next)
-	result, err := wrapped(context.Background(), MCPMethodResourcesRead, nil)
+	wrapped := mf.ToolLogging()(next)
+	result, err := wrapped(context.Background(), mcpMethodResourcesRead, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedResult, result)
 	assert.Equal(t, 1, *callCount)
 }
 
-func TestToolLoggingMiddleware_OtherMethod(t *testing.T) {
-	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
+func TestMiddlewareFactory_ToolLogging_OtherMethod(t *testing.T) {
+	mf := MiddlewareFactory{LogLevel: slog.LevelInfo}
 	expectedResult := &mcp.CallToolResult{}
 	next, callCount := mockNextHandler(expectedResult, nil)
 
-	wrapped := middleware(next)
+	wrapped := mf.ToolLogging()(next)
 	result, err := wrapped(context.Background(), "prompts/get", nil)
 
 	require.NoError(t, err)
@@ -99,13 +99,13 @@ func TestToolLoggingMiddleware_OtherMethod(t *testing.T) {
 	assert.Equal(t, 1, *callCount)
 }
 
-func TestToolLoggingMiddleware_PropagatesError(t *testing.T) {
-	middleware := CreateToolLoggingMiddleware(slog.LevelInfo)
+func TestMiddlewareFactory_ToolLogging_PropagatesError(t *testing.T) {
+	mf := MiddlewareFactory{LogLevel: slog.LevelInfo}
 	expectedErr := errors.New("tool error")
 	next, _ := mockNextHandler(nil, expectedErr)
 
-	wrapped := middleware(next)
-	_, err := wrapped(context.Background(), MCPMethodToolsCall, nil)
+	wrapped := mf.ToolLogging()(next)
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, nil)
 
 	assert.ErrorIs(t, err, expectedErr)
 }

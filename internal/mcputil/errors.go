@@ -8,82 +8,110 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// ErrorCategory represents the classification of an error.
-type ErrorCategory string
+// errorCategory represents the classification of an error.
+type errorCategory string
 
 const (
-	ErrorCategoryAuth       ErrorCategory = "auth"
-	ErrorCategoryNetwork    ErrorCategory = "network"
-	ErrorCategoryNotFound   ErrorCategory = "not_found"
-	ErrorCategoryValidation ErrorCategory = "validation"
-	ErrorCategoryInternal   ErrorCategory = "internal"
+	errorCategoryAuth       errorCategory = "auth"
+	errorCategoryNetwork    errorCategory = "network"
+	errorCategoryNotFound   errorCategory = "not_found"
+	errorCategoryValidation errorCategory = "validation"
+	errorCategoryInternal   errorCategory = "internal"
 )
 
-// CategorizeError classifies an error into a category based on its message.
-func CategorizeError(err error) ErrorCategory {
+// ErrorHandler provides error categorization and sanitization for MCP responses.
+type ErrorHandler struct{}
+
+// categorize classifies an error into a category based on its message.
+func (ErrorHandler) categorize(err error) errorCategory {
 	if err == nil {
-		return ErrorCategoryInternal
+		return errorCategoryInternal
 	}
 
 	msg := strings.ToLower(err.Error())
 
-	// Auth errors
 	if strings.Contains(msg, "401") ||
 		strings.Contains(msg, "403") ||
 		strings.Contains(msg, "authentication error") ||
 		strings.Contains(msg, "unauthorized") {
-		return ErrorCategoryAuth
+		return errorCategoryAuth
 	}
 
-	// Network errors
 	if strings.Contains(msg, "timeout") ||
 		strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "connection reset") ||
 		strings.Contains(msg, "no such host") ||
 		strings.Contains(msg, "network") {
-		return ErrorCategoryNetwork
+		return errorCategoryNetwork
 	}
 
-	// Not found errors
 	if strings.Contains(msg, "404") ||
 		strings.Contains(msg, "not found") {
-		return ErrorCategoryNotFound
+		return errorCategoryNotFound
 	}
 
-	return ErrorCategoryInternal
+	return errorCategoryInternal
 }
 
-// UserFacingErrorMessage returns a safe, actionable message for the given error category.
-func UserFacingErrorMessage(category ErrorCategory) string {
+// userFacingMessage returns a safe, actionable message for the given error category.
+func (ErrorHandler) userFacingMessage(category errorCategory) string {
 	switch category {
-	case ErrorCategoryAuth:
+	case errorCategoryAuth:
 		return "Authentication failed. Please use oreilly_reauthenticate to refresh your session."
-	case ErrorCategoryNetwork:
+	case errorCategoryNetwork:
 		return "Network error occurred. Please check your connection and try again."
-	case ErrorCategoryNotFound:
+	case errorCategoryNotFound:
 		return "The requested resource was not found. Please verify the ID and try again."
-	case ErrorCategoryValidation:
+	case errorCategoryValidation:
 		return "Invalid input. Please check your parameters and try again."
-	case ErrorCategoryInternal:
+	case errorCategoryInternal:
 		return "An internal error occurred. Please try again later."
 	default:
 		return "An unexpected error occurred. Please try again later."
 	}
 }
 
-// SanitizeError logs the internal error details and returns a user-facing message.
-func SanitizeError(err error, logAttrs ...any) string {
-	category := CategorizeError(err)
-	attrs := make([]any, 0, 4+len(logAttrs))
-	attrs = append(attrs, "error", err, "category", string(category))
-	attrs = append(attrs, logAttrs...)
-	slog.Error("Operation failed", attrs...)
-	return UserFacingErrorMessage(category)
+// errorDetail captures the result of error analysis.
+type errorDetail struct {
+	err      error
+	category errorCategory
+	message  string
 }
 
-// ErrorResourceContents creates a ReadResourceResult with a sanitized error message.
-func ErrorResourceContents(uri string, err error, logAttrs ...any) *mcp.ReadResourceResult {
-	msg := SanitizeError(err, logAttrs...)
+// analyze categorizes the error and resolves the user-facing message.
+func (h ErrorHandler) analyze(err error) errorDetail {
+	cat := h.categorize(err)
+	return errorDetail{err: err, category: cat, message: h.userFacingMessage(cat)}
+}
+
+// logError logs internal error details with category context.
+func (ErrorHandler) logError(d errorDetail, logAttrs ...any) {
+	attrs := make([]any, 0, 4+len(logAttrs))
+	attrs = append(attrs, "error", d.err, "category", string(d.category))
+	attrs = append(attrs, logAttrs...)
+	slog.Error("Operation failed", attrs...)
+}
+
+// IsAuth returns true if the error is an authentication error.
+func (h ErrorHandler) IsAuth(err error) bool {
+	return h.categorize(err) == errorCategoryAuth
+}
+
+// ValidationMessage returns the user-facing message for validation errors.
+func (h ErrorHandler) ValidationMessage() string {
+	return h.userFacingMessage(errorCategoryValidation)
+}
+
+// Sanitize logs the internal error details and returns a user-facing message.
+func (h ErrorHandler) Sanitize(err error, logAttrs ...any) string {
+	d := h.analyze(err)
+	h.logError(d, logAttrs...)
+	return d.message
+}
+
+// ResourceContents creates a ReadResourceResult with a sanitized error message.
+func (h ErrorHandler) ResourceContents(uri string, err error, logAttrs ...any) *mcp.ReadResourceResult {
+	msg := h.Sanitize(err, logAttrs...)
 	return &mcp.ReadResourceResult{
 		Contents: []*mcp.ResourceContents{{
 			URI:      uri,

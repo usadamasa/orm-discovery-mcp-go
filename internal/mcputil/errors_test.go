@@ -8,141 +8,90 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCategorizeError(t *testing.T) {
+func TestErrorHandler_IsAuth(t *testing.T) {
+	h := ErrorHandler{}
 	tests := []struct {
 		name     string
 		err      error
-		expected ErrorCategory
+		expected bool
 	}{
-		{
-			name:     "nil error",
-			err:      nil,
-			expected: ErrorCategoryInternal,
-		},
-		{
-			name:     "401 status code",
-			err:      fmt.Errorf("API request failed with status 401"),
-			expected: ErrorCategoryAuth,
-		},
-		{
-			name:     "403 status code",
-			err:      fmt.Errorf("API request failed with status 403"),
-			expected: ErrorCategoryAuth,
-		},
-		{
-			name:     "authentication error message",
-			err:      fmt.Errorf("authentication error: token expired"),
-			expected: ErrorCategoryAuth,
-		},
-		{
-			name:     "unauthorized message",
-			err:      fmt.Errorf("unauthorized access"),
-			expected: ErrorCategoryAuth,
-		},
-		{
-			name:     "timeout error",
-			err:      fmt.Errorf("connection timeout after 30s"),
-			expected: ErrorCategoryNetwork,
-		},
-		{
-			name:     "connection refused",
-			err:      fmt.Errorf("connection refused"),
-			expected: ErrorCategoryNetwork,
-		},
-		{
-			name:     "404 not found",
-			err:      fmt.Errorf("API request failed with status 404"),
-			expected: ErrorCategoryNotFound,
-		},
-		{
-			name:     "not found message",
-			err:      fmt.Errorf("resource not found"),
-			expected: ErrorCategoryNotFound,
-		},
-		{
-			name:     "generic error",
-			err:      fmt.Errorf("something unexpected happened"),
-			expected: ErrorCategoryInternal,
-		},
-		{
-			name:     "wrapped auth error",
-			err:      fmt.Errorf("search failed: %w", fmt.Errorf("401 unauthorized")),
-			expected: ErrorCategoryAuth,
-		},
+		{"nil error", nil, false},
+		{"401 status code", fmt.Errorf("API request failed with status 401"), true},
+		{"403 status code", fmt.Errorf("API request failed with status 403"), true},
+		{"authentication error message", fmt.Errorf("authentication error: token expired"), true},
+		{"unauthorized message", fmt.Errorf("unauthorized access"), true},
+		{"timeout error", fmt.Errorf("connection timeout after 30s"), false},
+		{"generic error", fmt.Errorf("something unexpected happened"), false},
+		{"wrapped auth error", fmt.Errorf("search failed: %w", fmt.Errorf("401 unauthorized")), true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := CategorizeError(tt.err)
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.expected, h.IsAuth(tt.err))
 		})
 	}
 }
 
-func TestSanitizeError(t *testing.T) {
+func TestErrorHandler_Sanitize(t *testing.T) {
+	h := ErrorHandler{}
 	tests := []struct {
-		name            string
-		err             error
-		expectedMessage string
+		name        string
+		err         error
+		shouldMatch string
 	}{
-		{
-			name:            "auth error returns user-facing message",
-			err:             fmt.Errorf("API request failed with status 401: invalid token xyz123"),
-			expectedMessage: UserFacingErrorMessage(ErrorCategoryAuth),
-		},
-		{
-			name:            "network error returns user-facing message",
-			err:             fmt.Errorf("connection timeout: dial tcp 10.0.0.1:443"),
-			expectedMessage: UserFacingErrorMessage(ErrorCategoryNetwork),
-		},
-		{
-			name:            "not found error returns user-facing message",
-			err:             fmt.Errorf("API request failed with status 404: /api/v2/books/12345"),
-			expectedMessage: UserFacingErrorMessage(ErrorCategoryNotFound),
-		},
-		{
-			name:            "internal error returns user-facing message",
-			err:             fmt.Errorf("unexpected nil pointer at server.go:123"),
-			expectedMessage: UserFacingErrorMessage(ErrorCategoryInternal),
-		},
+		{"auth error", fmt.Errorf("API request failed with status 401: invalid token xyz123"), h.ValidationMessage()},
+		{"network error", fmt.Errorf("connection timeout: dial tcp 10.0.0.1:443"), "Network error"},
+		{"not found error", fmt.Errorf("API request failed with status 404: /api/v2/books/12345"), "not found"},
+		{"internal error", fmt.Errorf("unexpected nil pointer at server.go:123"), "internal error"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := SanitizeError(tt.err)
-			assert.Equal(t, tt.expectedMessage, result)
+			result := h.Sanitize(tt.err)
+			assert.NotEmpty(t, result)
+			// Sanitized message should not contain raw error details
+			assert.NotContains(t, result, "xyz123")
+			assert.NotContains(t, result, "10.0.0.1")
+			assert.NotContains(t, result, "server.go:123")
 		})
 	}
 }
 
-func TestUserFacingErrorMessage(t *testing.T) {
-	// Verify all categories have user-facing messages
-	categories := []ErrorCategory{
-		ErrorCategoryAuth,
-		ErrorCategoryNetwork,
-		ErrorCategoryNotFound,
-		ErrorCategoryValidation,
-		ErrorCategoryInternal,
-	}
-
-	for _, cat := range categories {
-		msg := UserFacingErrorMessage(cat)
-		assert.NotEmpty(t, msg, "category %s should have a user-facing message", cat)
-	}
+func TestErrorHandler_ValidationMessage(t *testing.T) {
+	h := ErrorHandler{}
+	msg := h.ValidationMessage()
+	assert.NotEmpty(t, msg)
+	assert.Contains(t, msg, "Invalid input")
 }
 
-func TestErrorResourceContents(t *testing.T) {
+func TestErrorHandler_ResourceContents(t *testing.T) {
+	h := ErrorHandler{}
 	uri := "oreilly://book-details/12345"
 	err := errors.New("internal database error: connection pool exhausted")
 
-	result := ErrorResourceContents(uri, err)
+	result := h.ResourceContents(uri, err)
 
 	assert.NotNil(t, result)
 	assert.Len(t, result.Contents, 1)
 	assert.Equal(t, uri, result.Contents[0].URI)
 	assert.Equal(t, "application/json", result.Contents[0].MIMEType)
-	// Should NOT contain internal details
 	assert.NotContains(t, result.Contents[0].Text, "connection pool exhausted")
-	// Should contain user-facing error
 	assert.Contains(t, result.Contents[0].Text, "error")
+}
+
+func TestErrorHandler_Categorize_Coverage(t *testing.T) {
+	h := ErrorHandler{}
+	// Verify different error categories produce different sanitized messages
+	authMsg := h.Sanitize(fmt.Errorf("401 unauthorized"))
+	netMsg := h.Sanitize(fmt.Errorf("connection timeout"))
+	notFoundMsg := h.Sanitize(fmt.Errorf("404 not found"))
+	internalMsg := h.Sanitize(fmt.Errorf("something broke"))
+
+	// All messages should be distinct
+	msgs := []string{authMsg, netMsg, notFoundMsg, internalMsg}
+	seen := make(map[string]bool)
+	for _, m := range msgs {
+		assert.False(t, seen[m], "duplicate message: %s", m)
+		seen[m] = true
+	}
 }

@@ -30,7 +30,7 @@ func NewManager(cfg *config.Config) *Manager {
 
 // CanSample checks if the client supports sampling capability.
 func (sm *Manager) CanSample(session *mcp.ServerSession) bool {
-	if session == nil {
+	if !sm.canProceed(session) {
 		return false
 	}
 	initParams := session.InitializeParams()
@@ -45,6 +45,19 @@ func (sm *Manager) CanSample(session *mcp.ServerSession) bool {
 	return true
 }
 
+// canProceed checks if sampling is enabled and session is available.
+func (sm *Manager) canProceed(session *mcp.ServerSession) bool {
+	if !sm.config.Sampling.Enabled {
+		slog.Debug("Sampling is disabled")
+		return false
+	}
+	if session == nil {
+		slog.Debug("ServerSession is nil, cannot perform sampling")
+		return false
+	}
+	return true
+}
+
 // SummarizeSearchResults generates a summary of search results using MCP Sampling.
 // It sends a request to the client's LLM to summarize the results.
 func (sm *Manager) SummarizeSearchResults(
@@ -53,16 +66,6 @@ func (sm *Manager) SummarizeSearchResults(
 	query string,
 	results []map[string]any,
 ) (string, error) {
-	if !sm.config.EnableSampling {
-		slog.Debug("Sampling is disabled")
-		return "", nil
-	}
-
-	if session == nil {
-		slog.Debug("ServerSession is nil, cannot perform sampling")
-		return "", nil
-	}
-
 	if !sm.CanSample(session) {
 		return "", nil
 	}
@@ -94,7 +97,7 @@ Search Results:
 				},
 			},
 		},
-		MaxTokens: int64(sm.config.SamplingMaxTokens),
+		MaxTokens: int64(sm.config.Sampling.MaxTokens),
 		SystemPrompt: `You are a helpful assistant that summarizes O'Reilly Learning Platform search results.
 Be concise and focus on helping the user understand what resources are available.
 Respond in the same language as the user's query.`,
@@ -128,16 +131,6 @@ func (sm *Manager) SummarizeQuestionAnswer(
 	answer string,
 	sources []any,
 ) (string, error) {
-	if !sm.config.EnableSampling {
-		slog.Debug("Sampling is disabled")
-		return "", nil
-	}
-
-	if session == nil {
-		slog.Debug("ServerSession is nil, cannot perform sampling")
-		return "", nil
-	}
-
 	if !sm.CanSample(session) {
 		return "", nil
 	}
@@ -159,7 +152,7 @@ Provide a 2-3 sentence summary of the key points.`, question, answer)
 				},
 			},
 		},
-		MaxTokens:    int64(sm.config.SamplingMaxTokens),
+		MaxTokens:    int64(sm.config.Sampling.MaxTokens),
 		SystemPrompt: "You are a helpful assistant that summarizes technical Q&A content concisely.",
 		Temperature:  0.3,
 	}

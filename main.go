@@ -85,7 +85,7 @@ func runMCPServer() {
 	// browser.Client インターフェースとして宣言し、エラー時は nil (interface nil) のまま渡す。
 	// typed nil (*BrowserClient(nil)) を渡すと == nil チェックが正しく動作しないため。
 	var browserClient browser.Client
-	bc, err := browser.NewBrowserClient(cookieManager, cfg.Debug, cfg.XDGDirs.StateHome)
+	bc, err := browser.NewBrowserClient(cookieManager, cfg.Debug.Enabled, cfg.XDGDirs.StateHome)
 	if err != nil {
 		slog.Warn("ブラウザクライアントの初期化に失敗しました。degraded モードで起動します。"+
 			"oreilly_reauthenticate ツールで再認証してください。", "error", err)
@@ -96,9 +96,9 @@ func runMCPServer() {
 	s := server.NewServer(browserClient, cfg, cookieManager, version)
 	defer s.Close() // Clean up browser on process exit (includes clients created in degraded mode)
 
-	if cfg.Transport == "http" {
-		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.BindAddress, cfg.Port)); err != nil {
-			slog.Error("HTTPサーバーの起動に失敗しました", "error", err, "addr", cfg.BindAddress, "port", cfg.Port)
+	if cfg.Server.Transport == "http" {
+		if err := s.StartStreamableHTTPServer(ctx, fmt.Sprintf("%s:%s", cfg.Server.BindAddress, cfg.Server.Port)); err != nil {
+			slog.Error("HTTPサーバーの起動に失敗しました", "error", err, "addr", cfg.Server.BindAddress, "port", cfg.Server.Port)
 			os.Exit(1)
 		}
 	} else {

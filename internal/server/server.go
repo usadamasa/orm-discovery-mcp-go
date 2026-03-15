@@ -21,6 +21,9 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/sampling"
 )
 
+// errH is the shared error handler for MCP responses.
+var errH mcputil.ErrorHandler
+
 // HTTP server timeout constants.
 const (
 	httpReadTimeout     = 30 * time.Second
@@ -62,7 +65,7 @@ func NewServer(browserClient browser.Client, cfg *config.Config, cookieManager c
 	// Initialize research history manager
 	historyManager := history.NewManager(
 		cfg.XDGDirs.ResearchHistoryPath(),
-		cfg.HistoryMaxEntries,
+		cfg.History.MaxEntries,
 	)
 	if err := historyManager.Load(); err != nil {
 		slog.Warn("調査履歴の読み込みに失敗しました", "error", err)
@@ -83,9 +86,10 @@ func NewServer(browserClient browser.Client, cfg *config.Config, cookieManager c
 	}
 
 	// Add middleware for logging
+	mf := mcputil.MiddlewareFactory{LogLevel: cfg.Log.Level}
 	mcpServer.AddReceivingMiddleware(
-		mcputil.CreateLoggingMiddleware(cfg.LogLevel),
-		mcputil.CreateToolLoggingMiddleware(cfg.LogLevel),
+		mf.Logging(),
+		mf.ToolLogging(),
 	)
 
 	slog.Info("サーバーを初期化しました")
@@ -352,7 +356,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	}
 
 	if args.Query == "" {
-		return newToolResultError(mcputil.UserFacingErrorMessage(mcputil.ErrorCategoryValidation)), nil, nil
+		return newToolResultError(errH.ValidationMessage()), nil, nil
 	}
 	if len(args.Query) > maxQueryLength {
 		return newToolResultError(fmt.Sprintf("Query is too long. Please use %d characters or fewer.", maxQueryLength)), nil, nil
@@ -387,28 +391,30 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	// Execute search using BrowserClient
 	slog.Debug("BrowserClient検索開始", "query", args.Query, "offset", args.Offset, "rows", args.Rows)
 	results, totalResults, err := s.getBrowserClient().SearchContent(args.Query, options)
-	if err != nil && mcputil.CategorizeError(err) == mcputil.ErrorCategoryAuth {
+	if err != nil && errH.IsAuth(err) {
 		// Attempt re-authentication
 		slog.Info("認証エラー検出: 再認証を試みます")
 		if reauthErr := s.getBrowserClient().Reauthenticate(); reauthErr != nil {
-			return newToolResultError(mcputil.SanitizeError(reauthErr, "operation", "reauthenticate")), nil, nil
+			return newToolResultError(errH.Sanitize(reauthErr, "operation", "reauthenticate")), nil, nil
 		}
 
 		// Retry
 		results, totalResults, err = s.getBrowserClient().SearchContent(args.Query, options)
 	}
 	if err != nil {
-		return newToolResultError(mcputil.SanitizeError(err, "operation", "search", "query", args.Query)), nil, nil
+		return newToolResultError(errH.Sanitize(err, "operation", "search", "query", args.Query)), nil, nil
 	}
 	slog.Info("検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
 	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
 
 	// Generate history ID upfront so cache file includes it (single-save pattern)
-	historyID := history.GenerateRequestID()
+	historyID := generateRequestID()
 
 	// Save full results to cache file (single save with history ID)
 	cacheDir := s.config.XDGDirs.ResponseCachePath()
-	filePath, cacheErr := cache.SaveResponseAsMarkdown(cacheDir, args.Query, results, historyID, totalResults)
+	filePath, cacheErr := cache.SaveResponseAsMarkdown(cache.SaveParams{
+		Dir: cacheDir, Query: args.Query, Results: results, HistoryID: historyID, TotalResults: totalResults,
+	})
 	if cacheErr != nil {
 		slog.Warn("レスポンスキャッシュの保存に失敗しました", "error", cacheErr)
 	}
@@ -530,7 +536,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	start := time.Now()
 
 	if args.Question == "" {
-		return newToolResultError(mcputil.UserFacingErrorMessage(mcputil.ErrorCategoryValidation)), nil, nil
+		return newToolResultError(errH.ValidationMessage()), nil, nil
 	}
 	if len(args.Question) > maxQuestionLength {
 		return newToolResultError(fmt.Sprintf("Question is too long. Please use %d characters or fewer.", maxQuestionLength)), nil, nil
@@ -556,7 +562,7 @@ func (s *Server) AskQuestionHandler(ctx context.Context, req *mcp.CallToolReques
 	// Execute question (with polling)
 	answer, err := s.getBrowserClient().AskQuestion(args.Question, maxWaitTime)
 	if err != nil {
-		return newToolResultError(mcputil.SanitizeError(err, "operation", "ask_question", "question", args.Question)), nil, nil
+		return newToolResultError(errH.Sanitize(err, "operation", "ask_question", "question", args.Question)), nil, nil
 	}
 
 	slog.Info("質問に対する回答を取得しました", "question", args.Question, "question_id", answer.QuestionID)
@@ -617,12 +623,12 @@ func (s *Server) GetBookDetailsResource(ctx context.Context, req *mcp.ReadResour
 
 	bookOverview, err := s.getBrowserClient().GetBookDetails(productID)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "get_book_details", "product_id", productID), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "get_book_details", "product_id", productID), nil
 	}
 
 	jsonBytes, err := json.Marshal(bookOverview)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "marshal_book_details"), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "marshal_book_details"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -663,12 +669,12 @@ func (s *Server) GetBookTOCResource(ctx context.Context, req *mcp.ReadResourceRe
 
 	tocResponse, err := s.getBrowserClient().GetBookTOC(productID)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "get_book_toc", "product_id", productID), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "get_book_toc", "product_id", productID), nil
 	}
 
 	jsonBytes, err := json.Marshal(tocResponse)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "marshal_book_toc"), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "marshal_book_toc"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -709,12 +715,12 @@ func (s *Server) GetBookChapterContentResource(ctx context.Context, req *mcp.Rea
 
 	chapterResponse, err := s.getBrowserClient().GetBookChapterContent(productID, chapterName)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "get_chapter", "product_id", productID, "chapter_name", chapterName), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "get_chapter", "product_id", productID, "chapter_name", chapterName), nil
 	}
 
 	jsonBytes, err := json.Marshal(chapterResponse)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "marshal_chapter"), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "marshal_chapter"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -756,7 +762,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 	// Get answer
 	answer, err := s.getBrowserClient().GetQuestionByID(questionID)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "get_answer", "question_id", questionID), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "get_answer", "question_id", questionID), nil
 	}
 
 	// Build response
@@ -782,7 +788,7 @@ func (s *Server) GetAnswerResource(ctx context.Context, req *mcp.ReadResourceReq
 
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
-		return mcputil.ErrorResourceContents(req.Params.URI, err, "operation", "marshal_answer"), nil
+		return errH.ResourceContents(req.Params.URI, err, "operation", "marshal_answer"), nil
 	}
 
 	return &mcp.ReadResourceResult{
@@ -809,11 +815,11 @@ func (s *Server) ReauthenticateHandler(
 		slog.Info("oreilly_reauthenticate: degraded モード - NewBrowserClient で認証を開始します")
 		client, err := browser.NewBrowserClient(
 			s.cookieManager,
-			s.config.Debug,
+			s.config.Debug.Enabled,
 			s.config.XDGDirs.StateHome,
 		)
 		if err != nil {
-			return newToolResultError(mcputil.SanitizeError(err, "operation", "create_browser_client")), nil, nil
+			return newToolResultError(errH.Sanitize(err, "operation", "create_browser_client")), nil, nil
 		}
 		s.setBrowserClient(client)
 		return nil, &ReauthResult{
@@ -833,7 +839,7 @@ func (s *Server) ReauthenticateHandler(
 	// 2. Reauthenticate() でビジブルブラウザを起動して再認証
 	slog.Info("oreilly_reauthenticate: Reauthenticate() で再認証を開始します")
 	if err := s.getBrowserClient().Reauthenticate(); err != nil {
-		return newToolResultError(mcputil.SanitizeError(err, "operation", "reauthenticate")), nil, nil
+		return newToolResultError(errH.Sanitize(err, "operation", "reauthenticate")), nil, nil
 	}
 
 	return nil, &ReauthResult{
@@ -951,12 +957,12 @@ func (s *Server) recordSearchHistory(query string, options map[string]any, resul
 	}
 
 	if entryID == "" {
-		entryID = history.GenerateRequestID()
+		entryID = generateRequestID()
 	}
 
 	entry := history.Entry{
 		ID:         entryID,
-		Type:       "search",
+		Type:       history.EntryTypeSearch,
 		Query:      query,
 		ToolName:   "oreilly_search_content",
 		Parameters: options,
@@ -993,7 +999,7 @@ func (s *Server) recordQuestionHistory(question string, answer *browser.AnswerRe
 	}
 
 	entry := history.Entry{
-		Type:     "question",
+		Type:     history.EntryTypeQuestion,
 		Query:    question,
 		ToolName: "oreilly_ask_question",
 		ResultSummary: history.ResultSummary{

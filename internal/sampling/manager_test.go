@@ -8,7 +8,7 @@ import (
 )
 
 func TestManager_CanSample_NilSession(t *testing.T) {
-	sm := NewManager(&config.Config{EnableSampling: true})
+	sm := NewManager(&config.Config{Sampling: config.SamplingOpts{Enabled: true}})
 	result := sm.CanSample(nil)
 	assert.False(t, result, "CanSample should return false when session is nil")
 }

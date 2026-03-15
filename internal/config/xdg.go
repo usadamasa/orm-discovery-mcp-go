@@ -89,10 +89,10 @@ func (x *XDGDirs) CookiePath() string {
 	return filepath.Join(x.CacheHome, "orm-mcp-go-cookies.json")
 }
 
-// ChromeDataDir はChrome一時データディレクトリのベースパスを返す
+// chromeDataDir はChrome一時データディレクトリのベースパスを返す
 // 実際のディレクトリは chrome-user-data-{PID} の形式で作成される
 // StateHomeに保存（セッション状態のため）
-func (x *XDGDirs) ChromeDataDir() string {
+func (x *XDGDirs) chromeDataDir() string {
 	return x.StateHome
 }
 
@@ -102,9 +102,9 @@ func (x *XDGDirs) ChromeSetupDataDir() string {
 	return filepath.Join(x.StateHome, fmt.Sprintf("chrome-setup-data-%d", os.Getpid()))
 }
 
-// ScreenshotDir はスクリーンショット保存ディレクトリのパスを返す
+// screenshotDir はスクリーンショット保存ディレクトリのパスを返す
 // StateHomeに保存（セッション状態のため）
-func (x *XDGDirs) ScreenshotDir() string {
+func (x *XDGDirs) screenshotDir() string {
 	return filepath.Join(x.StateHome, "screenshots")
 }
 

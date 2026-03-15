@@ -76,7 +76,7 @@ func TestSaveResponseAsMarkdown_CreatesFile(t *testing.T) {
 		},
 	}
 
-	filePath, err := SaveResponseAsMarkdown(cacheDir, "Docker containers", results, "req_abc123", 100)
+	filePath, err := SaveResponseAsMarkdown(SaveParams{Dir: cacheDir, Query: "Docker containers", Results: results, HistoryID: "req_abc123", TotalResults: 100})
 	if err != nil {
 		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestSaveResponseAsMarkdown_NonWritableDir(t *testing.T) {
 		{"title": "Test"},
 	}
 
-	_, err := SaveResponseAsMarkdown(cacheDir, "test", results, "req_123", 1)
+	_, err := SaveResponseAsMarkdown(SaveParams{Dir: cacheDir, Query: "test", Results: results, HistoryID: "req_123", TotalResults: 1})
 	if err == nil {
 		t.Error("expected error for non-writable directory")
 	}
@@ -203,7 +203,7 @@ func TestSaveResponseAsMarkdown_TotalResultsFallback(t *testing.T) {
 	}
 
 	// totalResults=0 but 3 results → should fall back to len(results)=3
-	filePath, err := SaveResponseAsMarkdown(cacheDir, "test query", results, "req_fallback", 0)
+	filePath, err := SaveResponseAsMarkdown(SaveParams{Dir: cacheDir, Query: "test query", Results: results, HistoryID: "req_fallback", TotalResults: 0})
 	if err != nil {
 		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestSaveResponseAsMarkdown_TotalResultsFromAPI(t *testing.T) {
 	}
 
 	// totalResults=500 from API → should use API value
-	filePath, err := SaveResponseAsMarkdown(cacheDir, "test query", results, "req_api", 500)
+	filePath, err := SaveResponseAsMarkdown(SaveParams{Dir: cacheDir, Query: "test query", Results: results, HistoryID: "req_api", TotalResults: 500})
 	if err != nil {
 		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestSaveResponseAsMarkdown_TotalResultsFromAPI(t *testing.T) {
 func TestSaveResponseAsMarkdown_EmptyResults(t *testing.T) {
 	cacheDir := filepath.Join(t.TempDir(), "responses")
 
-	filePath, err := SaveResponseAsMarkdown(cacheDir, "empty query", []map[string]any{}, "req_empty", 0)
+	filePath, err := SaveResponseAsMarkdown(SaveParams{Dir: cacheDir, Query: "empty query", Results: []map[string]any{}, HistoryID: "req_empty", TotalResults: 0})
 	if err != nil {
 		t.Fatalf("SaveResponseAsMarkdown failed: %v", err)
 	}

@@ -1,6 +1,9 @@
 package server
 
-import "github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+import (
+	"github.com/google/uuid"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/browser"
+)
 
 // ResponseFormat defines the output format for tool results.
 type ResponseFormat string
@@ -68,6 +71,11 @@ func calcPagination(offset, resultCount, totalResults int) (hasMore bool, nextOf
 		return true, offset + resultCount
 	}
 	return false, 0
+}
+
+// generateRequestID は新しいリクエストIDを生成する
+func generateRequestID() string {
+	return "req_" + uuid.New().String()[:8]
 }
 
 // ReauthResult represents the structured output for the oreilly_reauthenticate tool.

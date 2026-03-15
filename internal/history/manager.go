@@ -14,20 +14,23 @@ import (
 	"github.com/google/uuid"
 )
 
-// Manager は調査履歴を管理する
-type Manager struct {
-	mu         sync.RWMutex
+// managerOpts は Manager の初期化オプション
+type managerOpts struct {
 	filePath   string
 	maxEntries int
-	history    *History
+}
+
+// Manager は調査履歴を管理する
+type Manager struct {
+	mu      sync.RWMutex
+	opts    managerOpts
+	history *historyData
 }
 
 // NewManager は新しいManagerを作成する
 func NewManager(filePath string, maxEntries int) *Manager {
 	return &Manager{
-		filePath:   filePath,
-		maxEntries: maxEntries,
-		history:    nil,
+		opts: managerOpts{filePath: filePath, maxEntries: maxEntries},
 	}
 }
 
@@ -36,26 +39,17 @@ func (m *Manager) Load() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	data, err := os.ReadFile(m.filePath)
+	data, err := os.ReadFile(m.opts.filePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// ファイルが存在しない場合は新規作成
-			m.history = &History{
-				Version:     1,
-				LastUpdated: time.Now(),
-				Entries:     []Entry{},
-				Index: Index{
-					ByKeyword: make(map[string][]string),
-					ByType:    make(map[string][]string),
-					ByDate:    make(map[string][]string),
-				},
-			}
+			m.history = newHistoryData()
 			return nil
 		}
 		return fmt.Errorf("failed to read research history file: %w", err)
 	}
 
-	var h History
+	var h historyData
 	if err := json.Unmarshal(data, &h); err != nil {
 		return fmt.Errorf("failed to unmarshal research history: %w", err)
 	}
@@ -80,7 +74,7 @@ func (m *Manager) Save() error {
 		return fmt.Errorf("failed to marshal research history: %w", err)
 	}
 
-	if err := os.WriteFile(m.filePath, data, 0600); err != nil {
+	if err := os.WriteFile(m.opts.filePath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write research history file: %w", err)
 	}
 
@@ -93,21 +87,12 @@ func (m *Manager) AddEntry(entry Entry) error {
 	defer m.mu.Unlock()
 
 	if m.history == nil {
-		m.history = &History{
-			Version:     1,
-			LastUpdated: time.Now(),
-			Entries:     []Entry{},
-			Index: Index{
-				ByKeyword: make(map[string][]string),
-				ByType:    make(map[string][]string),
-				ByDate:    make(map[string][]string),
-			},
-		}
+		m.history = newHistoryData()
 	}
 
 	// IDを生成
 	if entry.ID == "" {
-		entry.ID = "req_" + uuid.New().String()[:8]
+		entry.ID = generateRequestID()
 	}
 
 	// タイムスタンプを設定
@@ -159,12 +144,12 @@ func (m *Manager) updateIndex(entry Entry) {
 
 // pruneUnlocked は古いエントリを削除する（ロック済みで呼び出されること）
 func (m *Manager) pruneUnlocked() {
-	if len(m.history.Entries) <= m.maxEntries {
+	if len(m.history.Entries) <= m.opts.maxEntries {
 		return
 	}
 
 	// 削除するエントリのIDを収集
-	deleteCount := len(m.history.Entries) - m.maxEntries
+	deleteCount := len(m.history.Entries) - m.opts.maxEntries
 	deletedIDs := make(map[string]bool)
 	for i := 0; i < deleteCount; i++ {
 		deletedIDs[m.history.Entries[i].ID] = true
@@ -377,7 +362,21 @@ func extractKeywords(query string) []string {
 	return keywords
 }
 
-// GenerateRequestID は新しいリクエストIDを生成する
-func GenerateRequestID() string {
+// generateRequestID は新しいリクエストIDを生成する
+func generateRequestID() string {
 	return "req_" + uuid.New().String()[:8]
+}
+
+// newHistoryData は空の historyData を初期化して返す
+func newHistoryData() *historyData {
+	return &historyData{
+		Version:     1,
+		LastUpdated: time.Now(),
+		Entries:     []Entry{},
+		Index: index{
+			ByKeyword: make(map[string][]string),
+			ByType:    make(map[string][]string),
+			ByDate:    make(map[string][]string),
+		},
+	}
 }

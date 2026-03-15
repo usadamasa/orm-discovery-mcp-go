@@ -57,7 +57,6 @@ deps:
       - cookie    # main は browser/cookie を直接 import する
       - config
       - history
-      - mcputil
       - sampling
       - server
       - version

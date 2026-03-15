@@ -204,7 +204,7 @@ func TestXDGDirs_CookiePath(t *testing.T) {
 	}
 }
 
-func TestXDGDirs_ChromeDataDir(t *testing.T) {
+func TestXDGDirs_chromeDataDir(t *testing.T) {
 	dirs := &XDGDirs{
 		StateHome:  "/test/state/orm-mcp-go",
 		CacheHome:  "/test/cache/orm-mcp-go",
@@ -212,13 +212,13 @@ func TestXDGDirs_ChromeDataDir(t *testing.T) {
 	}
 
 	// StateHomeを使用することを確認(セッション状態のため)
-	got := dirs.ChromeDataDir()
+	got := dirs.chromeDataDir()
 	if got != "/test/state/orm-mcp-go" {
-		t.Errorf("ChromeDataDir() = %q, want %q", got, "/test/state/orm-mcp-go")
+		t.Errorf("chromeDataDir() = %q, want %q", got, "/test/state/orm-mcp-go")
 	}
 }
 
-func TestXDGDirs_ScreenshotDir(t *testing.T) {
+func TestXDGDirs_screenshotDir(t *testing.T) {
 	dirs := &XDGDirs{
 		StateHome:  "/test/state/orm-mcp-go",
 		CacheHome:  "/test/cache/orm-mcp-go",
@@ -227,8 +227,8 @@ func TestXDGDirs_ScreenshotDir(t *testing.T) {
 
 	// StateHomeを使用することを確認(セッション状態のため)
 	expected := "/test/state/orm-mcp-go/screenshots"
-	if got := dirs.ScreenshotDir(); got != expected {
-		t.Errorf("ScreenshotDir() = %q, want %q", got, expected)
+	if got := dirs.screenshotDir(); got != expected {
+		t.Errorf("screenshotDir() = %q, want %q", got, expected)
 	}
 }
 

@@ -2,6 +2,7 @@ package cookie
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -42,6 +43,12 @@ type entry struct {
 type cookieCache struct {
 	Cookies []entry   `json:"cookies"`
 	SavedAt time.Time `json:"saved_at"`
+}
+
+// cookieKey はCookieのユニークキー（名前＋ドメインの複合キー）
+type cookieKey struct {
+	name   string
+	domain string
 }
 
 // managerImpl はCookieの保存と復元を管理する
@@ -108,12 +115,11 @@ func (cm *managerImpl) SaveCookiesFromData(cookies []*http.Cookie) error {
 // LoadCookies はファイルからCookieを読み込んで内部ストレージに設定する
 // chromedpを使用せずにHTTPクライアントで使用可能なCookieを復元する
 func (cm *managerImpl) LoadCookies() error {
-	if !cm.CookieFileExists() {
-		return fmt.Errorf("cookie file does not exist: %s", cm.filePath)
-	}
-
 	data, err := os.ReadFile(cm.filePath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("cookie file does not exist: %s", cm.filePath)
+		}
 		return fmt.Errorf("failed to read cookies file: %w", err)
 	}
 
@@ -166,10 +172,11 @@ func (cm *managerImpl) CookieFileExists() bool {
 
 // DeleteCookieFile はCookieファイルを削除する
 func (cm *managerImpl) DeleteCookieFile() error {
-	if !cm.CookieFileExists() {
+	err := os.Remove(cm.filePath)
+	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
-	return os.Remove(cm.filePath)
+	return err
 }
 
 // GetCookiesForURL は指定されたURLに対して適切なCookieを返す
@@ -207,10 +214,9 @@ func (cm *managerImpl) GetCookiesForURL(url *url.URL) []*http.Cookie {
 // SetCookies は指定されたURLに対してCookieを設定する
 func (cm *managerImpl) SetCookies(url *url.URL, cookies []*http.Cookie) error {
 	// 既存のクッキーをマップに変換（名前とドメインをキーとして使用）
-	existingCookies := make(map[string]*http.Cookie)
+	existingCookies := make(map[cookieKey]*http.Cookie)
 	for _, cookie := range cm.cookies {
-		key := cookie.Name + "|" + cookie.Domain
-		existingCookies[key] = cookie
+		existingCookies[cookieKey{name: cookie.Name, domain: cookie.Domain}] = cookie
 	}
 
 	// 新しいクッキーを追加または更新
@@ -224,8 +230,7 @@ func (cm *managerImpl) SetCookies(url *url.URL, cookies []*http.Cookie) error {
 			newCookie.Path = "/"
 		}
 
-		key := newCookie.Name + "|" + newCookie.Domain
-		existingCookies[key] = newCookie
+		existingCookies[cookieKey{name: newCookie.Name, domain: newCookie.Domain}] = newCookie
 	}
 
 	// マップから配列に戻す

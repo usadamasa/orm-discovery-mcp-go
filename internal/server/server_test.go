@@ -53,12 +53,12 @@ func newTestServer(t *testing.T, mock *mockBrowserClient) *Server {
 			CacheHome: filepath.Join(tmpDir, "cache"),
 			StateHome: filepath.Join(tmpDir, "state"),
 		},
-		HistoryMaxEntries: 100,
+		History: config.HistoryOpts{MaxEntries: 100},
 	}
 
 	historyManager := history.NewManager(
 		cfg.XDGDirs.ResearchHistoryPath(),
-		cfg.HistoryMaxEntries,
+		cfg.History.MaxEntries,
 	)
 	_ = historyManager.Load()
 
