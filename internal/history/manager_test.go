@@ -1,4 +1,4 @@
-package main
+package history
 
 import (
 	"os"
@@ -76,18 +76,18 @@ func TestExtractKeywords(t *testing.T) {
 	}
 }
 
-func TestResearchHistoryManager_AddAndSearch(t *testing.T) {
+func TestManager_AddAndSearch(t *testing.T) {
 	// Create a temporary file for testing
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "research-history.json")
 
-	manager := NewResearchHistoryManager(filePath, 100)
+	manager := NewManager(filePath, 100)
 	if err := manager.Load(); err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
 
 	// Add a search entry
-	entry1 := ResearchEntry{
+	entry1 := Entry{
 		Type:     "search",
 		Query:    "Docker containers",
 		ToolName: "oreilly_search_content",
@@ -104,7 +104,7 @@ func TestResearchHistoryManager_AddAndSearch(t *testing.T) {
 	}
 
 	// Add a question entry
-	entry2 := ResearchEntry{
+	entry2 := Entry{
 		Type:     "question",
 		Query:    "How to optimize React performance?",
 		ToolName: "oreilly_ask_question",
@@ -161,19 +161,19 @@ func TestResearchHistoryManager_AddAndSearch(t *testing.T) {
 	}
 }
 
-func TestResearchHistoryManager_Prune(t *testing.T) {
+func TestManager_Prune(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "research-history.json")
 
 	// Create manager with max 5 entries
-	manager := NewResearchHistoryManager(filePath, 5)
+	manager := NewManager(filePath, 5)
 	if err := manager.Load(); err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
 
 	// Add 10 entries
 	for i := 0; i < 10; i++ {
-		entry := ResearchEntry{
+		entry := Entry{
 			Type:       "search",
 			Query:      "Query " + string(rune('A'+i)),
 			ToolName:   "oreilly_search_content",
@@ -191,17 +191,17 @@ func TestResearchHistoryManager_Prune(t *testing.T) {
 	}
 }
 
-func TestResearchHistoryManager_Persistence(t *testing.T) {
+func TestManager_Persistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "research-history.json")
 
 	// Create and add entries
-	manager1 := NewResearchHistoryManager(filePath, 100)
+	manager1 := NewManager(filePath, 100)
 	if err := manager1.Load(); err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
 
-	entry := ResearchEntry{
+	entry := Entry{
 		Type:       "search",
 		Query:      "Kubernetes",
 		ToolName:   "oreilly_search_content",
@@ -216,7 +216,7 @@ func TestResearchHistoryManager_Persistence(t *testing.T) {
 	}
 
 	// Create new manager and load from file
-	manager2 := NewResearchHistoryManager(filePath, 100)
+	manager2 := NewManager(filePath, 100)
 	if err := manager2.Load(); err != nil {
 		t.Fatalf("failed to load from file: %v", err)
 	}
@@ -258,16 +258,16 @@ func TestGenerateRequestID(t *testing.T) {
 	}
 }
 
-func TestResearchEntry_FilePath(t *testing.T) {
+func TestEntry_FilePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "research-history.json")
 
-	manager := NewResearchHistoryManager(historyFile, 100)
+	manager := NewManager(historyFile, 100)
 	if err := manager.Load(); err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
 
-	entry := ResearchEntry{
+	entry := Entry{
 		ID:       "req_test123",
 		Type:     "search",
 		Query:    "Docker containers",
@@ -299,16 +299,16 @@ func TestResearchEntry_FilePath(t *testing.T) {
 	}
 }
 
-func TestResearchEntry_FilePathPersistence(t *testing.T) {
+func TestEntry_FilePathPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "research-history.json")
 
-	manager1 := NewResearchHistoryManager(historyFile, 100)
+	manager1 := NewManager(historyFile, 100)
 	if err := manager1.Load(); err != nil {
 		t.Fatalf("failed to load: %v", err)
 	}
 
-	entry := ResearchEntry{
+	entry := Entry{
 		ID:         "req_persist",
 		Type:       "search",
 		Query:      "Test query",
@@ -324,7 +324,7 @@ func TestResearchEntry_FilePathPersistence(t *testing.T) {
 		t.Fatalf("failed to save: %v", err)
 	}
 
-	manager2 := NewResearchHistoryManager(historyFile, 100)
+	manager2 := NewManager(historyFile, 100)
 	if err := manager2.Load(); err != nil {
 		t.Fatalf("failed to load from file: %v", err)
 	}

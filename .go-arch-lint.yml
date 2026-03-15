@@ -36,6 +36,8 @@ components:
     in: browser/cookie
   config:
     in: internal/config
+  history:
+    in: internal/history
   version:
     in: internal/version
 
@@ -45,6 +47,7 @@ deps:
       - browser
       - cookie    # main は browser/cookie を直接 import する
       - config
+      - history
       - version
     canUse:
       - mcp-sdk
@@ -72,6 +75,10 @@ deps:
   config:
     canUse:
       - lumberjack
+
+  history:
+    canUse:
+      - uuid
 
   version:
     anyVendorDeps: true  # 外部ライブラリを自由に使用可能。内部コンポーネントへの依存は不可

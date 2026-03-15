@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
 )
 
 // maxToolDescriptionLen is the guardrail limit for tool description length.
@@ -166,17 +168,17 @@ func syntheticSearchResults(n int) []map[string]any {
 }
 
 // syntheticHistoryEntries generates n synthetic research history entries.
-func syntheticHistoryEntries(n int) []ResearchEntry {
-	entries := make([]ResearchEntry, n)
+func syntheticHistoryEntries(n int) []history.Entry {
+	entries := make([]history.Entry, n)
 	for i := range n {
-		entries[i] = ResearchEntry{
+		entries[i] = history.Entry{
 			ID:       fmt.Sprintf("req_%06d", i),
 			Type:     "search",
 			Query:    fmt.Sprintf("sample search query %d", i),
 			ToolName: "oreilly_search_content",
-			ResultSummary: ResultSummary{
+			ResultSummary: history.ResultSummary{
 				Count: 25,
-				TopResults: []TopResultSummary{
+				TopResults: []history.TopResultSummary{
 					{Title: "Book A", Author: "Author X", ProductID: "111"},
 					{Title: "Book B", Author: "Author Y", ProductID: "222"},
 				},
@@ -272,7 +274,7 @@ func TestHistoryRecentResponseSize(t *testing.T) {
 	entries := syntheticHistoryEntries(20)
 	response := struct {
 		Count   int             `json:"count"`
-		Entries []ResearchEntry `json:"entries"`
+		Entries []history.Entry `json:"entries"`
 	}{
 		Count:   len(entries),
 		Entries: entries,

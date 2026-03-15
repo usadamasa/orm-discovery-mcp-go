@@ -1,4 +1,4 @@
-package main
+package history
 
 import (
 	"encoding/json"
@@ -14,67 +14,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// ResearchHistory は調査履歴全体を保持する構造体
-type ResearchHistory struct {
-	Version     int                  `json:"version"`
-	LastUpdated time.Time            `json:"last_updated"`
-	Entries     []ResearchEntry      `json:"entries"`
-	Index       ResearchHistoryIndex `json:"index"`
-}
-
-// ResearchHistoryIndex は検索用インデックス
-type ResearchHistoryIndex struct {
-	ByKeyword map[string][]string `json:"by_keyword"`
-	ByType    map[string][]string `json:"by_type"`
-	ByDate    map[string][]string `json:"by_date"`
-}
-
-// ResearchEntry は個々の調査エントリ
-type ResearchEntry struct {
-	ID            string         `json:"id"`
-	Timestamp     time.Time      `json:"timestamp"`
-	Type          string         `json:"type"` // "search" or "question"
-	Query         string         `json:"query"`
-	Keywords      []string       `json:"keywords"`
-	ToolName      string         `json:"tool_name"`
-	Parameters    map[string]any `json:"parameters,omitempty"`
-	ResultSummary ResultSummary  `json:"result_summary"`
-	DurationMs    int64          `json:"duration_ms"`
-
-	// FilePath stores the path to the cached Markdown file with full results.
-	FilePath string `json:"file_path,omitempty"`
-}
-
-// ResultSummary は結果のサマリー（タイプ別に異なる構造）
-type ResultSummary struct {
-	// search 用
-	Count      int                `json:"count,omitempty"`
-	TopResults []TopResultSummary `json:"top_results,omitempty"`
-
-	// question 用
-	AnswerPreview string `json:"answer_preview,omitempty"`
-	SourcesCount  int    `json:"sources_count,omitempty"`
-	FollowupCount int    `json:"followup_count,omitempty"`
-}
-
-// TopResultSummary は検索結果のトップ結果サマリー
-type TopResultSummary struct {
-	Title     string `json:"title"`
-	Author    string `json:"author,omitempty"`
-	ProductID string `json:"product_id,omitempty"`
-}
-
-// ResearchHistoryManager は調査履歴を管理する
-type ResearchHistoryManager struct {
+// Manager は調査履歴を管理する
+type Manager struct {
 	mu         sync.RWMutex
 	filePath   string
 	maxEntries int
-	history    *ResearchHistory
+	history    *History
 }
 
-// NewResearchHistoryManager は新しいResearchHistoryManagerを作成する
-func NewResearchHistoryManager(filePath string, maxEntries int) *ResearchHistoryManager {
-	return &ResearchHistoryManager{
+// NewManager は新しいManagerを作成する
+func NewManager(filePath string, maxEntries int) *Manager {
+	return &Manager{
 		filePath:   filePath,
 		maxEntries: maxEntries,
 		history:    nil,
@@ -82,7 +32,7 @@ func NewResearchHistoryManager(filePath string, maxEntries int) *ResearchHistory
 }
 
 // Load はファイルから履歴を読み込む
-func (m *ResearchHistoryManager) Load() error {
+func (m *Manager) Load() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -90,11 +40,11 @@ func (m *ResearchHistoryManager) Load() error {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			// ファイルが存在しない場合は新規作成
-			m.history = &ResearchHistory{
+			m.history = &History{
 				Version:     1,
 				LastUpdated: time.Now(),
-				Entries:     []ResearchEntry{},
-				Index: ResearchHistoryIndex{
+				Entries:     []Entry{},
+				Index: Index{
 					ByKeyword: make(map[string][]string),
 					ByType:    make(map[string][]string),
 					ByDate:    make(map[string][]string),
@@ -105,17 +55,17 @@ func (m *ResearchHistoryManager) Load() error {
 		return fmt.Errorf("failed to read research history file: %w", err)
 	}
 
-	var history ResearchHistory
-	if err := json.Unmarshal(data, &history); err != nil {
+	var h History
+	if err := json.Unmarshal(data, &h); err != nil {
 		return fmt.Errorf("failed to unmarshal research history: %w", err)
 	}
 
-	m.history = &history
+	m.history = &h
 	return nil
 }
 
 // Save は履歴をファイルに保存する
-func (m *ResearchHistoryManager) Save() error {
+func (m *Manager) Save() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -138,16 +88,16 @@ func (m *ResearchHistoryManager) Save() error {
 }
 
 // AddEntry は新しいエントリを追加する
-func (m *ResearchHistoryManager) AddEntry(entry ResearchEntry) error {
+func (m *Manager) AddEntry(entry Entry) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.history == nil {
-		m.history = &ResearchHistory{
+		m.history = &History{
 			Version:     1,
 			LastUpdated: time.Now(),
-			Entries:     []ResearchEntry{},
-			Index: ResearchHistoryIndex{
+			Entries:     []Entry{},
+			Index: Index{
 				ByKeyword: make(map[string][]string),
 				ByType:    make(map[string][]string),
 				ByDate:    make(map[string][]string),
@@ -183,7 +133,7 @@ func (m *ResearchHistoryManager) AddEntry(entry ResearchEntry) error {
 }
 
 // updateIndex はインデックスを更新する（ロック済みで呼び出されること）
-func (m *ResearchHistoryManager) updateIndex(entry ResearchEntry) {
+func (m *Manager) updateIndex(entry Entry) {
 	// by_keyword インデックス
 	for _, keyword := range entry.Keywords {
 		kw := strings.ToLower(keyword)
@@ -208,7 +158,7 @@ func (m *ResearchHistoryManager) updateIndex(entry ResearchEntry) {
 }
 
 // pruneUnlocked は古いエントリを削除する（ロック済みで呼び出されること）
-func (m *ResearchHistoryManager) pruneUnlocked() {
+func (m *Manager) pruneUnlocked() {
 	if len(m.history.Entries) <= m.maxEntries {
 		return
 	}
@@ -228,7 +178,7 @@ func (m *ResearchHistoryManager) pruneUnlocked() {
 }
 
 // cleanupIndex はインデックスから削除されたIDを除去する
-func (m *ResearchHistoryManager) cleanupIndex(deletedIDs map[string]bool) {
+func (m *Manager) cleanupIndex(deletedIDs map[string]bool) {
 	// by_keyword
 	for keyword, ids := range m.history.Index.ByKeyword {
 		filtered := filterIDs(ids, deletedIDs)
@@ -272,7 +222,7 @@ func filterIDs(ids []string, deletedIDs map[string]bool) []string {
 }
 
 // SearchByKeyword はキーワードで検索する
-func (m *ResearchHistoryManager) SearchByKeyword(keyword string) []ResearchEntry {
+func (m *Manager) SearchByKeyword(keyword string) []Entry {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -290,7 +240,7 @@ func (m *ResearchHistoryManager) SearchByKeyword(keyword string) []ResearchEntry
 }
 
 // SearchByType はタイプで検索する
-func (m *ResearchHistoryManager) SearchByType(entryType string) []ResearchEntry {
+func (m *Manager) SearchByType(entryType string) []Entry {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -307,7 +257,7 @@ func (m *ResearchHistoryManager) SearchByType(entryType string) []ResearchEntry 
 }
 
 // GetRecent は直近n件を取得する
-func (m *ResearchHistoryManager) GetRecent(n int) []ResearchEntry {
+func (m *Manager) GetRecent(n int) []Entry {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -318,7 +268,7 @@ func (m *ResearchHistoryManager) GetRecent(n int) []ResearchEntry {
 	entries := m.history.Entries
 	if len(entries) <= n {
 		// コピーして返す
-		result := make([]ResearchEntry, len(entries))
+		result := make([]Entry, len(entries))
 		copy(result, entries)
 		// 新しい順にソート
 		sort.Slice(result, func(i, j int) bool {
@@ -328,7 +278,7 @@ func (m *ResearchHistoryManager) GetRecent(n int) []ResearchEntry {
 	}
 
 	// 直近n件を取得
-	result := make([]ResearchEntry, n)
+	result := make([]Entry, n)
 	copy(result, entries[len(entries)-n:])
 	// 新しい順にソート
 	sort.Slice(result, func(i, j int) bool {
@@ -338,7 +288,7 @@ func (m *ResearchHistoryManager) GetRecent(n int) []ResearchEntry {
 }
 
 // GetByID は特定のIDのエントリを取得する
-func (m *ResearchHistoryManager) GetByID(id string) *ResearchEntry {
+func (m *Manager) GetByID(id string) *Entry {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -356,13 +306,13 @@ func (m *ResearchHistoryManager) GetByID(id string) *ResearchEntry {
 }
 
 // getEntriesByIDs はIDリストからエントリを取得する（ロック済みで呼び出されること）
-func (m *ResearchHistoryManager) getEntriesByIDs(ids []string) []ResearchEntry {
+func (m *Manager) getEntriesByIDs(ids []string) []Entry {
 	idSet := make(map[string]bool)
 	for _, id := range ids {
 		idSet[id] = true
 	}
 
-	result := make([]ResearchEntry, 0, len(ids))
+	result := make([]Entry, 0, len(ids))
 	for _, entry := range m.history.Entries {
 		if idSet[entry.ID] {
 			result = append(result, entry)

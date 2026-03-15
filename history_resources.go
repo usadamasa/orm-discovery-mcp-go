@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
 )
 
 // registerHistoryResources は履歴リソースを登録する
@@ -78,7 +79,7 @@ func (s *Server) GetRecentHistoryResource(ctx context.Context, req *mcp.ReadReso
 
 	response := struct {
 		Count   int             `json:"count"`
-		Entries []ResearchEntry `json:"entries"`
+		Entries []history.Entry `json:"entries"`
 	}{
 		Count:   len(entries),
 		Entries: entries,
@@ -121,7 +122,7 @@ func (s *Server) SearchHistoryResource(ctx context.Context, req *mcp.ReadResourc
 	// URIからクエリパラメータを抽出
 	keyword, entryType := extractHistorySearchParams(req.Params.URI)
 
-	var entries []ResearchEntry
+	var entries []history.Entry
 
 	if keyword != "" {
 		entries = s.historyManager.SearchByKeyword(keyword)
@@ -139,7 +140,7 @@ func (s *Server) SearchHistoryResource(ctx context.Context, req *mcp.ReadResourc
 		Keyword string          `json:"keyword,omitempty"`
 		Type    string          `json:"type,omitempty"`
 		Count   int             `json:"count"`
-		Entries []ResearchEntry `json:"entries"`
+		Entries []history.Entry `json:"entries"`
 	}{
 		Keyword: keyword,
 		Type:    entryType,

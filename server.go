@@ -15,6 +15,7 @@ import (
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser/cookie"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
 )
 
 // HTTP server timeout constants.
@@ -31,7 +32,7 @@ type Server struct {
 	browserClient   browser.Client
 	server          *mcp.Server
 	config          *config.Config
-	historyManager  *ResearchHistoryManager
+	historyManager  *history.Manager
 	samplingManager *SamplingManager
 	cookieManager   cookie.Manager // 再認証時の BrowserClient 再生成に使用
 	startedAt       time.Time      // サーバー起動時刻 (MCP 再起動検証用)
@@ -56,7 +57,7 @@ func NewServer(browserClient browser.Client, cfg *config.Config, cookieManager c
 	)
 
 	// Initialize research history manager
-	historyManager := NewResearchHistoryManager(
+	historyManager := history.NewManager(
 		cfg.XDGDirs.ResearchHistoryPath(),
 		cfg.HistoryMaxEntries,
 	)
@@ -400,7 +401,7 @@ func (s *Server) SearchContentHandler(ctx context.Context, req *mcp.CallToolRequ
 	sessionLog.InfoContext(ctx, "検索完了", "query", args.Query, "result_count", len(results), "total_results", totalResults)
 
 	// Generate history ID upfront so cache file includes it (single-save pattern)
-	historyID := GenerateRequestID()
+	historyID := history.GenerateRequestID()
 
 	// Save full results to cache file (single save with history ID)
 	cacheDir := s.config.XDGDirs.ResponseCachePath()
@@ -943,12 +944,12 @@ func (s *Server) recordSearchHistory(query string, options map[string]any, resul
 	}
 
 	// Build top results summary
-	topResults := make([]TopResultSummary, 0, 5)
+	topResults := make([]history.TopResultSummary, 0, 5)
 	for i, result := range results {
 		if i >= 5 {
 			break
 		}
-		summary := TopResultSummary{}
+		summary := history.TopResultSummary{}
 		if title, ok := result["title"].(string); ok {
 			summary.Title = title
 		}
@@ -966,16 +967,16 @@ func (s *Server) recordSearchHistory(query string, options map[string]any, resul
 	}
 
 	if entryID == "" {
-		entryID = GenerateRequestID()
+		entryID = history.GenerateRequestID()
 	}
 
-	entry := ResearchEntry{
+	entry := history.Entry{
 		ID:         entryID,
 		Type:       "search",
 		Query:      query,
 		ToolName:   "oreilly_search_content",
 		Parameters: options,
-		ResultSummary: ResultSummary{
+		ResultSummary: history.ResultSummary{
 			Count:      len(results),
 			TopResults: topResults,
 		},
@@ -1007,11 +1008,11 @@ func (s *Server) recordQuestionHistory(question string, answer *browser.AnswerRe
 		answerPreview = answerPreview[:200] + "..."
 	}
 
-	entry := ResearchEntry{
+	entry := history.Entry{
 		Type:     "question",
 		Query:    question,
 		ToolName: "oreilly_ask_question",
-		ResultSummary: ResultSummary{
+		ResultSummary: history.ResultSummary{
 			AnswerPreview: answerPreview,
 			SourcesCount:  len(answer.MisoResponse.Data.Sources),
 			FollowupCount: len(answer.MisoResponse.Data.FollowupQuestions),

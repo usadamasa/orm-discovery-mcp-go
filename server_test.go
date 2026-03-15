@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/usadamasa/orm-discovery-mcp-go/browser"
 	"github.com/usadamasa/orm-discovery-mcp-go/internal/config"
+	"github.com/usadamasa/orm-discovery-mcp-go/internal/history"
 )
 
 // mockBrowserClient implements browser.Client for testing.
@@ -55,7 +56,7 @@ func newTestServer(t *testing.T, mock *mockBrowserClient) *Server {
 		HistoryMaxEntries: 100,
 	}
 
-	historyManager := NewResearchHistoryManager(
+	historyManager := history.NewManager(
 		cfg.XDGDirs.ResearchHistoryPath(),
 		cfg.HistoryMaxEntries,
 	)
